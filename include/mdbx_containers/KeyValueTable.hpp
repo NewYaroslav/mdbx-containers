@@ -1,9 +1,9 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_KEY_VALUE_CONTAINER_HPP_INCLUDED
-#define _MDBX_CONTAINERS_KEY_VALUE_CONTAINER_HPP_INCLUDED
+#ifndef _MDBX_CONTAINERS_KEY_VALUE_TABLE_HPP_INCLUDED
+#define _MDBX_CONTAINERS_KEY_VALUE_TABLE_HPP_INCLUDED
 
-/// \file KeyValueContainer.hpp
-/// \brief Declaration of the KeyValueContainer class for managing key-value pairs in a SQLite database.
+/// \file KeyValueTable.hpp
+/// \brief Declaration of the KeyValueTable class for managing key-value pairs in a SQLite database.
 
 #include "common.hpp"
 #include <map>
@@ -11,7 +11,7 @@
 
 namespace mdbxc {
 
-    /// \class KeyValueContainer
+    /// \class KeyValueTable
     /// \brief Template class for managing key-value pairs in a SQLite database.
     /// \tparam KeyT Type of the keys.
     /// \tparam ValueT Type of the values.
@@ -23,35 +23,35 @@ namespace mdbxc {
     /// synchronization. This class also provides methods for checking the count and emptiness of the database, and efficiently
     /// handles database errors with detailed exception handling.
     template<class KeyT, class ValueT>
-    class KeyValueContainer final : public BaseTable {
+    class KeyValueTable final : public BaseTable {
     public:
 
         /// \brief Default constructor.
-        KeyValueContainer(std::shared_ptr<Connection> connection,
+        KeyValueTable(std::shared_ptr<Connection> connection,
                           std::string name = "kv_store",
                           MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE) 
             : BaseTable(std::move(connection), std::move(name), flags | get_mdbx_flags<KeyT>())  {}
 
         /// \brief Constructor with configuration.
         /// \param config Configuration settings for the database.
-        explicit KeyValueContainer(const Config& config, 
+        explicit KeyValueTable(const Config& config, 
                                    std::string name = "kv_store",
                                    MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE) 
             : BaseTable(Connection::create(config), std::move(name), flags | get_mdbx_flags<KeyT>()) {
         }
 
         /// \brief Destructor.
-        ~KeyValueContainer() override final = default;
+        ~KeyValueTable() override final = default;
 
         // --- Operators ---
 
         /// \brief Assigns a container (e.g., std::map or std::unordered_map) to the database.
         /// \param container The container with key-value pairs.
-        /// \return Reference to this KeyValueContainer.
+        /// \return Reference to this KeyValueTable.
         /// \throws 
         /// \note The transaction mode is taken from the database configuration.
         template<template <class...> class ContainerT>
-        KeyValueContainer& operator=(const ContainerT<KeyT, ValueT>& container) {
+        KeyValueTable& operator=(const ContainerT<KeyT, ValueT>& container) {
             with_transaction([this, &container](MDBX_txn* txn) {
                 db_reconcile(container, txn);
             }, TransactionMode::WRITABLE);
@@ -74,7 +74,7 @@ namespace mdbxc {
 
         class AssignmentProxy {
         public:
-            AssignmentProxy(KeyValueContainer& db, KeyT key)
+            AssignmentProxy(KeyValueTable& db, KeyT key)
                 : m_db(db), m_key(std::move(key)) {}
 
             AssignmentProxy& operator=(const ValueT& value) {
@@ -91,7 +91,7 @@ namespace mdbxc {
             }
 
         private:
-            KeyValueContainer& m_db;
+            KeyValueTable& m_db;
             KeyT m_key;
         };
         
@@ -469,8 +469,8 @@ namespace mdbxc {
             check_mdbx(mdbx_drop(txn_handle, m_dbi, 0), "mdbx_drop");
         }
 
-    }; // KeyValueContainer
+    }; // KeyValueTable
 
 }; // namespace mdbxc
 
-#endif // _MDBX_CONTAINERS_KEY_VALUE_CONTAINER_HPP_INCLUDED
+#endif // _MDBX_CONTAINERS_KEY_VALUE_TABLE_HPP_INCLUDED

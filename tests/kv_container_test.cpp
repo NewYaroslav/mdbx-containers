@@ -1,12 +1,12 @@
 #include <iostream>
-#include <mdbx_containers/KeyValueContainer.hpp>
+#include <mdbx_containers/KeyValueTable.hpp>
 
 int main() {
     // Конфиг и подключение к БД
     mdbxc::Config config;
     config.pathname = "example_db.mdbx";
 
-    mdbxc::KeyValueContainer<std::string, int> kv(config);
+    mdbxc::KeyValueTable<std::string, int> kv(config);
     
 	std::cout << "-1" << std::endl;
     kv.clear();
