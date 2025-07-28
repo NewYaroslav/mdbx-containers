@@ -1,0 +1,14 @@
+/*!
+\mainpage MDBX-Containers Library
+
+Version: VERSION_PLACEHOLDER
+
+\section repo_sec Repository
+
+The LogIt++ library is open-source and hosted on GitHub:
+[LogIt++ GitHub Repository](https://github.com/NewYaroslav/mdbx-containers).
+
+\section license_sec License
+
+This library is licensed under the **MIT License**. See the [LICENSE](https://github.com/NewYaroslav/log-it-cpp/blob/main/LICENSE) file in the repository for more details.
+*/
