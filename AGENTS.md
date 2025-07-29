@@ -48,6 +48,18 @@ cmake -DBUILD_DEPS=ON -DBUILD_STATIC_LIB=ON -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=O
 
 Check the `examples/` directory for full usage samples.
 
+### Building from Source
+
+Use `BUILD_DEPS=ON` to compile the bundled MDBX submodule. Omit it if the
+system already provides `libmdbx`. Enabling `BUILD_STATIC_LIB=ON` creates a
+precompiled static library instead of relying on header-only usage.
+Set `BUILD_TESTS=ON` to build the test suite under `tests/`.
+
+```bash
+cmake --build .
+ctest --output-on-failure
+```
+
 ## Library Entry Points
 
 | Class / Template                  | Purpose                                                    |
@@ -79,7 +91,16 @@ All operations are transactional:
 
 - Insertions and reads are automatically wrapped in a transaction  
 - Underlying transactions can be batched or nested  
-- No manual commit required for single operations  
+- No manual commit required for single operations
+
+## Implementation Highlights
+
+- RAII-style `Transaction` objects automatically commit or roll back on
+  destruction. The `Connection` class keeps a per-thread map of transactions via
+  an internal `TransactionTracker`, ensuring thread safety when multiple threads
+  access the same environment.
+- Serialization utilities in `detail/utils.hpp` cover primitive types, STL
+  containers and custom types implementing `to_bytes()` / `from_bytes()`.
 
 ## Named Tables
 
