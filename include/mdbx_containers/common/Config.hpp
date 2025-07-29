@@ -7,7 +7,7 @@
 
 namespace mdbxc {
 
-    /// \class MDBXConfig
+    /// \class Config
     /// \brief Configuration for MDBX databases.
     class Config {
     public:
