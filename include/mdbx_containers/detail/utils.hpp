@@ -3,12 +3,18 @@
 #define _MDBX_CONTAINERS_UTILS_HPP_INCLUDED
 
 /// \file utils.hpp
-/// \brief Utility functions for working with MDBX using 32/64-bit keys.
-/// See: https://libmdbx.dqdkfa.ru/
+/// \brief Utility helper functions for serializing values to and from MDBX.
+///        See: https://libmdbx.dqdkfa.ru/
+
+/// \defgroup mdbxc_utils Utility functions
+/// \brief Helper traits and serialization routines used by the library.
+/// @{
 
 namespace mdbxc {
     
-    /// \brief Throws an MdbxException if MDBX return code is not success.
+    /// \brief Throws an MdbxException if MDBX return code indicates an error.
+    /// \param rc      Return code from an MDBX function.
+    /// \param context Description of the calling context.
     void check_mdbx(int rc, const std::string& context) {
         if (rc != MDBX_SUCCESS) {
             throw MdbxException(context + ": (" + std::to_string(rc) + ") " + std::string(mdbx_strerror(rc)), rc);
@@ -17,6 +23,8 @@ namespace mdbxc {
     
     // --- Traits --- 
 
+    /// \brief Trait to check if a type provides a `to_bytes()` member.
+    /// \tparam T Type under inspection.
     template <typename T>
     struct has_to_bytes {
     private:
@@ -28,6 +36,8 @@ namespace mdbxc {
         static const bool value = decltype(check<T>(0))::value;
     };
 
+    /// \brief Trait to check if a type provides a static `from_bytes()` method.
+    /// \tparam T Type under inspection.
     template <typename T>
     struct has_from_bytes {
     private:
@@ -39,6 +49,8 @@ namespace mdbxc {
         static const bool value = decltype(check<T>(0))::value;
     };
 
+    /// \brief Trait indicating that a container defines `value_type`.
+    /// \tparam T Container type.
     template <typename T>
     struct has_value_type {
     private:
@@ -53,7 +65,8 @@ namespace mdbxc {
 //-----------------------------------------------------------------------------
     
     /// \brief Returns MDBX flags for a given key type.
-    /// \return MDBX_INTEGERKEY if T is an integer-like type; 0 otherwise.
+    /// \tparam T Key type.
+    /// \return MDBX_INTEGERKEY if \c T is an integer-like type; 0 otherwise.
     template<typename T>
     inline MDBX_db_flags_t get_mdbx_flags() {
         return
@@ -68,6 +81,7 @@ namespace mdbxc {
 //-----------------------------------------------------------------------------
     
     /// \brief Returns the size in bytes of a given key type.
+    /// \tparam T Key type.
     /// \param key The key value.
     /// \return Size in bytes suitable for filling MDBX_val.
     template<typename T>
@@ -107,11 +121,12 @@ namespace mdbxc {
     // --- serialize_key overloads ---
     
     /// \brief Serializes a key into MDBX_val for database operations.
+    /// \tparam T Key type.
     /// \param key The key to convert.
     /// \return MDBX_val representing the key.
     template <typename T>
     typename std::enable_if<!has_to_bytes<T>::value && !std::is_same<T, std::string>::value && !std::is_trivially_copyable<T>::value, MDBX_val>::type
-    serialize_key(const T& value) {
+    serialize_key(const T& key) {
         static_assert(sizeof(T) == 0, "Unsupported type for serialize_key");
         MDBX_val val;
         val.iov_base = nullptr;
@@ -119,7 +134,8 @@ namespace mdbxc {
         return val;
     }
 
-    // string
+    /// \brief Serializes a key of type std::string.
+    /// \tparam T Must be std::string.
     template<typename T>
     typename std::enable_if<std::is_same<T, std::string>::value, MDBX_val>::type
     serialize_key(const T& key) {
@@ -129,6 +145,8 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a key stored in a byte vector.
+    /// \tparam T Vector type containing bytes.
     template<typename T>
     typename std::enable_if<
         std::is_same<T, std::vector<std::byte>>::value ||
@@ -142,6 +160,8 @@ namespace mdbxc {
         return val;
     }
     
+    /// \brief Serializes a small integral key (<=16 bits).
+    /// \tparam T Integral type.
     template<typename T>
     typename std::enable_if<
         std::is_integral<T>::value &&
@@ -163,9 +183,11 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a 32-bit integral or float key.
+    /// \tparam T Supported 32-bit type.
     template<typename T>
     typename std::enable_if<
-        std::is_same<T, int32_t>::value || 
+        std::is_same<T, int32_t>::value ||
         std::is_same<T, uint32_t>::value ||
         std::is_same<T, float>::value, MDBX_val>::type
     serialize_key(const T& key) {
@@ -176,6 +198,8 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a 64-bit integral or double key.
+    /// \tparam T Supported 64-bit type.
     template<typename T>
     typename std::enable_if<
         std::is_same<T, int64_t>::value ||
@@ -189,7 +213,8 @@ namespace mdbxc {
         return val;
     }
 
-    // trivially copyable types (e.g., integers)
+    /// \brief Serializes any other trivially copyable key type.
+    /// \tparam T Trivially copyable type.
     template<typename T>
     typename std::enable_if<
         std::is_trivially_copyable<T>::value &&
@@ -208,6 +233,9 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a std::bitset as a key.
+    /// \tparam N Number of bits in the bitset.
+    /// \param data Bitset value to serialize.
     template <size_t N>
     inline MDBX_val serialize_key(const std::bitset<N>& data) {
         const size_t num_bytes = (N + 7) / 8;
@@ -244,6 +272,8 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a std::string value.
+    /// \tparam T Must be std::string.
     template<typename T>
     typename std::enable_if<std::is_same<T, std::string>::value, MDBX_val>::type
     serialize_value(const T& value) {
@@ -253,6 +283,8 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a deque of bytes.
+    /// \tparam T Byte deque type.
     template<typename T>
     typename std::enable_if<
         std::is_same<T, std::deque<std::byte>>::value ||
@@ -269,6 +301,8 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a list of bytes.
+    /// \tparam T Byte list type.
     template<typename T>
     typename std::enable_if<
         std::is_same<T, std::list<std::byte>>::value ||
@@ -285,6 +319,8 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a vector of trivially copyable elements.
+    /// \tparam T Vector type.
     template<typename T>
     typename std::enable_if<
         has_value_type<T>::value &&
@@ -299,6 +335,8 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a deque or list of trivially copyable elements.
+    /// \tparam T Container type.
     template<typename T>
     typename std::enable_if<
         (std::is_same<T, std::deque<typename T::value_type>>::value ||
@@ -315,6 +353,8 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes a value using its `to_bytes()` method.
+    /// \tparam T Type providing `to_bytes`.
     template<typename T>
     typename std::enable_if<has_to_bytes<T>::value, MDBX_val>::type
     serialize_value(const T& value) {
@@ -326,6 +366,8 @@ namespace mdbxc {
         return val;
     }
 
+    /// \brief Serializes any trivially copyable value.
+    /// \tparam T Trivially copyable type.
     template<typename T>
     typename std::enable_if<
         !has_to_bytes<T>::value &&
@@ -364,12 +406,14 @@ namespace mdbxc {
     }
 	*/
 	
-	template<typename T>
-	typename std::enable_if<
-		has_value_type<T>::value &&
-		std::is_same<typename T::value_type, std::string>::value,
-		MDBX_val>::type
-	serialize_value(const T& container) {
+        /// \brief Serializes a container of strings.
+        /// \tparam T Container type with `std::string` elements.
+        template<typename T>
+        typename std::enable_if<
+                has_value_type<T>::value &&
+                std::is_same<typename T::value_type, std::string>::value,
+                MDBX_val>::type
+        serialize_value(const T& container) {
 		static thread_local std::vector<uint8_t> buffer;
 		buffer.clear();
 
@@ -414,8 +458,8 @@ namespace mdbxc {
 
     // --- deserialize_value overloads ---
     
-    /// \brief Deserializes a value from MDBX_val into type T.
-    /// \tparam T Type of the value.
+    /// \brief Deserializes a value from MDBX_val into type \c T.
+    /// \tparam T Desired type.
     /// \param val MDBX_val containing raw data.
     /// \return Deserialized T.
     template<typename T>
@@ -429,12 +473,16 @@ namespace mdbxc {
         return out;
     }
 
+    /// \brief Deserializes a std::string value.
+    /// \tparam T Must be std::string.
     template<typename T>
     typename std::enable_if<std::is_same<T, std::string>::value, T>::type
     deserialize_value(const MDBX_val& val) {
         return std::string(static_cast<const char*>(val.iov_base), val.iov_len);
     }
 
+    /// \brief Deserializes a vector of bytes.
+    /// \tparam T Vector type containing bytes.
     template<typename T>
     typename std::enable_if<
         std::is_same<T, std::vector<std::byte>>::value ||
@@ -446,6 +494,8 @@ namespace mdbxc {
         return T(ptr, ptr + val.iov_len);
     }
 
+    /// \brief Deserializes a deque of bytes.
+    /// \tparam T Byte deque type.
     template<typename T>
     typename std::enable_if<
         std::is_same<T, std::deque<std::byte>>::value ||
@@ -457,6 +507,8 @@ namespace mdbxc {
         return T(ptr, ptr + val.iov_len);
     }
 
+    /// \brief Deserializes a list of bytes.
+    /// \tparam T Byte list type.
     template<typename T>
     typename std::enable_if<
         std::is_same<T, std::list<std::byte>>::value ||
@@ -468,6 +520,8 @@ namespace mdbxc {
         return T(ptr, ptr + val.iov_len);
     }
 
+    /// \brief Deserializes a vector of trivially copyable elements.
+    /// \tparam T Vector type.
     template<typename T>
     typename std::enable_if<
         has_value_type<T>::value &&
@@ -482,6 +536,8 @@ namespace mdbxc {
         return T(data, data + count);
     }
 
+    /// \brief Deserializes a deque or list of trivially copyable elements.
+    /// \tparam T Container type.
     template<typename T>
     typename std::enable_if<
         (std::is_same<T, std::deque<typename T::value_type>>::value ||
@@ -496,6 +552,8 @@ namespace mdbxc {
         return T(data, data + count);
     }
 
+    /// \brief Deserializes a trivially copyable value.
+    /// \tparam T Trivially copyable type.
     template<typename T>
     typename std::enable_if<
         !has_from_bytes<T>::value && std::is_trivially_copyable<T>::value, T>::type
@@ -507,6 +565,8 @@ namespace mdbxc {
         return out;
     }
 
+    /// \brief Deserializes a value using its `from_bytes()` method.
+    /// \tparam T Type providing `from_bytes`.
     template<typename T>
     typename std::enable_if<has_from_bytes<T>::value, T>::type
     deserialize_value(const MDBX_val& val) {
@@ -541,12 +601,14 @@ namespace mdbxc {
     }
 	*/
 	
-	template<typename T>
-	typename std::enable_if<
-		has_value_type<T>::value &&
-		std::is_same<typename T::value_type, std::string>::value,
-		T>::type
-	deserialize_value(const MDBX_val& val) {
+        /// \brief Deserializes a container of strings.
+        /// \tparam T Container type with `std::string` elements.
+        template<typename T>
+        typename std::enable_if<
+                has_value_type<T>::value &&
+                std::is_same<typename T::value_type, std::string>::value,
+                T>::type
+        deserialize_value(const MDBX_val& val) {
 		const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
 		const uint8_t* end = ptr + val.iov_len;
 
@@ -569,12 +631,14 @@ namespace mdbxc {
 		return result;
 	}
 	
-	template<typename T>
-	typename std::enable_if<
-		std::is_same<T, std::set<std::string>>::value ||
-		std::is_same<T, std::unordered_set<std::string>>::value,
-		T>::type
-	deserialize_value(const MDBX_val& val) {
+        /// \brief Deserializes a set of strings.
+        /// \tparam T Either `std::set<std::string>` or `std::unordered_set<std::string>`.
+        template<typename T>
+        typename std::enable_if<
+                std::is_same<T, std::set<std::string>>::value ||
+                std::is_same<T, std::unordered_set<std::string>>::value,
+                T>::type
+        deserialize_value(const MDBX_val& val) {
 		const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
 		const uint8_t* end = ptr + val.iov_len;
 		T result;
@@ -598,5 +662,7 @@ namespace mdbxc {
 	}
 
 }; // namespace mdbxc
+
+/// @}
 
 #endif // _MDBX_CONTAINERS_UTILS_HPP_INCLUDED
