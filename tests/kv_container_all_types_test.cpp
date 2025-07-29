@@ -1,6 +1,11 @@
 #include <iostream>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 #include <cassert>
 #include <mdbx_containers/KeyValueTable.hpp>
+
 
 struct SimpleStruct {
     int x;
@@ -32,10 +37,38 @@ struct SimpleStruct {
     }
 };
 
+struct ConcurrentStruct {
+    int value;
+
+    std::vector<uint8_t> to_bytes() const {
+        std::vector<uint8_t> bytes(sizeof(ConcurrentStruct));
+        std::memcpy(bytes.data(), this, sizeof(ConcurrentStruct));
+        return bytes;
+    }
+
+    static ConcurrentStruct from_bytes(const void* data, size_t size) {
+        if (size != sizeof(ConcurrentStruct))
+            throw std::runtime_error("Invalid data size");
+        ConcurrentStruct s{};
+        std::memcpy(&s, data, sizeof(ConcurrentStruct));
+        return s;
+    }
+
+    bool operator==(const ConcurrentStruct& other) const {
+        return value == other.value;
+    }
+    
+    bool operator!=(const ConcurrentStruct& other) const {
+        return !(*this == other);
+    }
+};
+
 int main() {
     mdbxc::Config cfg;
     cfg.pathname = "./data/testdb";
-    cfg.max_dbs = 12;
+    cfg.max_dbs = 14;
+    cfg.no_subdir = false;
+    cfg.relative_to_exe = true;
 
     auto conn = mdbxc::Connection::create(cfg);
 
@@ -124,14 +157,14 @@ int main() {
         kv.insert_or_assign("letters", s);
         assert(kv.find("letters").value() == s);
     }
-	
-	// string -> set<int>
+    
+    // string -> set<int>
     std::cout << "string -> set<int>\n";
     {
-        mdbxc::KeyValueTable<std::string, std::set<std::int>> kv(conn, "str_set_int");
+        mdbxc::KeyValueTable<std::string, std::set<int>> kv(conn, "str_set_int");
         std::set<int> s{1, 2, 3};
         kv.insert_or_assign("digits", s);
-        assert(kv.find(digits).value() == s);
+        assert(kv.find("digits").value() == s);
     }
 
     // string -> self-serializable struct
@@ -167,6 +200,56 @@ int main() {
         Serializable s{7, "seven"};
         kv.insert_or_assign("ser", s);
         assert(kv.find("ser").value() == s);
+    }
+    
+    {
+        mdbxc::KeyValueTable<int, ConcurrentStruct> kv(conn, "concurrent_test");
+
+        std::mutex mtx;
+        std::condition_variable cv;
+        std::atomic<bool> ready = false;
+        std::atomic<bool> failed = false;
+        ConcurrentStruct written;
+
+        std::thread writer([&kv, &ready, &written, &cv, &mtx] {
+            for (int i = 0; i < 100; ++i) {
+                {
+                    std::lock_guard<std::mutex> lock(mtx);
+                    written = ConcurrentStruct{i};
+                    kv.insert_or_assign(1, written);
+                    ready = true;
+                }
+                cv.notify_one();
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        });
+
+        std::thread reader([&kv, &ready, &failed, &written, &cv, &mtx] {
+            for (int i = 0; i < 100; ++i) {
+                std::unique_lock<std::mutex> lock(mtx);
+                cv.wait(lock, [&] { return ready.load(); });
+
+                auto val = kv.find(1);
+                if (!val.has_value() || val.value() != written) {
+                    std::cerr << "Mismatch at iteration " << i << ": got " << val.value().value << ", expected " << written.value << std::endl;
+                    failed = true;
+                    break;
+                }
+
+                ready = false;
+            }
+        });
+
+        writer.join();
+        reader.join();
+
+        if (failed) {
+            std::cerr << "Concurrent test failed." << std::endl;
+            return 1;
+        }
+
+        std::cout << "Concurrent test passed." << std::endl;
+        
     }
 
     std::cout << "All tests passed.\n";

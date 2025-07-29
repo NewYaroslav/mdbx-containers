@@ -168,12 +168,6 @@ namespace mdbxc {
         (sizeof(T) <= 2), MDBX_val>::type
     serialize_key(const T& key) {
         static_assert(sizeof(uint32_t) == 4, "Expected 4-byte wrapper");
-        /*
-        thread_local uint32_t temp;
-        temp = static_cast<uint32_t>(key);
-        MDBX_val val = { sizeof(uint32_t), static_cast<void*>(&temp) };
-        return val;
-        */
         using storage_t = typename std::aligned_storage<sizeof(uint32_t), alignof(uint32_t)>::type;
         thread_local storage_t storage;
         *reinterpret_cast<uint32_t*>(&storage) = static_cast<uint32_t>(key);
@@ -193,8 +187,15 @@ namespace mdbxc {
     serialize_key(const T& key) {
         static_assert(sizeof(uint32_t) == 4, "Expected 4-byte integer");
         MDBX_val val;
-        val.iov_len = static_cast<size_t>(sizeof(uint32_t));
+#       if MDBXC_SAFE_INTEGERKEY
+        using storage_t = typename std::aligned_storage<sizeof(uint32_t), alignof(uint32_t)>::type;
+        static thread_local storage_t buffer;
+        *reinterpret_cast<uint32_t*>(&buffer) = *reinterpret_cast<const uint32_t*>(&key);
+        val.iov_base = static_cast<void*>(&buffer);
+#       else
         val.iov_base = const_cast<void*>(static_cast<const void*>(&key));
+#       endif
+        val.iov_len = static_cast<size_t>(sizeof(uint32_t));
         return val;
     }
 
@@ -208,7 +209,14 @@ namespace mdbxc {
     serialize_key(const T& key) {
         static_assert(sizeof(uint64_t) == 8, "Expected 8-byte integer");
         MDBX_val val;
+#       if MDBXC_SAFE_INTEGERKEY
+        using storage_t = typename std::aligned_storage<sizeof(uint64_t), alignof(uint64_t)>::type;
+        static thread_local storage_t buffer;
+        *reinterpret_cast<uint64_t*>(&buffer) = *reinterpret_cast<const uint64_t*>(&key);
+        val.iov_base = static_cast<void*>(&buffer);
+#       else
         val.iov_base = const_cast<void*>(static_cast<const void*>(&key));
+#       endif
         val.iov_len  = sizeof(uint64_t);
         return val;
     }
@@ -282,40 +290,29 @@ namespace mdbxc {
         val.iov_len  = value.size();
         return val;
     }
-
-    /// \brief Serializes a deque of bytes.
-    /// \tparam T Byte deque type.
-    template<typename T>
+    
+    /// \brief Serializes containers (vector, deque, list, set) of trivially copyable elements.
+    /// \tparam T Container type with value_type.
+    /// \param container The container to serialize.
+    template <typename T>
     typename std::enable_if<
-        std::is_same<T, std::deque<std::byte>>::value ||
-        std::is_same<T, std::deque<uint8_t>>::value ||
-        std::is_same<T, std::deque<char>>::value ||
-        std::is_same<T, std::deque<unsigned char>>::value,
+        has_value_type<T>::value &&
+        std::is_trivially_copyable<typename T::value_type>::value &&
+        (
+            //std::is_same<T, std::vector<typename T::value_type>>::value ||
+            std::is_same<T, std::deque<typename T::value_type>>::value ||
+            std::is_same<T, std::list<typename T::value_type>>::value ||
+            std::is_same<T, std::set<typename T::value_type>>::value
+        ),
         MDBX_val>::type
-    serialize_value(const T& value) {
-        static thread_local std::vector<uint8_t> buffer;
-        buffer.assign(value.begin(), value.end());
+    serialize_value(const T& container) {
+        using Elem = typename T::value_type;
+        static thread_local std::vector<Elem> buffer;
+        buffer.assign(container.begin(), container.end());
+
         MDBX_val val;
         val.iov_base = static_cast<void*>(buffer.data());
-        val.iov_len  = buffer.size();
-        return val;
-    }
-
-    /// \brief Serializes a list of bytes.
-    /// \tparam T Byte list type.
-    template<typename T>
-    typename std::enable_if<
-        std::is_same<T, std::list<std::byte>>::value ||
-        std::is_same<T, std::list<uint8_t>>::value ||
-        std::is_same<T, std::list<char>>::value ||
-        std::is_same<T, std::list<unsigned char>>::value,
-        MDBX_val>::type
-    serialize_value(const T& value) {
-        static thread_local std::vector<uint8_t> buffer;
-        buffer.assign(value.begin(), value.end());
-        MDBX_val val;
-        val.iov_base = static_cast<void*>(buffer.data());
-        val.iov_len  = buffer.size();
+        val.iov_len  = buffer.size() * sizeof(Elem);
         return val;
     }
 
@@ -332,24 +329,6 @@ namespace mdbxc {
         MDBX_val val;
         val.iov_base = const_cast<void*>(static_cast<const void*>(value.data()));
         val.iov_len  = value.size() * sizeof(Elem);
-        return val;
-    }
-
-    /// \brief Serializes a deque or list of trivially copyable elements.
-    /// \tparam T Container type.
-    template<typename T>
-    typename std::enable_if<
-        (std::is_same<T, std::deque<typename T::value_type>>::value ||
-         std::is_same<T, std::list<typename T::value_type>>::value) &&
-        std::is_trivially_copyable<typename T::value_type>::value,
-        MDBX_val>::type
-    serialize_value(const T& value) {
-        typedef typename T::value_type Elem;
-        static thread_local std::vector<Elem> buffer;
-        buffer.assign(value.begin(), value.end());
-        MDBX_val val;
-        val.iov_base = static_cast<void*>(buffer.data());
-        val.iov_len  = buffer.size() * sizeof(Elem);
         return val;
     }
 
@@ -379,82 +358,31 @@ namespace mdbxc {
         val.iov_len  = sizeof(T);
         return val;
     }
-    
-	/*
+
+    /// \brief Serializes a container of strings.
+    /// \tparam T Container type with `std::string` elements.
     template<typename T>
     typename std::enable_if<
-        std::is_same<T, std::list<std::string>>::value,
-        MDBX_val>::type
-    serialize_value(const T& value) {
+            has_value_type<T>::value &&
+            std::is_same<typename T::value_type, std::string>::value,
+            MDBX_val>::type
+    serialize_value(const T& container) {
         static thread_local std::vector<uint8_t> buffer;
         buffer.clear();
 
-        for (const auto& str : value) {
+        for (const auto& str : container) {
             uint32_t len = static_cast<uint32_t>(str.size());
             buffer.insert(buffer.end(),
                           reinterpret_cast<const uint8_t*>(&len),
                           reinterpret_cast<const uint8_t*>(&len) + sizeof(uint32_t));
-            buffer.insert(buffer.end(),
-                          reinterpret_cast<const uint8_t*>(str.data()),
-                          reinterpret_cast<const uint8_t*>(str.data()) + str.size());
+            buffer.insert(buffer.end(), str.begin(), str.end());
         }
 
         MDBX_val val;
-        val.iov_base = static_cast<void*>(buffer.data());
-        val.iov_len  = buffer.size();
+        val.iov_base = buffer.data();
+        val.iov_len = buffer.size();
         return val;
     }
-	*/
-	
-        /// \brief Serializes a container of strings.
-        /// \tparam T Container type with `std::string` elements.
-        template<typename T>
-        typename std::enable_if<
-                has_value_type<T>::value &&
-                std::is_same<typename T::value_type, std::string>::value,
-                MDBX_val>::type
-        serialize_value(const T& container) {
-		static thread_local std::vector<uint8_t> buffer;
-		buffer.clear();
-
-		for (const auto& str : container) {
-			uint32_t len = static_cast<uint32_t>(str.size());
-			buffer.insert(buffer.end(),
-						  reinterpret_cast<const uint8_t*>(&len),
-						  reinterpret_cast<const uint8_t*>(&len) + sizeof(uint32_t));
-			buffer.insert(buffer.end(), str.begin(), str.end());
-		}
-
-		MDBX_val val;
-		val.iov_base = buffer.data();
-		val.iov_len = buffer.size();
-		return val;
-	}
-	
-	/*
-	template<typename T>
-	typename std::enable_if<
-		(std::is_same<T, std::set<std::string>>::value ||
-		 std::is_same<T, std::unordered_set<std::string>>::value),
-		MDBX_val>::type
-	serialize_value(const T& container) {
-		static thread_local std::vector<uint8_t> buffer;
-		buffer.clear();
-
-		for (const auto& str : container) {
-			uint32_t len = static_cast<uint32_t>(str.size());
-			buffer.insert(buffer.end(),
-						  reinterpret_cast<const uint8_t*>(&len),
-						  reinterpret_cast<const uint8_t*>(&len) + sizeof(uint32_t));
-			buffer.insert(buffer.end(), str.begin(), str.end());
-		}
-
-		MDBX_val val;
-		val.iov_base = buffer.data();
-		val.iov_len = buffer.size();
-		return val;
-	}
-	*/
 
     // --- deserialize_value overloads ---
     
@@ -572,16 +500,19 @@ namespace mdbxc {
     deserialize_value(const MDBX_val& val) {
         return T::from_bytes(val.iov_base, val.iov_len);
     }
-    
-	/*
+
+    /// \brief Deserializes a container of strings.
+    /// \tparam T Container type with `std::string` elements.
     template<typename T>
     typename std::enable_if<
-        std::is_same<T, std::list<std::string>>::value, T>::type
+            has_value_type<T>::value &&
+            std::is_same<typename T::value_type, std::string>::value,
+            T>::type
     deserialize_value(const MDBX_val& val) {
         const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
         const uint8_t* end = ptr + val.iov_len;
-        std::list<std::string> result;
 
+        T result;
         while (ptr + sizeof(uint32_t) <= end) {
             uint32_t len;
             std::memcpy(&len, ptr, sizeof(uint32_t));
@@ -599,67 +530,36 @@ namespace mdbxc {
 
         return result;
     }
-	*/
-	
-        /// \brief Deserializes a container of strings.
-        /// \tparam T Container type with `std::string` elements.
-        template<typename T>
-        typename std::enable_if<
-                has_value_type<T>::value &&
-                std::is_same<typename T::value_type, std::string>::value,
-                T>::type
-        deserialize_value(const MDBX_val& val) {
-		const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
-		const uint8_t* end = ptr + val.iov_len;
+    
+    /// \brief Deserializes a set of strings.
+    /// \tparam T Either `std::set<std::string>` or `std::unordered_set<std::string>`.
+    template<typename T>
+    typename std::enable_if<
+            std::is_same<T, std::set<std::string>>::value ||
+            std::is_same<T, std::unordered_set<std::string>>::value,
+            T>::type
+    deserialize_value(const MDBX_val& val) {
+        const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
+        const uint8_t* end = ptr + val.iov_len;
+        T result;
 
-		T result;
-		while (ptr + sizeof(uint32_t) <= end) {
-			uint32_t len;
-			std::memcpy(&len, ptr, sizeof(uint32_t));
-			ptr += sizeof(uint32_t);
+        while (ptr + sizeof(uint32_t) <= end) {
+            uint32_t len;
+            std::memcpy(&len, ptr, sizeof(uint32_t));
+            ptr += sizeof(uint32_t);
 
-			if (ptr + len > end)
-				throw std::runtime_error("deserialize_value: corrupted data (length overflow)");
+            if (ptr + len > end)
+                throw std::runtime_error("deserialize_value: corrupted data (length overflow)");
 
-			result.emplace_back(reinterpret_cast<const char*>(ptr), len);
-			ptr += len;
-		}
+            result.insert(std::string(reinterpret_cast<const char*>(ptr), len));
+            ptr += len;
+        }
 
-		if (ptr != end)
-			throw std::runtime_error("deserialize_value: trailing data after deserialization");
+        if (ptr != end)
+            throw std::runtime_error("deserialize_value: trailing data after deserialization");
 
-		return result;
-	}
-	
-        /// \brief Deserializes a set of strings.
-        /// \tparam T Either `std::set<std::string>` or `std::unordered_set<std::string>`.
-        template<typename T>
-        typename std::enable_if<
-                std::is_same<T, std::set<std::string>>::value ||
-                std::is_same<T, std::unordered_set<std::string>>::value,
-                T>::type
-        deserialize_value(const MDBX_val& val) {
-		const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
-		const uint8_t* end = ptr + val.iov_len;
-		T result;
-
-		while (ptr + sizeof(uint32_t) <= end) {
-			uint32_t len;
-			std::memcpy(&len, ptr, sizeof(uint32_t));
-			ptr += sizeof(uint32_t);
-
-			if (ptr + len > end)
-				throw std::runtime_error("deserialize_value: corrupted data (length overflow)");
-
-			result.insert(std::string(reinterpret_cast<const char*>(ptr), len));
-			ptr += len;
-		}
-
-		if (ptr != end)
-			throw std::runtime_error("deserialize_value: trailing data after deserialization");
-
-		return result;
-	}
+        return result;
+    }
 
 }; // namespace mdbxc
 

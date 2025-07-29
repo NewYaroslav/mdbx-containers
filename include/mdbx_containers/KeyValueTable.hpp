@@ -28,15 +28,15 @@ namespace mdbxc {
 
         /// \brief Default constructor.
         KeyValueTable(std::shared_ptr<Connection> connection,
-                          std::string name = "kv_store",
-                          MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE) 
+                      std::string name = "kv_store",
+                      MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE) 
             : BaseTable(std::move(connection), std::move(name), flags | get_mdbx_flags<KeyT>())  {}
 
         /// \brief Constructor with configuration.
         /// \param config Configuration settings for the database.
         explicit KeyValueTable(const Config& config, 
-                                   std::string name = "kv_store",
-                                   MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE) 
+                               std::string name = "kv_store",
+                               MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE) 
             : BaseTable(Connection::create(config), std::move(name), flags | get_mdbx_flags<KeyT>()) {
         }
 

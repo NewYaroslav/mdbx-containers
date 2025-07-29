@@ -107,7 +107,7 @@ namespace mdbxc {
 
     inline void Connection::initialize() {
         try {
-            create_directories();
+            create_directories(m_config->pathname);
             db_init();
         } catch (...) {
             if (m_env && mdbx_env_close(m_env) == MDBX_SUCCESS) {
@@ -121,41 +121,16 @@ namespace mdbxc {
         if (m_env) {
             int rc = mdbx_env_close(m_env);
             if (rc != MDBX_SUCCESS && use_throw) {
-                check_mdbx(rc, "Failed to close environmen");
+                check_mdbx(rc, "Failed to close environment");
             }
             m_env = nullptr;
         }
     }
-
-    inline void Connection::create_directories() {
-        namespace fs = std::filesystem;
-        fs::path file_path;
-
-#   ifdef _WIN32
-#       if __cplusplus >= 202002L
-        file_path = fs::u8path(m_config->pathname);
-#       else
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        std::wstring wide_path = converter.from_bytes(m_config->pathname);
-        file_path = fs::path(wide_path);
-#       endif
-#   else
-        file_path = fs::u8path(m_config->pathname);
-#   endif
-
-        fs::path parent_dir = file_path.parent_path();
-        if (parent_dir.empty()) parent_dir = fs::current_path();
-
-        if (!fs::exists(parent_dir)) {
-            std::error_code ec;
-            if (!fs::create_directories(parent_dir, ec)) {
-                throw std::runtime_error("Failed to create directories for path: " + parent_dir.u8string());
-            }
-        }
-    }
-
+    
     inline void Connection::db_init() {
+#if __cplusplus >= 201703L
         namespace fs = std::filesystem;
+#endif
 
         int rc = 0;
         check_mdbx(mdbx_env_create(&m_env), "mdbx_env_create");
@@ -176,24 +151,45 @@ namespace mdbxc {
             : static_cast<int>(std::thread::hardware_concurrency()) * 2;
         check_mdbx(mdbx_env_set_maxreaders(m_env, readers), "mdbx_env_set_maxreaders");
 
-        MDBX_env_flags_t env_flags = MDBX_ACCEDE | MDBX_NOSUBDIR | MDBX_SYNC_DURABLE;
-        if (m_config->read_only) env_flags |= MDBX_RDONLY;
-        if (m_config->readahead) env_flags |= MDBX_NORDAHEAD;
-        if (m_config->use_writemap) env_flags |= MDBX_WRITEMAP;
+        MDBX_env_flags_t env_flags = MDBX_ACCEDE;
+        if (m_config->no_subdir)     env_flags |= MDBX_NOSUBDIR;
+        if (m_config->sync_durable)  env_flags |= MDBX_SYNC_DURABLE;
+        if (m_config->read_only)     env_flags |= MDBX_RDONLY;
+        if (!m_config->readahead)    env_flags |= MDBX_NORDAHEAD;
+        if (m_config->writemap_mode) env_flags |= MDBX_WRITEMAP;
 
+        std::string pathname = m_config->pathname;
+        if (m_config->relative_to_exe && !is_absolute_path(pathname)) {
+#if __cplusplus >= 201703L
+            pathname = (fs::u8path(get_exec_dir()) / fs::u8path(pathname)).u8string();
+#else
 #   ifdef _WIN32
-        fs::path file_path;
+            pathname = get_exec_dir() + "\\" + pathname;
+#   else
+            pathname = get_exec_dir() + "/" + pathname;
+#   endif
+#endif
+        }
+
+#ifdef _WIN32
+#   if __cplusplus >= 201703L
 #       if __cplusplus >= 202002L
-        file_path = fs::u8path(m_config->pathname);
+        fs::path file_path = fs::u8path(pathname);
 #       else
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        std::wstring wide_path = converter.from_bytes(m_config->pathname);
-        file_path = fs::path(wide_path);
+        std::wstring wide_path = converter.from_bytes(pathname);
+        fs::path file_path = fs::path(wide_path);
 #       endif
         check_mdbx(mdbx_env_openW(m_env, file_path.c_str(), env_flags, 0664), "mdbx_env_openW");
 #   else
-        check_mdbx(mdbx_env_open(m_env, m_config->pathname.c_str(), env_flags, 0664), "mdbx_env_open");
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+        std::wstring wide_path = converter.from_bytes(pathname);
+        check_mdbx(mdbx_env_openW(m_env, wide_path.c_str(), env_flags, 0664), "mdbx_env_openW");
 #   endif
+
+#else
+        check_mdbx(mdbx_env_open(m_env, pathname.c_str(), env_flags, 0664), "mdbx_env_open");
+#endif
     }
 
 } // namespace mdbxc

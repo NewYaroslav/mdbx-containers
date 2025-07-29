@@ -36,6 +36,7 @@
 #include "detail/TransactionTracker.hpp"
 #include "detail/utils.hpp"
 #include "common/Transaction.hpp"
+#include "detail/path_utils.hpp"
 #include "common/Connection.hpp"
 #include "detail/BaseTable.hpp"
 

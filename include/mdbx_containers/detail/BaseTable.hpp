@@ -89,10 +89,10 @@ namespace mdbxc {
         /// \brief Returns the transaction bound to the current thread, if any.
         /// \return Pointer to the MDBX transaction or nullptr.
         MDBX_txn* thread_txn() const {
-                        return m_connection->thread_txn();
-                }
-		
-		/// \brief Gets the raw DBI handle.
+                return m_connection->thread_txn();
+        }
+        
+        /// \brief Gets the raw DBI handle.
         MDBX_dbi handle() const { return m_dbi; }
     };
     
