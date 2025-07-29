@@ -36,7 +36,7 @@ namespace mdbxc {
         /// For read-only transactions, uses a shared reusable handle and attempts renewal.
         /// For writable transactions, begins a new transaction using the MDBX environment.
         ///
-        /// \throws Exception if the transaction is already started or if beginning fails.
+        /// \throws MdbxException if the transaction is already started or if beginning fails.
         void begin();
 
         /// \brief Commits the transaction.
@@ -44,7 +44,7 @@ namespace mdbxc {
         /// For read-only transactions, resets the handle for reuse.
         /// For writable transactions, commits the changes and closes the handle.
         ///
-        /// \throws Exception if no transaction is active or commit/reset fails.
+        /// \throws MdbxException if no transaction is active or commit/reset fails.
         void commit();
 
         /// \brief Rolls back the transaction.
@@ -52,7 +52,7 @@ namespace mdbxc {
         /// For read-only transactions, resets the handle.
         /// For writable transactions, aborts the transaction.
         ///
-        /// \throws Exception if no transaction is active or rollback/reset fails.
+        /// \throws MdbxException if no transaction is active or rollback/reset fails.
         void rollback();
 
         /// \brief Returns the internal MDBX transaction handle.

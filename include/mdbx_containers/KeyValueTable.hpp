@@ -3,7 +3,7 @@
 #define _MDBX_CONTAINERS_KEY_VALUE_TABLE_HPP_INCLUDED
 
 /// \file KeyValueTable.hpp
-/// \brief Declaration of the KeyValueTable class for managing key-value pairs in a SQLite database.
+/// \brief Declaration of the KeyValueTable class for managing key-value pairs in an MDBX database.
 
 #include "common.hpp"
 #include <map>
@@ -12,10 +12,10 @@
 namespace mdbxc {
 
     /// \class KeyValueTable
-    /// \brief Template class for managing key-value pairs in a SQLite database.
+    /// \brief Template class for managing key-value pairs in an MDBX database.
     /// \tparam KeyT Type of the keys.
     /// \tparam ValueT Type of the values.
-    /// \details This class provides functionality to store, retrieve, and manipulate key-value pairs in a SQLite database.
+    /// \details This class provides functionality to store, retrieve, and manipulate key-value pairs in an MDBX database.
     /// It supports various container types, such as `std::map`, `std::unordered_map`, `std::vector`, and `std::list`.
     /// Key-value pairs can be inserted, reconciled, retrieved, and removed with transaction support. The class includes
     /// methods for bulk loading and appending data with transactional integrity, ensuring that operations are safely executed
@@ -48,7 +48,7 @@ namespace mdbxc {
         /// \brief Assigns a container (e.g., std::map or std::unordered_map) to the database.
         /// \param container The container with key-value pairs.
         /// \return Reference to this KeyValueTable.
-        /// \throws 
+        /// \throws MdbxException if a database error occurs.
         /// \note The transaction mode is taken from the database configuration.
         template<template <class...> class ContainerT>
         KeyValueTable& operator=(const ContainerT<KeyT, ValueT>& container) {
@@ -61,7 +61,7 @@ namespace mdbxc {
         /// \brief Loads all key-value pairs from the database into a container (e.g., std::map or std::unordered_map).
         /// \tparam ContainerT The type of the container (e.g., std::map or std::unordered_map).
         /// \return A container populated with all key-value pairs from the database.
-        /// \throws sqlite_exception if an SQLite error occurs.
+        /// \throws MdbxException if a database error occurs.
         /// \note The transaction mode is taken from the database configuration.
         template<template <class...> class ContainerT = std::map>
         ContainerT<KeyT, ValueT> operator()() {
@@ -72,16 +72,25 @@ namespace mdbxc {
             return container;
         }
 
+        /// \brief Helper proxy for convenient assignment via operator[].
         class AssignmentProxy {
         public:
+            /// \brief Constructs the proxy for a specific key.
+            /// \param db Reference to the owning table.
+            /// \param key Key associated with this proxy.
             AssignmentProxy(KeyValueTable& db, KeyT key)
                 : m_db(db), m_key(std::move(key)) {}
 
+            /// \brief Assigns a value to the stored key.
+            /// \param value Value to store.
+            /// \return Reference to this proxy.
             AssignmentProxy& operator=(const ValueT& value) {
                 m_db.insert_or_assign(m_key, value);
                 return *this;
             }
 
+            /// \brief Implicit conversion to the value type.
+            /// If the key does not exist, a default-constructed value is inserted.
             operator ValueT() const {
                 auto val = m_db.find(m_key);
                 if (val) return *val;
@@ -91,10 +100,13 @@ namespace mdbxc {
             }
 
         private:
-            KeyValueTable& m_db;
-            KeyT m_key;
+            KeyValueTable& m_db; ///< Reference to the owning table.
+            KeyT m_key;          ///< Key associated with this proxy.
         };
         
+        /// \brief Provides convenient access to insert or read a value by key.
+        /// \param key Key to access.
+        /// \return Proxy object used for assignment or implicit read.
         AssignmentProxy operator[](const KeyT& key) {
             return AssignmentProxy(*this, key);
         }
@@ -104,7 +116,7 @@ namespace mdbxc {
         /// \brief Loads data from the database into the container.
         /// \tparam ContainerT Container type (e.g., std::map or std::unordered_map).
         /// \param container Container to be synchronized with database content.
-        /// \throws 
+        /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void load(ContainerT<KeyT, ValueT>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
@@ -115,7 +127,7 @@ namespace mdbxc {
         /// \brief Retrieves all key-value pairs.
         /// \tparam ContainerT Container type (e.g., std::map or std::unordered_map).
         /// \return A container with all key-value pairs.
-        /// \throws 
+        /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         ContainerT<KeyT, ValueT> retrieve_all(MDBX_txn* txn = nullptr) {
             ContainerT<KeyT, ValueT> container;
@@ -128,7 +140,7 @@ namespace mdbxc {
         /// \brief Appends data to the database.
         /// \tparam ContainerT Container type (e.g., std::map or std::unordered_map).
         /// \param container Container with content to be synchronized.
-        /// \throws 
+        /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void append(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
@@ -139,7 +151,7 @@ namespace mdbxc {
         /// \brief Reconciles the database with the container.
         /// \tparam ContainerT Container type (e.g., std::map or std::unordered_map).
         /// \param container Container to be reconciled with the database.
-        /// \throws sqlite_exception if an SQLite error occurs.
+        /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void reconcile(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
@@ -150,7 +162,7 @@ namespace mdbxc {
         /// \brief Inserts key-value only if key is absent.
         /// \param key The key to be inserted.
         /// \param value The value to be inserted.
-        /// \throws sqlite_exception if an SQLite error occurs.
+        /// \throws MdbxException if a database error occurs.
         void insert(const KeyT &key, const ValueT &value, MDBX_txn* txn = nullptr) {
             with_transaction([this, &key, &value](MDBX_txn* txn) {
                 db_insert_if_absent(key, value, txn);
@@ -159,7 +171,7 @@ namespace mdbxc {
 
         /// \brief Inserts key-value only if key is absent.
         /// \param pair The key-value pair to be inserted.
-        /// \throws 
+        /// \throws MdbxException if a database error occurs.
         void insert(const std::pair<KeyT, ValueT> &pair, MDBX_txn* txn = nullptr) {
             with_transaction([this, &pair](MDBX_txn* txn) {
                 db_insert_if_absent(pair.first, pair.second, txn);
@@ -169,7 +181,7 @@ namespace mdbxc {
         /// \brief Inserts or replaces key-value pair.
         /// \param key The key to be inserted.
         /// \param value The value to be inserted.
-        /// \throws 
+        /// \throws MdbxException if a database error occurs.
         void insert_or_assign(const KeyT &key, const ValueT &value, MDBX_txn* txn = nullptr) {
             with_transaction([this, &key, &value](MDBX_txn* txn) {
                 db_insert_or_assign(key, value, txn);
@@ -178,7 +190,7 @@ namespace mdbxc {
 
         /// \brief Inserts or replaces key-value pair.
         /// \param pair The key-value pair to be inserted.
-        /// \throws 
+        /// \throws MdbxException if a database error occurs.
         void insert_or_assign(const std::pair<KeyT, ValueT> &pair, MDBX_txn* txn = nullptr) {
             insert_or_assign([&pair](MDBX_txn* txn) {
                 db_insert_or_assign(pair.first, pair.second, txn);
@@ -231,9 +243,10 @@ namespace mdbxc {
             return result;
         }
 
-        /// \brief
+        /// \brief Checks whether a key exists in the database.
         /// \param key The key to look up.
         /// \param txn Active transaction.
+        /// \return True if the key exists, false otherwise.
         /// \throws MdbxException if DB error occurs.
         bool contains(const KeyT& key, MDBX_txn* txn = nullptr) const {
             bool res;
@@ -257,7 +270,7 @@ namespace mdbxc {
 
         /// \brief Checks if the database is empty.
         /// \return True if the database is empty, false otherwise.
-        /// \throws 
+        /// \throws MdbxException if a database error occurs.
         bool empty(MDBX_txn* txn = nullptr) const {
             std::size_t res = 0;
             with_transaction([this, &res](MDBX_txn* txn) {
@@ -278,7 +291,7 @@ namespace mdbxc {
 
         /// \brief Clears all key-value pairs from the database.
         /// \param txn Active transaction.
-        /// \throws 
+        /// \throws MdbxException if a database error occurs.
         void clear(MDBX_txn* txn = nullptr) {
             with_transaction([this](MDBX_txn* txn) {
                 db_clear(txn);
@@ -287,6 +300,11 @@ namespace mdbxc {
 
     private:
     
+        /// \brief Executes a functor within a transaction context.
+        /// \tparam F Callable type accepting `MDBX_txn*`.
+        /// \param action Functor to execute.
+        /// \param mode Transaction mode used when a new transaction is created.
+        /// \param txn Optional existing transaction handle.
         template<typename F>
         void with_transaction(F&& action, TransactionMode mode = TransactionMode::WRITABLE, MDBX_txn* txn = nullptr) const {
             if (txn) {
@@ -314,8 +332,8 @@ namespace mdbxc {
         /// \brief Loads data from the database into the container.
         /// \tparam ContainerT Template for the container type.
         /// \param container Container to be synchronized with database content.
-        /// \param txn_handle
-        /// \throws Exception ?
+        /// \param txn_handle Active transaction handle.
+        /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void db_load(ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
             MDBX_cursor* cursor = nullptr;
@@ -336,7 +354,7 @@ namespace mdbxc {
         /// \param value Reference to store the retrieved value.
         /// \param txn_handle The active transaction.
         /// \return True if found, false otherwise.
-        /// \throws mdbx_exception if a DB error occurs.
+        /// \throws MdbxException if a database error occurs.
         bool db_get(const KeyT& key, ValueT& value, MDBX_txn* txn_handle) const {
             MDBX_val db_key = serialize_key(key);
             MDBX_val db_val;
@@ -351,7 +369,7 @@ namespace mdbxc {
         /// \param key The key to check.
         /// \param txn_handle The active transaction.
         /// \return True if key exists, false otherwise.
-        /// \throws mdbx_exception if a DB error occurs.
+        /// \throws MdbxException if a database error occurs.
         bool db_contains(const KeyT& key, MDBX_txn* txn_handle) const {
             MDBX_val db_key = serialize_key(key);
             MDBX_val db_val; // dummy
@@ -362,9 +380,9 @@ namespace mdbxc {
         }
 
         /// \brief Returns the number of elements in the database.
-        /// \param txn_handle
+        /// \param txn_handle Active transaction handle.
         /// \return The number of key-value pairs in the database.
-        /// \throws sqlite_exception if an SQLite error occurs.
+        /// \throws MdbxException if a database error occurs.
         std::size_t db_count(MDBX_txn* txn_handle) const {
             MDBX_stat stat;
 #           if MDBX_VERSION_MAJOR > 0 || MDBX_VERSION_MINOR >= 14
@@ -377,9 +395,9 @@ namespace mdbxc {
 
         /// \brief Appends the content of the container to the database.
         /// \tparam ContainerT Template for the container type (map or unordered_map).
-        /// \param container Container with content to
-        /// \param txn_handle
-        /// \throws sqlite_exception if an SQLite error occurs.
+        /// \param container Container with content to append.
+        /// \param txn_handle Active transaction handle.
+        /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void db_append(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
             for (const auto& pair : container) {
@@ -397,7 +415,7 @@ namespace mdbxc {
         /// Clears old data, inserts new data, and updates existing records in the main table.
         /// \tparam ContainerT Template for the container type (map or unordered_map).
         /// \param container Container with key-value pairs to be reconciled with the database.
-        /// \throws sqlite_exception if an SQLite error occurs.
+        /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void db_reconcile(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
             // 1. Собрать все ключи из контейнера
@@ -431,7 +449,7 @@ namespace mdbxc {
         /// \param key The key to insert.
         /// \param value The value to insert.
         /// \param txn_handle The active MDBX transaction.
-        /// \throws mdbx_exception if the insert fails for reasons other than key existence.
+        /// \throws MdbxException if the insert fails for reasons other than key existence.
         void db_insert_if_absent(const KeyT& key, const ValueT& value, MDBX_txn* txn_handle) {
             MDBX_val db_key = serialize_key(key);
             MDBX_val db_val = serialize_value(value);
@@ -445,7 +463,7 @@ namespace mdbxc {
         /// \param key The key to insert or replace.
         /// \param value The value to set.
         /// \param txn_handle The active MDBX transaction.
-        /// \throws mdbx_exception if the operation fails.
+        /// \throws MdbxException if the operation fails.
         void db_insert_or_assign(const KeyT& key, const ValueT& value, MDBX_txn* txn_handle) {
             MDBX_val db_key = serialize_key(key);
             MDBX_val db_val = serialize_value(value);
@@ -457,14 +475,14 @@ namespace mdbxc {
 
         /// \brief Removes a key from the database.
         /// \param key The key of the pair to be removed.
-        /// \throws Exception if deletion fails.
+        /// \throws MdbxException if deletion fails.
         void db_erase(const KeyT& key, MDBX_txn* txn_handle) {
             MDBX_val db_key = serialize_key(key);
             check_mdbx(mdbx_del(txn_handle, m_dbi, &db_key, nullptr), "mdbx_del");
         }
 
         /// \brief Clears all key-value pairs from the database.
-        /// \throws Exception if an MDBX error occurs.
+        /// \throws MdbxException if an MDBX error occurs.
         void db_clear(MDBX_txn* txn_handle) {
             check_mdbx(mdbx_drop(txn_handle, m_dbi, 0), "mdbx_drop");
         }

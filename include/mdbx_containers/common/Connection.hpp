@@ -23,8 +23,10 @@ namespace mdbxc {
         /// \brief Destructor. Closes the MDBX environment and aborts any open transactions.
         ~Connection();
 		
-		/// \brief
-		static std::shared_ptr<Connection> create(const Config& config);
+                /// \brief Creates and connects a new shared Connection instance.
+                /// \param config Configuration to use for initialization.
+                /// \return Shared pointer to the created Connection.
+                static std::shared_ptr<Connection> create(const Config& config);
 
         /// \brief Sets the MDBX configuration (must be called before connect()).
         /// \param config New configuration to apply.
@@ -46,10 +48,11 @@ namespace mdbxc {
         /// \return true if connected, false otherwise.
         bool is_connected() const;
 
-		/// \brief
-		/// \param mode The transaction mode (default: WRITABLE).
-		/// \throws 
-		Transaction transaction(TransactionMode mode = TransactionMode::WRITABLE);
+                /// \brief Creates a RAII transaction object.
+                /// \param mode Transaction mode to open (default: WRITABLE).
+                /// \throws MdbxException on MDBX errors.
+                /// \return Transaction guard managing the MDBX_txn handle.
+                Transaction transaction(TransactionMode mode = TransactionMode::WRITABLE);
 		
 		/// \brief Begins a manual transaction (must be committed or rolled back later).
         /// \param mode The transaction mode (default: WRITABLE).
@@ -65,7 +68,9 @@ namespace mdbxc {
         /// \throws MdbxException if no transaction is active or rollback/reset fails.
         void rollback();
 		
-		std::shared_ptr<Transaction> current_txn() const;
+                /// \brief Returns the transaction associated with the current thread.
+                /// \return Shared pointer to the active Transaction or nullptr.
+                std::shared_ptr<Transaction> current_txn() const;
 
         /// \brief Returns the environment handle.
         /// \return MDBX environment pointer.
@@ -83,6 +88,7 @@ namespace mdbxc {
         void initialize();
 		
         /// \brief Safely closes the environment and aborts transaction if needed.
+        /// \param use_throw If true, throw on error; otherwise suppress exceptions.
         void cleanup(bool use_throw = true);
 
 		/// \brief Creates the parent directory for the database if it doesn't exist.
