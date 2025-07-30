@@ -15,7 +15,7 @@ var searchData=
   ['m_5fthread_5ftxns_12',['m_thread_txns',['../classmdbxc_1_1TransactionTracker.html#a9d30dbafdc10cf9045d6ddfa3c5477fc',1,'mdbxc::TransactionTracker']]],
   ['m_5ftransactions_13',['m_transactions',['../classmdbxc_1_1Connection.html#aee59eae8a2ca1ea136bb27fc56721c6d',1,'mdbxc::Connection']]],
   ['m_5ftxn_14',['m_txn',['../classmdbxc_1_1Transaction.html#ac717e3f31a989fdf5f0a1393e873cf8e',1,'mdbxc::Transaction']]],
-  ['main_15',['main',['../group__mdbxc__examples.html#gae66f6b31b5ad750f1fe042a706a4e3d4',1,'main():&#160;config_initialized_table.cpp'],['../custom__struct__example_8cpp.html#ae66f6b31b5ad750f1fe042a706a4e3d4',1,'main():&#160;custom_struct_example.cpp'],['../single__transaction__demo_8cpp.html#ae66f6b31b5ad750f1fe042a706a4e3d4',1,'main():&#160;single_transaction_demo.cpp']]],
+  ['main_15',['main',['../group__mdbxc__examples.html#gae66f6b31b5ad750f1fe042a706a4e3d4',1,'main():&#160;config_initialized_table.cpp'],['../custom__struct__example_8cpp.html#ae66f6b31b5ad750f1fe042a706a4e3d4',1,'main():&#160;custom_struct_example.cpp'],['../single__transaction__demo_8cpp.html#ae66f6b31b5ad750f1fe042a706a4e3d4',1,'main():&#160;single_transaction_demo.cpp'],['../kv__container__all__types__test_8cpp.html#ae66f6b31b5ad750f1fe042a706a4e3d4',1,'main():&#160;kv_container_all_types_test.cpp'],['../mdbx__test_8cpp.html#ae66f6b31b5ad750f1fe042a706a4e3d4',1,'main():&#160;mdbx_test.cpp'],['../utils__test_8cpp.html#ae66f6b31b5ad750f1fe042a706a4e3d4',1,'main():&#160;utils_test.cpp']]],
   ['mainpage_2edox_16',['mainpage.dox',['../mainpage_8dox.html',1,'']]],
   ['manual_20transaction_17',['Manual transaction',['../index.html#ex_manual',1,'']]],
   ['manual_5ftransaction_5fexample_2ecpp_18',['manual_transaction_example.cpp',['../manual__transaction__example_8cpp.html',1,'']]],
@@ -24,11 +24,12 @@ var searchData=
   ['mdbx_20containers_20library_21',['MDBX-Containers Library',['../index.html',1,'']]],
   ['mdbx_5fcontainers_2ehpp_22',['mdbx_containers.hpp',['../mdbx__containers_8hpp.html',1,'']]],
   ['mdbx_5fcontainers_5fheader_5fonly_23',['MDBX_CONTAINERS_HEADER_ONLY',['../common_8hpp.html#ae6221f78db749cea5f34f9f655009b24',1,'common.hpp']]],
-  ['mdbxc_24',['mdbxc',['../namespacemdbxc.html',1,'']]],
-  ['mdbxexception_25',['MdbxException',['../classmdbxc_1_1MdbxException.html',1,'mdbxc::MdbxException'],['../classmdbxc_1_1MdbxException.html#a3c316734d7efa5bb6923abc389365249',1,'mdbxc::MdbxException::MdbxException()']]],
-  ['mdbxexception_2ehpp_26',['MdbxException.hpp',['../MdbxException_8hpp.html',1,'']]],
-  ['multi_5ftable_5fdemo_2ecpp_27',['multi_table_demo.cpp',['../multi__table__demo_8cpp.html',1,'']]],
-  ['multiple_20tables_28',['Multiple tables',['../index.html#ex_multitable',1,'']]],
-  ['mydata_29',['MyData',['../structMyData.html',1,'']]],
-  ['mystruct_30',['MyStruct',['../structMyStruct.html',1,'']]]
+  ['mdbx_5ftest_2ecpp_24',['mdbx_test.cpp',['../mdbx__test_8cpp.html',1,'']]],
+  ['mdbxc_25',['mdbxc',['../namespacemdbxc.html',1,'']]],
+  ['mdbxexception_26',['MdbxException',['../classmdbxc_1_1MdbxException.html',1,'mdbxc::MdbxException'],['../classmdbxc_1_1MdbxException.html#a3c316734d7efa5bb6923abc389365249',1,'mdbxc::MdbxException::MdbxException()']]],
+  ['mdbxexception_2ehpp_27',['MdbxException.hpp',['../MdbxException_8hpp.html',1,'']]],
+  ['multi_5ftable_5fdemo_2ecpp_28',['multi_table_demo.cpp',['../multi__table__demo_8cpp.html',1,'']]],
+  ['multiple_20tables_29',['Multiple tables',['../index.html#ex_multitable',1,'']]],
+  ['mydata_30',['MyData',['../structMyData.html',1,'']]],
+  ['mystruct_31',['MyStruct',['../structMyStruct.html',1,'']]]
 ];

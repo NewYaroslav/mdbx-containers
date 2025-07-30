@@ -13,6 +13,8 @@ var annotated_dup =
       [ "Transaction", "classmdbxc_1_1Transaction.html", "classmdbxc_1_1Transaction" ],
       [ "TransactionTracker", "classmdbxc_1_1TransactionTracker.html", "classmdbxc_1_1TransactionTracker" ]
     ] ],
+    [ "ConcurrentStruct", "structConcurrentStruct.html", "structConcurrentStruct" ],
     [ "MyData", "structMyData.html", "structMyData" ],
-    [ "MyStruct", "structMyStruct.html", "structMyStruct" ]
+    [ "MyStruct", "structMyStruct.html", "structMyStruct" ],
+    [ "SimpleStruct", "structSimpleStruct.html", "structSimpleStruct" ]
 ];
