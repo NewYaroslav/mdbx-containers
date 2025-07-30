@@ -13,5 +13,7 @@ For details on tuning the MDBX environment see \ref config_page.
 
 \section license_sec License
 
-This library is licensed under the **MIT License**. See the [LICENSE](https://github.com/NewYaroslav/log-it-cpp/blob/main/LICENSE) file in the repository for more details.
+This library is licensed under the **MIT License**. See the [LICENSE](../LICENSE) file for more details.
+
+It bundles [libmdbx](https://github.com/erthink/libmdbx) which is distributed under the Apache License 2.0. The license text can be found in `docs/libmdbx.LICENSE`.
 */
