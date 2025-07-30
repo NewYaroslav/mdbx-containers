@@ -1,3 +1,8 @@
+/**
+ * \ingroup mdbxc_examples
+ * Showcase of various table methods.
+ */
+
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <iostream>
 #include <string>

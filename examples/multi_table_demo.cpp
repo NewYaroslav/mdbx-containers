@@ -1,3 +1,8 @@
+/**
+ * \ingroup mdbxc_examples
+ * Using multiple tables in a single environment.
+ */
+
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <mdbx_containers/KeyTable.hpp>
 #include <iostream>
