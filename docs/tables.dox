@@ -1,0 +1,28 @@
+/*! \page tables_page Persistent Containers Usage
+\ingroup mdbxc_tables
+\tableofcontents
+
+This page describes how to work with the persistent container classes such as
+\ref mdbxc::KeyValueTable. These containers expose familiar STL-like interfaces
+while storing data durably in an MDBX database.
+
+## Basic Operations
+
+`KeyValueTable` behaves similarly to `std::map`. You can insert or assign
+key-value pairs, look them up, and remove them. All modifying operations run
+inside a transaction which is automatically created when needed.
+
+```cpp
+mdbxc::Config cfg; cfg.pathname = "example.mdbx";
+auto conn = mdbxc::Connection::create(cfg);
+mdbxc::KeyValueTable<int, std::string> table(conn, "demo");
+
+table.insert_or_assign(1, "one");
+```
+
+## C++ Compatibility
+
+The library supports both C++11 and C++17. When built with C++17, functions
+such as `find()` return `std::optional`. With C++11 use the `*_compat`
+variants returning `std::pair<bool, T>`.
+*/

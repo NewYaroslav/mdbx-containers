@@ -28,18 +28,26 @@ namespace mdbxc {
     public:
 
         /// \brief Default constructor.
+        /// \param connection Existing \ref Connection instance.
+        /// \param name Name of the table within the MDBX environment.
+        /// \param flags Additional MDBX database flags.
         KeyValueTable(std::shared_ptr<Connection> connection,
                       std::string name = "kv_store",
-                      MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE) 
-            : BaseTable(std::move(connection), std::move(name), flags | get_mdbx_flags<KeyT>())  {}
+                      MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE)
+            : BaseTable(std::move(connection),
+                        std::move(name),
+                        flags | get_mdbx_flags<KeyT>()) {}
 
         /// \brief Constructor with configuration.
         /// \param config Configuration settings for the database.
-        explicit KeyValueTable(const Config& config, 
+        /// \param name Name of the table within the MDBX environment.
+        /// \param flags Additional MDBX database flags.
+        explicit KeyValueTable(const Config& config,
                                std::string name = "kv_store",
-                               MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE) 
-            : BaseTable(Connection::create(config), std::move(name), flags | get_mdbx_flags<KeyT>()) {
-        }
+                               MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE)
+            : BaseTable(Connection::create(config),
+                        std::move(name),
+                        flags | get_mdbx_flags<KeyT>()) {}
 
         /// \brief Destructor.
         ~KeyValueTable() override final = default;
@@ -720,6 +728,7 @@ namespace mdbxc {
         /// Clears old data, inserts new data, and updates existing records in the main table.
         /// \tparam ContainerT Template for the container type (map or unordered_map).
         /// \param container Container with key-value pairs to be reconciled with the database.
+        /// \param txn_handle Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void db_reconcile(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {

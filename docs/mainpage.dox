@@ -64,7 +64,8 @@ Use CMake or simply include the headers and link with libmdbx.
 cmake -S . -B build -DBUILD_DEPS=ON -DBUILD_STATIC_LIB=ON
 cmake --build build
 ```
-The library supports both C++11 and C++17. When built with C++17, functions such as `find()` return `std::optional`; with C++11 use the `*_compat` variants returning `std::pair<bool, T>`.
+
+For more details on container usage and C++ version differences see \ref tables_page.
 
 \section config_sec Configuration Guide
 Details on tuning the MDBX environment are available on \ref config_page.
