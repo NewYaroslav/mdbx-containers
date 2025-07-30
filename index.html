@@ -171,7 +171,7 @@ Multiple tables</h2>
 Building</h1>
 <p>Use CMake or simply include the headers and link with libmdbx. </p><div class="fragment"><div class="line">cmake -S . -B build -DBUILD_DEPS=ON -DBUILD_STATIC_LIB=ON</div>
 <div class="line">cmake --build build</div>
-</div><!-- fragment --><p> The library supports both C++11 and C++17. When built with C++17, functions such as <code>find()</code> return <code>std::optional</code>; with C++11 use the <code>*_compat</code> variants returning <code>std::pair&lt;bool, T&gt;</code>.</p>
+</div><!-- fragment --><p>For more details on container usage and C++ version differences see tables_page.</p>
 <h1><a class="anchor" id="config_sec"></a>
 Configuration Guide</h1>
 <p>Details on tuning the MDBX environment are available on <a class="el" href="config_page.html">Database Configuration</a>.</p>
