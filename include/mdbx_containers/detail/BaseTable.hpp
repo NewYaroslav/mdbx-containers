@@ -23,8 +23,10 @@ namespace mdbxc {
                         MDBX_db_flags_t flags)
             : m_connection(std::move(connection)) {
             auto txn = m_connection->transaction();
-            check_mdbx(mdbx_dbi_open(txn.handle(), name.c_str(), flags, &m_dbi),
-                       "mdbx_dbi_open");
+            check_mdbx(
+                mdbx_dbi_open(txn.handle(), name.c_str(), flags, &m_dbi),
+                "Failed to open table"
+            );
             txn.commit();
         }
         

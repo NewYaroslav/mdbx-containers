@@ -141,23 +141,36 @@ namespace mdbxc {
 #endif
 
         int rc = 0;
-        check_mdbx(mdbx_env_create(&m_env), "mdbx_env_create");
+        check_mdbx(
+            mdbx_env_create(&m_env),
+            "Failed to create environment"
+        );
 
-        check_mdbx(mdbx_env_set_geometry(
-            m_env,
-            m_config->size_lower,
-            m_config->size_now,
-            m_config->size_upper,
-            m_config->growth_step,
-            m_config->shrink_threshold,
-            m_config->page_size), "mdbx_env_set_geometry");
+        check_mdbx(
+            mdbx_env_set_geometry(
+                m_env,
+                m_config->size_lower,
+                m_config->size_now,
+                m_config->size_upper,
+                m_config->growth_step,
+                m_config->shrink_threshold,
+                m_config->page_size
+            ),
+            "Failed to set environment geometry"
+        );
 
-        check_mdbx(mdbx_env_set_maxdbs(m_env, m_config->max_dbs), "mdbx_env_set_maxdbs");
+        check_mdbx(
+            mdbx_env_set_maxdbs(m_env, m_config->max_dbs),
+            "Failed to set max databases"
+        );
 
         int readers = m_config->max_readers > 0
             ? static_cast<int>(m_config->max_readers)
             : static_cast<int>(std::thread::hardware_concurrency()) * 2;
-        check_mdbx(mdbx_env_set_maxreaders(m_env, readers), "mdbx_env_set_maxreaders");
+        check_mdbx(
+            mdbx_env_set_maxreaders(m_env, readers),
+            "Failed to set max readers"
+        );
 
         MDBX_env_flags_t env_flags = MDBX_ACCEDE;
         if (m_config->no_subdir)     env_flags |= MDBX_NOSUBDIR;
@@ -188,15 +201,24 @@ namespace mdbxc {
         std::wstring wide_path = converter.from_bytes(pathname);
         fs::path file_path = fs::path(wide_path);
 #       endif
-        check_mdbx(mdbx_env_openW(m_env, file_path.c_str(), env_flags, 0664), "mdbx_env_openW");
+        check_mdbx(
+            mdbx_env_openW(m_env, file_path.c_str(), env_flags, 0664),
+            "Failed to open environment"
+        );
 #   else
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
         std::wstring wide_path = converter.from_bytes(pathname);
-        check_mdbx(mdbx_env_openW(m_env, wide_path.c_str(), env_flags, 0664), "mdbx_env_openW");
+        check_mdbx(
+            mdbx_env_openW(m_env, wide_path.c_str(), env_flags, 0664),
+            "Failed to open environment"
+        );
 #   endif
 
 #else
-        check_mdbx(mdbx_env_open(m_env, pathname.c_str(), env_flags, 0664), "mdbx_env_open");
+        check_mdbx(
+            mdbx_env_open(m_env, pathname.c_str(), env_flags, 0664),
+            "Failed to open environment"
+        );
 #endif
     }
 
