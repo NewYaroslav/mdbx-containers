@@ -31,7 +31,11 @@ namespace mdbxc {
 
     inline void Connection::configure(const Config& config) {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+#       if __cplusplus >= 201703L
         m_config = config;
+#       else
+        m_config.reset(new Config(config));
+#       endif
     }
 
     inline void Connection::connect() {
@@ -44,7 +48,11 @@ namespace mdbxc {
     inline void Connection::connect(const Config& config) {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         if (m_env) return;
+#       if __cplusplus >= 201703L
         m_config = config;
+#       else
+        m_config.reset(new Config(config));
+#       endif
         initialize();
     }
 
@@ -63,7 +71,7 @@ namespace mdbxc {
     }
 
     inline void Connection::begin(TransactionMode mode) {
-        std::lock_guard lock(m_mdbx_mutex);
+        std::lock_guard<std::mutex> lock(m_mdbx_mutex);
         auto tid = std::this_thread::get_id();
         auto it = m_transactions.find(tid);
         if (it != m_transactions.end()) {
@@ -74,7 +82,7 @@ namespace mdbxc {
     }
 
     inline void Connection::commit() {
-        std::lock_guard lock(m_mdbx_mutex);
+        std::lock_guard<std::mutex> lock(m_mdbx_mutex);
         auto tid = std::this_thread::get_id();
         auto it = m_transactions.find(tid);
         if (it == m_transactions.end()) {
@@ -85,7 +93,7 @@ namespace mdbxc {
     }
 
     inline void Connection::rollback() {
-        std::lock_guard lock(m_mdbx_mutex);
+        std::lock_guard<std::mutex> lock(m_mdbx_mutex);
         auto tid = std::this_thread::get_id();
         auto it = m_transactions.find(tid);
         if (it == m_transactions.end()) {
@@ -96,7 +104,7 @@ namespace mdbxc {
     }
 
     inline std::shared_ptr<Transaction> Connection::current_txn() const {
-        std::lock_guard lock(m_mdbx_mutex);
+        std::lock_guard<std::mutex> lock(m_mdbx_mutex);
         auto it = m_transactions.find(std::this_thread::get_id());
         return (it != m_transactions.end()) ? it->second : nullptr;
     }

@@ -34,12 +34,25 @@ endif()
 
 # Examples
 if(BUILD_EXAMPLES)
+    set(EXAMPLE_OUTPUT_DIR ${CMAKE_BINARY_DIR}/examples)
     file(GLOB EXAMPLES examples/*.cpp)
     foreach(example_file ${EXAMPLES})
         get_filename_component(example_name ${example_file} NAME_WE)
         add_executable(${example_name} ${example_file})
+
+        set_target_properties(${example_name} PROPERTIES
+            WINDOWS_EXPORT_ALL_SYMBOLS FALSE
+        )
+        set_target_properties(${example_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${EXAMPLE_OUTPUT_DIR}
+        )
+
         if(BUILD_STATIC_LIB)
             target_link_libraries(${example_name} PRIVATE mdbx_containers)
+            message(STATUS "Linking example ${example_name} with mdbx_containers")
+        else()
+            target_link_libraries(${example_name} PRIVATE mdbx-static)
+            message(STATUS "Linking example ${example_name} with mdbx-static")
         endif()
     endforeach()
 endif()

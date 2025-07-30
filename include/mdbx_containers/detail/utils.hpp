@@ -107,7 +107,10 @@ namespace mdbxc {
         }
 
         // byte vectors
-        if (std::is_same<T, std::vector<std::byte> >::value ||
+        if (
+#			if __cplusplus >= 201703L
+			std::is_same<T, std::vector<std::byte> >::value ||
+#			endif
             std::is_same<T, std::vector<uint8_t> >::value ||
             std::is_same<T, std::vector<char> >::value ||
             std::is_same<T, std::vector<unsigned char> >::value) {
@@ -149,7 +152,9 @@ namespace mdbxc {
     /// \tparam T Vector type containing bytes.
     template<typename T>
     typename std::enable_if<
+#		if __cplusplus >= 201703L
         std::is_same<T, std::vector<std::byte>>::value ||
+#		endif
         std::is_same<T, std::vector<uint8_t>>::value ||
         std::is_same<T, std::vector<char>>::value ||
         std::is_same<T, std::vector<unsigned char>>::value, MDBX_val>::type
@@ -413,7 +418,9 @@ namespace mdbxc {
     /// \tparam T Vector type containing bytes.
     template<typename T>
     typename std::enable_if<
+#       if __cplusplus >= 201703L
         std::is_same<T, std::vector<std::byte>>::value ||
+#       endif
         std::is_same<T, std::vector<uint8_t>>::value ||
         std::is_same<T, std::vector<char>>::value ||
         std::is_same<T, std::vector<unsigned char>>::value, T>::type
@@ -426,7 +433,9 @@ namespace mdbxc {
     /// \tparam T Byte deque type.
     template<typename T>
     typename std::enable_if<
+#		if __cplusplus >= 201703L
         std::is_same<T, std::deque<std::byte>>::value ||
+#		endif
         std::is_same<T, std::deque<uint8_t>>::value ||
         std::is_same<T, std::deque<char>>::value ||
         std::is_same<T, std::deque<unsigned char>>::value, T>::type
@@ -439,7 +448,9 @@ namespace mdbxc {
     /// \tparam T Byte list type.
     template<typename T>
     typename std::enable_if<
-        std::is_same<T, std::list<std::byte>>::value ||
+#		if __cplusplus >= 201703L
+		std::is_same<T, std::list<std::byte>>::value ||
+#		endif
         std::is_same<T, std::list<uint8_t>>::value ||
         std::is_same<T, std::list<char>>::value ||
         std::is_same<T, std::list<unsigned char>>::value, T>::type

@@ -2,7 +2,7 @@
 setlocal
 
 REM === Настройки ===
-set BUILD_DIR=build-tests-deps
+set BUILD_DIR=build-cpp17-examples-deps
 
 REM === Создание папки сборки ===
 if not exist %BUILD_DIR% (
@@ -15,8 +15,8 @@ cmake -S . -B %BUILD_DIR% ^
     -DCMAKE_CXX_STANDARD=17 ^
     -DBUILD_DEPS=ON ^
     -DBUILD_STATIC_LIB=OFF ^
-    -DBUILD_TESTS=ON ^
-    -DBUILD_EXAMPLES=OFF
+    -DBUILD_TESTS=OFF ^
+    -DBUILD_EXAMPLES=ON
 
 if %errorlevel% neq 0 (
     echo [ERROR] CMake generation failed.

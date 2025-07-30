@@ -173,6 +173,9 @@ int main() {
         struct Serializable {
             int a = 0;
             std::string b;
+            
+            Serializable() {}
+            Serializable(int a_, const std::string& b_) : a(a_), b(b_) {}
 
             std::vector<uint8_t> to_bytes() const {
                 std::vector<uint8_t> result(sizeof(int) + b.size());
@@ -207,8 +210,8 @@ int main() {
 
         std::mutex mtx;
         std::condition_variable cv;
-        std::atomic<bool> ready = false;
-        std::atomic<bool> failed = false;
+        std::atomic<bool> ready(false);
+        std::atomic<bool> failed(false);
         ConcurrentStruct written;
 
         std::thread writer([&kv, &ready, &written, &cv, &mtx] {
@@ -229,12 +232,21 @@ int main() {
                 std::unique_lock<std::mutex> lock(mtx);
                 cv.wait(lock, [&] { return ready.load(); });
 
+#               if __cplusplus >= 201703L   
                 auto val = kv.find(1);
                 if (!val.has_value() || val.value() != written) {
                     std::cerr << "Mismatch at iteration " << i << ": got " << val.value().value << ", expected " << written.value << std::endl;
                     failed = true;
                     break;
                 }
+#               else
+                auto val = kv.find_compat(1);
+                if (!val.first || val.second != written) {
+                    std::cerr << "Mismatch at iteration " << i << ": got " << val.second.value << ", expected " << written.value << std::endl;
+                    failed = true;
+                    break;
+                }
+#               endif
 
                 ready = false;
             }

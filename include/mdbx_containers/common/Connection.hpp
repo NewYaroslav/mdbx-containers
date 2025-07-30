@@ -82,7 +82,12 @@ namespace mdbxc {
         MDBX_env *m_env = nullptr;          ///< Pointer to the MDBX environment handle.
         mutable std::mutex m_mdbx_mutex;    ///< Mutex for thread-safe access.
         std::unordered_map<std::thread::id, std::shared_ptr<Transaction>> m_transactions;
-        std::optional<Config> m_config;     ///< Database configuration object.
+#       if __cplusplus >= 201703L
+        using config_t = std::optional<Config>;
+#       else
+        using config_t = std::unique_ptr<Config>;
+#       endif
+        config_t m_config;                  ///< Database configuration object.
 
         /// \brief Initializes the environment and sets up read-only transaction.
         void initialize();

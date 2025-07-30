@@ -63,7 +63,10 @@ namespace mdbxc {
         /// \param env Pointer to the MDBX environment handle.
         /// \param mode Access mode of the transaction.
         Transaction(TransactionTracker* registry, MDBX_env* env, TransactionMode mode);
-
+        
+        Transaction(Transaction&&) noexcept = default;
+        Transaction& operator=(Transaction&&) noexcept = default;
+        
     private:
 
         Transaction(const Transaction&) = delete;

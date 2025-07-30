@@ -1,122 +1,163 @@
 # AGENTS.md
 
-## Overview
+# Overview
 
-**mdbx-containers** is a lightweight C++17 header-only library that bridges standard STL containers (e.g., `std::map`, `std::vector`, `std::set`, `std::unordered_map`) with [libmdbx](https://github.com/erthink/libmdbx), providing high-performance, transactional key-value storage with a simple interface.
+**mdbx-containers** is a lightweight, header-only C++11/17 library that bridges standard STL containers (`std::map`, `std::vector`, `std::set`, `std::unordered_map`, etc.) with [libmdbx](https://github.com/erthink/libmdbx), providing high-performance, transactional key-value storage with a clean and familiar interface.
 
 It is designed for developers who want to:
 
-- Use persistent containers in C++ without dealing directly with the low-level MDBX API  
-- Write transactional, concurrent, and crash-safe key-value storage  
-- Keep STL containers synchronized with durable storage efficiently  
+- Persist STL containers in a crash-safe, transactional key-value database
+- Use `std` containers as intuitive views over durable MDBX-backed data
+- Avoid writing manual serialization logic or low-level MDBX boilerplate
+- Share a single MDBX file among multiple logical tables (sub-databases)
+- Build high-performance systems with thread-safe and efficient access patterns
 
-## Capabilities
+# Features
 
-**Agent-like tasks this library enables:**
+- Transparent persistence of `std::map`, `std::set`, `std::vector`, `std::unordered_map`, and similar containers
+- Key-only, key-value, and multimap-like support using `KeyTable`, `KeyValueTable`, and `KeyMultiValueTable`
+- Serialization for trivially-copyable types via `memcpy`, or custom types via `to_bytes()` / `from_bytes()`
+- Automatic transaction management using RAII and per-thread `TransactionTracker`
+- Multiple logical tables in one environment via named `MDBX_dbi`
+- Thread-safe use across concurrent readers/writers
 
-- Storing STL containers into persistent, transactional MDBX databases  
-- Reading them back and keeping them synchronized  
-- Performing atomic operations using safe RAII transactions  
-- Managing multiple named sub-databases (DBIs) inside a single MDBX file  
-- Supporting key-only, key-value, and key-to-multiple-value mappings  
-- Enabling concurrent access and fine-grained control over performance  
+## Use Cases
 
-## Example Use Cases
+- Persistent key-value mappings:  
+  `KeyValueTable<int, std::string>`, `KeyValueTable<std::string, double>`
 
-- Persisting `std::map<int, MyStruct>`-like data using `KeyValueTable<int, MyStruct>`  
-- Using `KeyValueTable<std::string, std::vector<SimpleStruct>>` to serialize containers of PODs  
-- Creating mappings from `std::string` to STL containers (`vector`, `list`, `set`) transparently  
-- Efficiently storing PODs and trivially-copyable types via raw `memcpy` serialization  
-- Supporting self-serializable types with custom `to_bytes()` / `from_bytes()` logic  
-- Using the same `Connection` for multiple logical tables (e.g., `"i8_i8"`, `"str_list_str"`)  
-- Running correctness tests and experiments on real datasets with minimal boilerplate  
+- Multimap-like storage:  
+  `KeyMultiValueTable<std::string, int>` to associate multiple values with a single key
 
-## Getting Started
+- Set-like persistence:  
+  `KeyTable<uint32_t>` for fast and compact storage of unique keys
 
-Include the headers and ensure libmdbx is available in your build.  
-Either install MDBX separately or use the provided submodule.
+- Nested STL containers:  
+  `KeyValueTable<std::string, std::vector<SimpleStruct>>` for bulk object serialization
+
+- Transparent support for PODs and trivially copyable types:  
+  Automatically serialized via `memcpy`
+
+- Custom types with explicit serialization:  
+  Types implementing `to_bytes()` / `from_bytes()` are serialized automatically
+
+- Multiple logical tables:  
+  One `Connection` can manage multiple `KeyValueTable` instances, each with a distinct `table_name`
+
+- Real dataset processing with low overhead:  
+  Minimal boilerplate to test storage, iteration, reconciliation, etc.
+
+## Installation & Build
+
+You can use **mdbx-containers** as a header-only library or build it as a static library.
+
+### Requirements
+
+- CMake 3.18+
+- C++11 or later
+- [libmdbx](https://github.com/erthink/libmdbx) (automatically built if `BUILD_DEPS=ON`)
+
+### Using as a Submodule
 
 ```bash
 git submodule add https://github.com/NewYaroslav/mdbx-containers.git
 ```
 
-CMake example:
+### Build with CMake
+
+Header-only usage (no build step needed):
 
 ```bash
-cmake -DBUILD_DEPS=ON -DBUILD_STATIC_LIB=ON -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON .
+# Just add `include/` to your include path and link with libmdbx.
 ```
 
-Check the `examples/` directory for full usage samples.
-
-### Building from Source
-
-Use `BUILD_DEPS=ON` to compile the bundled MDBX submodule. Omit it if the
-system already provides `libmdbx`. Enabling `BUILD_STATIC_LIB=ON` creates a
-precompiled static library instead of relying on header-only usage.
-Set `BUILD_TESTS=ON` to build the test suite under `tests/`.
+Or build the static library (optional):
 
 ```bash
-cmake --build .
+cmake -S . -B build \
+    -DBUILD_DEPS=ON \
+    -DBUILD_STATIC_LIB=ON \
+    -DBUILD_TESTS=ON \
+    -DBUILD_EXAMPLES=ON
+
+cmake --build build
+```
+
+To run tests:
+
+```bash
+cd build
 ctest --output-on-failure
 ```
 
-## Library Entry Points
+### CMake Options
 
-| Class / Template                  | Purpose                                                    |
+| Option               | Default | Description                                                                 |
+|----------------------|---------|-----------------------------------------------------------------------------|
+| `BUILD_DEPS`         | OFF     | Build internal libmdbx (submodule in `libs/`)                               |
+| `BUILD_STATIC_LIB`   | OFF     | Build `mdbx_containers` as a precompiled `.a/.lib` static library           |
+| `BUILD_EXAMPLES`     | ON      | Build examples from `examples/`                                             |
+| `BUILD_TESTS`        | ON      | Build tests from `tests/`                                                  |
+
+
+## Core Classes
+
+Each table maps to a unique `MDBX_dbi` within the shared environment.  
+Each instance manages its own named DBI and provides standard operations such as `insert_or_assign()`, `find()`, `erase()`, and others.
+
+| Class / Template                 | Description                                               |
 |----------------------------------|------------------------------------------------------------|
-| `KeyTable<T>`                    | Key-only persistent set (analog of `std::set<T>`)          |
-| `KeyValueTable<K, V>`            | Key-value persistent map (like `std::map<K, V>`)           |
-| `KeyMultiValueTable<K, V>`       | Multi-value map (like `std::multimap<K, V>`)               |
-| `Connection`                     | Owns the MDBX environment and named table handles          |
-| `Transaction`                    | Manages safe, RAII-based transactions                      |
-| `BaseTable`                      | Common base class for all table types                      |
+| `KeyTable<T>`                    | Key-only table (`std::set`-like)                          |
+| `KeyValueTable<K, V>`            | Key-value table (`std::map`-like)                         |
+| `KeyMultiValueTable<K, V>`       | Key with multiple values (`std::multimap`-like)           |
+| `Connection`                     | Manages MDBX environment and logical tables (DBI)         |
+| `Transaction`                    | RAII transaction tied to current thread                   |
+| `BaseTable`                      | Shared base class for table types                         |
 
-Each table instance manages its own named DBI and supports standard operations like `insert_or_assign()`, `find()`, and `erase()`.
+## Supported Data Types
 
-## Data Types Support
+- **Primitives**: `int8_t`, `int32_t`, `uint64_t`, `float`, `double`, etc.  
+- **Strings**: `std::string`, `std::vector<char>`, `std::vector<uint8_t>`  
+- **STL containers**: `std::vector<T>`, `std::list<T>`, `std::set<T>` — if `T` is serializable  
+- **POD types**: serialized using `memcpy` if trivially copyable  
+- **Custom types**: must implement `to_bytes()` and `from_bytes()`  
 
-As seen in practice, the following types are directly supported:
-
-- **Primitive types**: `int8_t`, `int32_t`, `int64_t`, etc.  
-- **Standard strings**: `std::string`  
-- **STL containers**: `std::vector<T>`, `std::list<T>`, `std::set<T>` — where `T` is trivially serializable or has defined `to_bytes()` / `from_bytes()`  
-- **User-defined POD structs** (via `memcpy`)  
-- **Self-serializable custom types** (manual byte encoding)  
-
-The library is flexible enough to allow mixing and nesting, e.g., `KeyValueTable<std::string, std::vector<MyStruct>>`.
+Types can be nested, e.g., `KeyValueTable<std::string, std::vector<MyStruct>>`.
 
 ## Transaction Model
 
-All operations are transactional:
+- All read/write operations are automatically wrapped in transactions.  
+- Manual transactions are available via `Transaction txn(conn, TransactionMode::WRITABLE);`.  
+- Transactions are RAII-managed — they commit or roll back on destruction.  
+- Nested transactions are **not** supported (MDBX limitation).  
+- Transactions are thread-safe — each thread has its own transaction via `TransactionTracker`.
 
-- Insertions and reads are automatically wrapped in a transaction  
-- Underlying transactions can be batched or nested  
-- No manual commit required for single operations
+## Internals
 
-## Implementation Highlights
-
-- RAII-style `Transaction` objects automatically commit or roll back on
-  destruction. The `Connection` class keeps a per-thread map of transactions via
-  an internal `TransactionTracker`, ensuring thread safety when multiple threads
-  access the same environment.
-- Serialization utilities in `detail/utils.hpp` cover primitive types, STL
-  containers and custom types implementing `to_bytes()` / `from_bytes()`.
+- `Connection` internally uses `TransactionTracker` to bind transactions to threads.  
+- Serialization is performed via `serialize_value()` / `deserialize_value()` from `detail/serialization.hpp`.  
+- Supports both custom `to_bytes()` / `from_bytes()` and fallback to `std::is_trivially_copyable`.  
 
 ## Named Tables
 
-Each `KeyValueTable` or `KeyTable` is bound to a named sub-database (`DBI`) within the same MDBX file:
+Each table (`KeyValueTable`, `KeyTable`, etc.) is associated with a named sub-database (`MDBX_dbi`) within the same MDBX file.  
+This allows multiple logical containers to coexist in a single physical database file.
+
+Tables are initialized with a unique `table_name` specified in the `Config`:
 
 ```cpp
-KeyValueTable<std::string, int> kv(conn, "my_table_name");
-```
+Config config;
+config.db_path = "data.mdbx";
+config.table_name = "orders";
 
-This allows multiple logical containers to coexist in the same physical file.
+KeyValueTable<std::string, int> kv(config);
+```
 
 ## Error Handling
 
-- Type mismatches or invalid serialization sizes throw `std::runtime_error`  
-- Missing keys return `std::nullopt` from `.find()`  
-- MDBX-specific errors are wrapped with human-readable messages via `check_mdbx()`  
+- MDBX-specific errors are wrapped with `check_mdbx()` and throw `MdbxException` with human-readable messages.  
+- Type mismatches or serialization errors (including invalid data sizes) throw `std::runtime_error`.  
+- Missing keys return `std::nullopt` from `.find()` (or empty collections where applicable).  
 
 ## Code Style: Git Commit Convention
 
