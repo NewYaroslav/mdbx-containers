@@ -12,6 +12,7 @@
 namespace mdbxc {
 
     /// \class KeyValueTable
+    /// \ingroup mdbxc_tables
     /// \brief Template class for managing key-value pairs in an MDBX database.
     /// \tparam KeyT Type of the keys.
     /// \tparam ValueT Type of the values.

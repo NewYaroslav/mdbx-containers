@@ -8,6 +8,7 @@
 namespace mdbxc {
 
     /// \class Config
+    /// \ingroup mdbxc_core
     /// \brief Parameters used by \ref Connection to create the MDBX environment.
     ///
     /// Each option corresponds to an MDBX flag or setting. See

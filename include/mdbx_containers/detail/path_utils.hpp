@@ -3,6 +3,7 @@
 #define _MDBX_CONTAINERS_PATH_UTILS_HPP_INCLUDED
 
 /// \file path_utils.hpp
+/// \ingroup mdbxc_utils
 /// \brief Utility functions for path manipulation, including relative path computation.
 
 #include <string>

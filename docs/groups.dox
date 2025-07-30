@@ -1,0 +1,8 @@
+/*! \defgroup mdbxc_core Core API
+    Classes managing connections, configuration, and transactions.
+*/
+
+/*! \defgroup mdbxc_tables Table Containers
+    STL-like containers backed by MDBX.
+*/
+

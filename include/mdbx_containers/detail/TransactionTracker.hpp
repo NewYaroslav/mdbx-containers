@@ -8,6 +8,7 @@
 namespace mdbxc {
 
     /// \class TransactionTracker
+    /// \ingroup mdbxc_core
     /// \brief Associates MDBX transactions with threads.
     ///
     /// Manages a map from thread IDs to MDBX transaction pointers,

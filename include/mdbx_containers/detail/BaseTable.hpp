@@ -8,6 +8,7 @@
 namespace mdbxc {
     
     /// \class BaseTable
+    /// \ingroup mdbxc_core
     /// \brief Base class providing common functionality for MDBX database access.
     ///
     /// Opens or creates a table (DBI handle) and offers basic transaction management.
