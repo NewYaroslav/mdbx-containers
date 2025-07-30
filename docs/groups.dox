@@ -1,0 +1,17 @@
+/*! \defgroup mdbxc_core Core Components
+ *  Classes for connection management, configuration, transaction handling,
+ *  and the common base classes shared across containers.
+ */
+
+/*! \defgroup mdbxc_tables Persistent Containers
+ *  STL-like containers backed by MDBX such as \c KeyValueTable, \c KeyTable
+ *  and related types providing durable storage.
+ */
+
+/*! \defgroup mdbxc_utils Utility Functions
+ *  Helper traits and serialization routines used throughout the library.
+ */
+
+/*! \defgroup mdbxc_examples Examples
+ *  Example programs demonstrating how to use the mdbx-containers library.
+ */
