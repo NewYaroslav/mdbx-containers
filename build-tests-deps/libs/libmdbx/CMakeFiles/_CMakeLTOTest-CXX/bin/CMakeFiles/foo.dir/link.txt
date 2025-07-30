@@ -1,0 +1,2 @@
+"D:/MinGW/x86_64-12.2.0-release-posix-seh-rt_v10-rev0/mingw64/bin/gcc-ar.exe" qc libfoo.a CMakeFiles/foo.dir/foo.cpp.obj
+"D:/MinGW/x86_64-12.2.0-release-posix-seh-rt_v10-rev0/mingw64/bin/gcc-ranlib.exe" libfoo.a

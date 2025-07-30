@@ -1,0 +1,10 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+E:/_repoz/mdbx-containers/build-cpp17-examples-deps/libs/libmdbx/CMakeFiles/_CMakeLTOTest-CXX/src/foo.cpp
+

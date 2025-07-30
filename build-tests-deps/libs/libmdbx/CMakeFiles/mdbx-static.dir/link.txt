@@ -1,0 +1,2 @@
+D:\MinGW\x86_64-12.2.0-release-posix-seh-rt_v10-rev0\mingw64\bin\ar.exe qc ..\..\lib\libmdbx.a "CMakeFiles/mdbx-static.dir/src/alloy.c.obj" "CMakeFiles/mdbx-static.dir/src/mdbx.c++.obj"
+D:\MinGW\x86_64-12.2.0-release-posix-seh-rt_v10-rev0\mingw64\bin\ranlib.exe ..\..\lib\libmdbx.a

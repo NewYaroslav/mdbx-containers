@@ -1,0 +1,4 @@
+# Hashes of file build rules.
+9e6c93fd3bc0d8bf868cec30e997e0d4 CMakeFiles/copy_headers_to_build
+eeefdb99188e673d2a74d398ee46867c libs/libmdbx/CMakeFiles/ntdll_extra_target
+59d78febdbd6aeb2bbc0aafa0baef2b3 libs/libmdbx/mdbx_ntdll_extra.a

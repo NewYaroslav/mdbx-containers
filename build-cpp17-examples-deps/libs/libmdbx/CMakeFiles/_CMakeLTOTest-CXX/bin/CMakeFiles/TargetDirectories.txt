@@ -1,0 +1,4 @@
+E:/_repoz/mdbx-containers/build-cpp17-examples-deps/libs/libmdbx/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/foo.dir
+E:/_repoz/mdbx-containers/build-cpp17-examples-deps/libs/libmdbx/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/boo.dir
+E:/_repoz/mdbx-containers/build-cpp17-examples-deps/libs/libmdbx/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/edit_cache.dir
+E:/_repoz/mdbx-containers/build-cpp17-examples-deps/libs/libmdbx/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/rebuild_cache.dir

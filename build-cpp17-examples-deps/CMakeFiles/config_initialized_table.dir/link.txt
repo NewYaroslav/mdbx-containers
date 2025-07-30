@@ -1,0 +1,3 @@
+D:\_repoz_lib\cmake-3.30.3-windows-x86_64\bin\cmake.exe -E rm -f CMakeFiles\config_initialized_table.dir/objects.a
+D:\MinGW\x86_64-12.2.0-release-posix-seh-rt_v10-rev0\mingw64\bin\ar.exe qc CMakeFiles\config_initialized_table.dir/objects.a @CMakeFiles\config_initialized_table.dir\objects1.rsp
+D:\MinGW\x86_64-12.2.0-release-posix-seh-rt_v10-rev0\mingw64\bin\c++.exe -O3 -DNDEBUG -Wl,--whole-archive CMakeFiles\config_initialized_table.dir/objects.a -Wl,--no-whole-archive -o examples\config_initialized_table.exe -Wl,--out-implib,lib\libconfig_initialized_table.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\config_initialized_table.dir\linkLibs.rsp

@@ -1,0 +1,18 @@
+include/
+├── mdbx_containers/
+│   ├── common/
+│   │   ├── BaseTable.hpp
+│   │   ├── Config.hpp
+│   │   ├── Connection.hpp
+│   │   ├── MdbxException.hpp
+│   │   ├── Transaction.hpp
+│   │   ├── TransactionTracker.hpp
+│   │   ├── utils.hpp
+│   │   └── utils.ipp
+│   ├── KeyContainer.hpp
+│   ├── KeyMultiValueContainer.hpp
+│   └── KeyValueContainer.hpp
+└── mdbx_containers.hpp
+cmake/
+├── install-headers.cmake
+└── libmdbx-wrapper.cmake

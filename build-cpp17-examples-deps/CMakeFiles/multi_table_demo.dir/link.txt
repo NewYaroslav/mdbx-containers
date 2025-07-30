@@ -1,0 +1,3 @@
+D:\_repoz_lib\cmake-3.30.3-windows-x86_64\bin\cmake.exe -E rm -f CMakeFiles\multi_table_demo.dir/objects.a
+D:\MinGW\x86_64-12.2.0-release-posix-seh-rt_v10-rev0\mingw64\bin\ar.exe qc CMakeFiles\multi_table_demo.dir/objects.a @CMakeFiles\multi_table_demo.dir\objects1.rsp
+D:\MinGW\x86_64-12.2.0-release-posix-seh-rt_v10-rev0\mingw64\bin\c++.exe -O3 -DNDEBUG -Wl,--whole-archive CMakeFiles\multi_table_demo.dir/objects.a -Wl,--no-whole-archive -o examples\multi_table_demo.exe -Wl,--out-implib,lib\libmulti_table_demo.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\multi_table_demo.dir\linkLibs.rsp
