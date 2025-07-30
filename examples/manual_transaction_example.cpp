@@ -1,3 +1,8 @@
+/**
+ * \ingroup mdbxc_examples
+ * Demonstrates manual transaction management.
+ */
+
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <iostream>
 
