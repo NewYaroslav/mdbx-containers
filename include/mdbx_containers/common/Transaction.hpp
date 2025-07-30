@@ -61,9 +61,13 @@ namespace mdbxc {
         MDBX_txn *handle() const noexcept;
         
         /// \brief Constructs a new transaction object.
+        /// \param registry Transaction tracker used to associate the
+        ///        transaction with the current thread.
         /// \param env Pointer to the MDBX environment handle.
         /// \param mode Access mode of the transaction.
-        Transaction(TransactionTracker* registry, MDBX_env* env, TransactionMode mode);
+        Transaction(TransactionTracker* registry,
+                    MDBX_env* env,
+                    TransactionMode mode);
         
         Transaction(Transaction&&) noexcept = default;
         Transaction& operator=(Transaction&&) noexcept = default;
