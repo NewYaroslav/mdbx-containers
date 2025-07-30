@@ -1,0 +1,20 @@
+var searchData=
+[
+  ['m_5fconfig_0',['m_config',['../classmdbxc_1_1Connection.html#a74401bf8670ab46f117ac7c98f9e88af',1,'mdbxc::Connection']]],
+  ['m_5fconnection_1',['m_connection',['../classmdbxc_1_1BaseTable.html#afc63c439e53d23e52be7f2b46932303b',1,'mdbxc::BaseTable']]],
+  ['m_5fdb_2',['m_db',['../classmdbxc_1_1KeyValueTable_1_1AssignmentProxy.html#a8422fb8cb7cba9d08e976a0146b71aa1',1,'mdbxc::KeyValueTable::AssignmentProxy']]],
+  ['m_5fdbi_3',['m_dbi',['../classmdbxc_1_1BaseTable.html#a36b16ff0d933f115ddaab431f2eb3fdb',1,'mdbxc::BaseTable']]],
+  ['m_5fenv_4',['m_env',['../classmdbxc_1_1Connection.html#a28fa663045efd688e6d0eca635800065',1,'mdbxc::Connection::m_env'],['../classmdbxc_1_1Transaction.html#a31297619d86d19a539fdd43df523e6f4',1,'mdbxc::Transaction::m_env']]],
+  ['m_5ferror_5fcode_5',['m_error_code',['../classmdbxc_1_1MdbxException.html#af062e748c440eb63adb1d1d91b33b9ba',1,'mdbxc::MdbxException']]],
+  ['m_5fkey_6',['m_key',['../classmdbxc_1_1KeyValueTable_1_1AssignmentProxy.html#afcfcdc10886b09ccd87951b5523dbf79',1,'mdbxc::KeyValueTable::AssignmentProxy']]],
+  ['m_5fmdbx_5fmutex_7',['m_mdbx_mutex',['../classmdbxc_1_1Connection.html#ab3475a4f38c01bc50a1eca02d6358578',1,'mdbxc::Connection']]],
+  ['m_5fmode_8',['m_mode',['../classmdbxc_1_1Transaction.html#a177ea815e5eec82f1e57e45f1f87c5f2',1,'mdbxc::Transaction']]],
+  ['m_5fmutex_9',['m_mutex',['../classmdbxc_1_1TransactionTracker.html#a96b9701352642e1e830e7ff7f501990c',1,'mdbxc::TransactionTracker']]],
+  ['m_5fregistry_10',['m_registry',['../classmdbxc_1_1Transaction.html#a89fed34e309e7549fb4ecbdff39e8dcd',1,'mdbxc::Transaction']]],
+  ['m_5fstarted_11',['m_started',['../classmdbxc_1_1Transaction.html#ad79d0e7138176caab7d45b60ea97e7d8',1,'mdbxc::Transaction']]],
+  ['m_5fthread_5ftxns_12',['m_thread_txns',['../classmdbxc_1_1TransactionTracker.html#a9d30dbafdc10cf9045d6ddfa3c5477fc',1,'mdbxc::TransactionTracker']]],
+  ['m_5ftransactions_13',['m_transactions',['../classmdbxc_1_1Connection.html#aee59eae8a2ca1ea136bb27fc56721c6d',1,'mdbxc::Connection']]],
+  ['m_5ftxn_14',['m_txn',['../classmdbxc_1_1Transaction.html#ac717e3f31a989fdf5f0a1393e873cf8e',1,'mdbxc::Transaction']]],
+  ['max_5fdbs_15',['max_dbs',['../classmdbxc_1_1Config.html#af844e68cfb47cf3828fdee8905e18d3a',1,'mdbxc::Config']]],
+  ['max_5freaders_16',['max_readers',['../classmdbxc_1_1Config.html#a2e86e5d8de4470b6b7a49f2117b0a1af',1,'mdbxc::Config']]]
+];

@@ -1,0 +1,18 @@
+var annotated_dup =
+[
+    [ "mdbxc", "namespacemdbxc.html", [
+      [ "BaseTable", "classmdbxc_1_1BaseTable.html", "classmdbxc_1_1BaseTable" ],
+      [ "Config", "classmdbxc_1_1Config.html", "classmdbxc_1_1Config" ],
+      [ "Connection", "classmdbxc_1_1Connection.html", "classmdbxc_1_1Connection" ],
+      [ "has_from_bytes", "structmdbxc_1_1has__from__bytes.html", "structmdbxc_1_1has__from__bytes" ],
+      [ "has_to_bytes", "structmdbxc_1_1has__to__bytes.html", "structmdbxc_1_1has__to__bytes" ],
+      [ "has_value_type", "structmdbxc_1_1has__value__type.html", "structmdbxc_1_1has__value__type" ],
+      [ "KeyValueTable", "classmdbxc_1_1KeyValueTable.html", "classmdbxc_1_1KeyValueTable" ],
+      [ "MdbxException", "classmdbxc_1_1MdbxException.html", "classmdbxc_1_1MdbxException" ],
+      [ "PathComponents", "structmdbxc_1_1PathComponents.html", "structmdbxc_1_1PathComponents" ],
+      [ "Transaction", "classmdbxc_1_1Transaction.html", "classmdbxc_1_1Transaction" ],
+      [ "TransactionTracker", "classmdbxc_1_1TransactionTracker.html", "classmdbxc_1_1TransactionTracker" ]
+    ] ],
+    [ "MyData", "structMyData.html", "structMyData" ],
+    [ "MyStruct", "structMyStruct.html", "structMyStruct" ]
+];

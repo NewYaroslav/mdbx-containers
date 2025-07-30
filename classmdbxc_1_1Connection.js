@@ -1,0 +1,28 @@
+var classmdbxc_1_1Connection =
+[
+    [ "config_t", "classmdbxc_1_1Connection.html#a61fa794859acacd4b98298fcb8c9c417", null ],
+    [ "Connection", "classmdbxc_1_1Connection.html#a87ed3ec4854d12d7840a986adc3ac0e3", null ],
+    [ "Connection", "classmdbxc_1_1Connection.html#a80a43ce43ddae79a5feca5f22bdeb6bd", null ],
+    [ "~Connection", "classmdbxc_1_1Connection.html#aa6202b8cedddf4025277a8e62bb4f016", null ],
+    [ "begin", "classmdbxc_1_1Connection.html#a458ffd898740a7231ec797edaebee1d4", null ],
+    [ "cleanup", "classmdbxc_1_1Connection.html#a9961a05924580c60f51cbc7338c38835", null ],
+    [ "commit", "classmdbxc_1_1Connection.html#ab4fecddb3b414ebfee68417df654bdb9", null ],
+    [ "configure", "classmdbxc_1_1Connection.html#aa13a9ae2032da86bec3bb4f866b1ed45", null ],
+    [ "connect", "classmdbxc_1_1Connection.html#a9ba3b2388fcc5d28b6c2115abdb7fd09", null ],
+    [ "connect", "classmdbxc_1_1Connection.html#af188d1c3ae7d800c65deb79d76071f1f", null ],
+    [ "create", "classmdbxc_1_1Connection.html#abe93416de46df1ef6fd7da807c418ff2", null ],
+    [ "current_txn", "classmdbxc_1_1Connection.html#a1a4eb0db343b113ea10bb46665c64f22", null ],
+    [ "db_init", "classmdbxc_1_1Connection.html#a6257c7e85fafacd482d2687d8baeead8", null ],
+    [ "disconnect", "classmdbxc_1_1Connection.html#a54d71be94ef5337f3dbe66633e7d2526", null ],
+    [ "env_handle", "classmdbxc_1_1Connection.html#a3afc359e4bd42969a16ae6f643a28aa6", null ],
+    [ "initialize", "classmdbxc_1_1Connection.html#aed8a14d72d73c0b9e0797e5a48fc8117", null ],
+    [ "is_connected", "classmdbxc_1_1Connection.html#a26547632506969c269096ddee13126f0", null ],
+    [ "rollback", "classmdbxc_1_1Connection.html#a6ee8593d834559db1446417c7ee26d76", null ],
+    [ "transaction", "classmdbxc_1_1Connection.html#a30c34702459178e9c1ce594f8ae5d072", null ],
+    [ "BaseTable", "classmdbxc_1_1Connection.html#ad3262cd32bc716abef29f5a84831186f", null ],
+    [ "Transaction", "classmdbxc_1_1Connection.html#a49982aa325e19f0956d42fde9132caa2", null ],
+    [ "m_config", "classmdbxc_1_1Connection.html#a74401bf8670ab46f117ac7c98f9e88af", null ],
+    [ "m_env", "classmdbxc_1_1Connection.html#a28fa663045efd688e6d0eca635800065", null ],
+    [ "m_mdbx_mutex", "classmdbxc_1_1Connection.html#ab3475a4f38c01bc50a1eca02d6358578", null ],
+    [ "m_transactions", "classmdbxc_1_1Connection.html#aee59eae8a2ca1ea136bb27fc56721c6d", null ]
+];

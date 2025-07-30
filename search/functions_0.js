@@ -1,0 +1,6 @@
+var searchData=
+[
+  ['append_0',['append',['../classmdbxc_1_1KeyValueTable.html#ae4fac4f2bad6957887a8c46d02050e40',1,'mdbxc::KeyValueTable::append(const ContainerT&lt; KeyT, ValueT &gt; &amp;container, MDBX_txn *txn=nullptr)'],['../classmdbxc_1_1KeyValueTable.html#a8a82354df735c708cdb39871e9da38a6',1,'mdbxc::KeyValueTable::append(const ContainerT&lt; KeyT, ValueT &gt; &amp;container, const Transaction &amp;txn)'],['../classmdbxc_1_1KeyValueTable.html#ac37d1184507922ad835ccd878d18c3b3',1,'mdbxc::KeyValueTable::append(const std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &amp;container, MDBX_txn *txn=nullptr)'],['../classmdbxc_1_1KeyValueTable.html#af6428ed13cd1602b8e9294e74c8e7aba',1,'mdbxc::KeyValueTable::append(const std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &amp;container, const Transaction &amp;txn)']]],
+  ['assignmentproxy_1',['AssignmentProxy',['../classmdbxc_1_1KeyValueTable_1_1AssignmentProxy.html#a745697860fc6dfcb608440389b44e41b',1,'mdbxc::KeyValueTable::AssignmentProxy']]],
+  ['at_2',['at',['../classmdbxc_1_1KeyValueTable.html#aa3bffc7dd3257518e13ed5a0607f46ba',1,'mdbxc::KeyValueTable::at(const KeyT &amp;key, MDBX_txn *txn=nullptr) const'],['../classmdbxc_1_1KeyValueTable.html#a900beef533ec774f178e5b667d9b40f4',1,'mdbxc::KeyValueTable::at(const KeyT &amp;key, const Transaction &amp;txn) const']]]
+];

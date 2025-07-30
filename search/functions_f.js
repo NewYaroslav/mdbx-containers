@@ -1,0 +1,8 @@
+var searchData=
+[
+  ['thread_5ftxn_0',['thread_txn',['../classmdbxc_1_1BaseTable.html#a1a2efd67e2bdde7ce7be8371908b8fe8',1,'mdbxc::BaseTable::thread_txn()'],['../classmdbxc_1_1TransactionTracker.html#a4131af102911e2512bd8005a60db509d',1,'mdbxc::TransactionTracker::thread_txn()']]],
+  ['to_5fbytes_1',['to_bytes',['../structMyData.html#af89101c817850ceed5e671175a29613c',1,'MyData::to_bytes()'],['../structMyStruct.html#a44e24c4051985df17a6c28507c591755',1,'MyStruct::to_bytes()']]],
+  ['transaction_2',['Transaction',['../classmdbxc_1_1Transaction.html#a34fd5243ce9108a766da0fdf2c1517bc',1,'mdbxc::Transaction::Transaction(TransactionTracker *registry, MDBX_env *env, TransactionMode mode)'],['../classmdbxc_1_1Transaction.html#af32055b2a1a201f7b6fa75f4b416431f',1,'mdbxc::Transaction::Transaction(Transaction &amp;&amp;) noexcept=default'],['../classmdbxc_1_1Transaction.html#af2248b57d895d0180754db5b85d5b89f',1,'mdbxc::Transaction::Transaction(const Transaction &amp;)=delete']]],
+  ['transaction_3',['transaction',['../classmdbxc_1_1Connection.html#a30c34702459178e9c1ce594f8ae5d072',1,'mdbxc::Connection']]],
+  ['try_5fget_4',['try_get',['../classmdbxc_1_1KeyValueTable.html#a51170a2ae5d07627e15d097c290850b4',1,'mdbxc::KeyValueTable::try_get(const KeyT &amp;key, ValueT &amp;out, MDBX_txn *txn) const'],['../classmdbxc_1_1KeyValueTable.html#a47b3e283301d3769180f2acdbdc6a0d3',1,'mdbxc::KeyValueTable::try_get(const KeyT &amp;key, ValueT &amp;out, const Transaction &amp;txn) const']]]
+];
