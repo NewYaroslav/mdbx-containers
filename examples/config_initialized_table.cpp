@@ -1,3 +1,8 @@
+/**
+ * \ingroup mdbxc_examples
+ * Basic example using Config to initialize a table.
+ */
+
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <iostream>
 

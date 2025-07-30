@@ -1,3 +1,8 @@
+/**
+ * \ingroup mdbxc_examples
+ * Storing a custom struct with to_bytes/from_bytes.
+ */
+
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <iostream>
 #include <vector>

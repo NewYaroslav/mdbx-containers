@@ -1,3 +1,8 @@
+/**
+ * \ingroup mdbxc_examples
+ * Shows scoped transaction usage.
+ */
+
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <iostream>
 #include <vector>
