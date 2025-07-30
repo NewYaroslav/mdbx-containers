@@ -3,29 +3,33 @@
 #define _MDBX_CONTAINERS_CONFIG_HPP_INCLUDED
 
 /// \file Config.hpp
-/// \brief Configuration class for MDBX database.
+/// \brief Configuration options used when opening an MDBX environment.
 
 namespace mdbxc {
 
     /// \class Config
-    /// \brief Configuration for MDBX databases.
+    /// \brief Parameters used by \ref Connection to create the MDBX environment.
+    ///
+    /// Each option corresponds to an MDBX flag or setting. See
+    /// \ref config_page for a detailed description of how these values
+    /// influence the database.
     class Config {
     public:
-        std::string pathname;                   ///< Pathname for the database or directory in which the database files reside.
+        std::string pathname;                   ///< Path to the database file or directory containing the database.
         int64_t size_lower  = -1;               ///< Lower bound for database size.
         int64_t size_now    = -1;               ///< Current size of the database.
         int64_t size_upper  = -1;               ///< Upper bound for database size.
         int64_t growth_step = 16 * 1024 * 1024; ///< Step size for database growth.
         int64_t shrink_threshold = 16 * 1024 * 1024; ///< Threshold for database shrinking.
-        int64_t page_size   = 0;                ///< Page size; should be a power of two.
-        int64_t max_readers = 0;                ///< Maximum number of reader slots; 0 uses the default (twice the number of CPU cores).
-        int64_t max_dbs = 10;                   ///< Maximum number of named databases (DBI) within the environment.
-        bool read_only = false;                 ///< Enables or disables read-only mode.
-        bool readahead = true;                  ///< Enables or disables readahead for sequential data access.
-        bool no_subdir = true;      			///< If true, uses a single file instead of a directory for the database.
-		bool sync_durable = true;   			///< If true, enforces synchronous/durable writes (MDBX_SYNC_DURABLE).
-		bool writemap_mode = false;             ///< Enables or disables the `MDBX_WRITEMAP` mode, which maps the database into memory for direct modification.
-        bool relative_to_exe = false;           ///< If true and pathname is relative, interpret it as relative to executable directory.
+        int64_t page_size   = 0;                ///< Page size (must be a power of two).
+        int64_t max_readers = 0;                ///< Maximum reader slots; use 0 for the default (twice the CPU count).
+        int64_t max_dbs = 10;                   ///< Maximum number of named databases (DBI) in the environment.
+        bool read_only = false;                 ///< Whether to open the environment in read-only mode.
+        bool readahead = true;                  ///< Whether to enable OS readahead for sequential access.
+        bool no_subdir = true;                  ///< Whether to store the database in a single file instead of a directory.
+        bool sync_durable = true;               ///< Whether to enforce synchronous durable writes (MDBX_SYNC_DURABLE).
+        bool writemap_mode = false;             ///< Whether to map the database with MDBX_WRITEMAP for direct modification.
+        bool relative_to_exe = false;           ///< Whether to resolve a relative path relative to the executable directory.
         
         /// \brief Validate the MDBX configuration.
         /// \return True if the configuration is valid, false otherwise.
