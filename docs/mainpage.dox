@@ -8,6 +8,9 @@ Version: VERSION_PLACEHOLDER
 The LogIt++ library is open-source and hosted on GitHub:
 [LogIt++ GitHub Repository](https://github.com/NewYaroslav/mdbx-containers).
 
+\section config_sec Configuration Guide
+For details on tuning the MDBX environment see \ref config_page.
+
 \section license_sec License
 
 This library is licensed under the **MIT License**. See the [LICENSE](https://github.com/NewYaroslav/log-it-cpp/blob/main/LICENSE) file in the repository for more details.
