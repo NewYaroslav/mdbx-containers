@@ -683,11 +683,7 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         std::size_t db_count(MDBX_txn* txn_handle) const {
             MDBX_stat stat;
-#           if MDBX_VERSION_MAJOR > 0 || MDBX_VERSION_MINOR >= 14
             check_mdbx(mdbx_dbi_stat(txn_handle, m_dbi, &stat, sizeof(stat)), "Failed to query database statistics");
-#           else
-            check_mdbx(mdbx_dbi_stat(txn_handle, m_dbi, &stat), "Failed to query database statistics");
-#           endif
             return stat.ms_entries;
         }
 
