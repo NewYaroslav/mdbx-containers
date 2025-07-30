@@ -608,7 +608,7 @@ namespace mdbxc {
         template<template <class...> class ContainerT>
         void db_load(ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
             MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "mdbx_cursor_open");
+            check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "Failed to open MDBX cursor");
 
             MDBX_val db_key, db_val;
             while (mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT) == MDBX_SUCCESS) {
@@ -626,7 +626,7 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         void db_load(std::vector<std::pair<KeyT, ValueT>>& out_vector, MDBX_txn* txn) {
             MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "mdbx_cursor_open");
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
 
             MDBX_val db_key, db_val;
             while (mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT) == MDBX_SUCCESS) {
@@ -649,7 +649,7 @@ namespace mdbxc {
             MDBX_val db_val;
             int rc = mdbx_get(txn_handle, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
-            check_mdbx(rc, "mdbx_get");
+            check_mdbx(rc, "Failed to retrieve value");
             value = deserialize_value<ValueT>(db_val);
             return true;
         }
@@ -664,7 +664,7 @@ namespace mdbxc {
             MDBX_val db_val; // dummy
             int rc = mdbx_get(txn_handle, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
-            check_mdbx(rc, "mdbx_get (contains)");
+            check_mdbx(rc, "Failed to check key presence");
             return true;
         }
 
@@ -675,9 +675,9 @@ namespace mdbxc {
         std::size_t db_count(MDBX_txn* txn_handle) const {
             MDBX_stat stat;
 #           if MDBX_VERSION_MAJOR > 0 || MDBX_VERSION_MINOR >= 14
-            check_mdbx(mdbx_dbi_stat(txn_handle, m_dbi, &stat, sizeof(stat)), "mdbx_dbi_stat");
+            check_mdbx(mdbx_dbi_stat(txn_handle, m_dbi, &stat, sizeof(stat)), "Failed to query database statistics");
 #           else
-            check_mdbx(mdbx_dbi_stat(txn_handle, m_dbi, &stat), "mdbx_dbi_stat");
+            check_mdbx(mdbx_dbi_stat(txn_handle, m_dbi, &stat), "Failed to query database statistics");
 #           endif
             return stat.ms_entries;
         }
@@ -694,7 +694,7 @@ namespace mdbxc {
                 MDBX_val db_val = serialize_value(pair.second);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
-                    "mdbx_put"
+                    "Failed to write record"
                 );
             }
         }
@@ -709,7 +709,7 @@ namespace mdbxc {
                 MDBX_val db_val = serialize_value(value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
-                    "mdbx_put"
+                    "Failed to write record"
                 );
             }
         }
@@ -730,19 +730,19 @@ namespace mdbxc {
                 MDBX_val db_val = serialize_value(pair.second);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
-                    "mdbx_put"
+                    "Failed to write record"
                 );
             }
 
             // 2. Iterate over existing keys in the DB and remove the extras
             MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "mdbx_cursor_open");
+            check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "Failed to open MDBX cursor");
 
             MDBX_val db_key, db_val;
             while (mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT) == MDBX_SUCCESS) {
                 auto&& key = deserialize_value<KeyT>(db_key);
                 if (new_keys.find(key) == new_keys.end()) {
-                    check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "mdbx_cursor_del");
+                    check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete record using cursor");
                 }
             }
 
@@ -767,19 +767,19 @@ namespace mdbxc {
                 MDBX_val db_val = serialize_value(value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
-                    "mdbx_put"
+                    "Failed to write record"
                 );
             }
 
             // 2. Delete stale keys from DB
             MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "mdbx_cursor_open");
+            check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "Failed to open MDBX cursor");
 
             MDBX_val db_key, db_val;
             while (mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT) == MDBX_SUCCESS) {
                 KeyT key = deserialize_value<KeyT>(db_key);
                 if (new_keys.find(key) == new_keys.end()) {
-                    check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "mdbx_cursor_del");
+                    check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete record using cursor");
                 }
             }
 
@@ -802,7 +802,7 @@ namespace mdbxc {
             if (rc == MDBX_KEYEXIST)
                 return false;
 
-            check_mdbx(rc, "mdbx_put (insert_if_absent)");
+            check_mdbx(rc, "Failed to insert key-value pair");
             return false;
         }
         
@@ -816,7 +816,7 @@ namespace mdbxc {
             MDBX_val db_val = serialize_value(value);
             check_mdbx(
                 mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),  // or 0
-                "mdbx_put (insert_or_assign)"
+                "Failed to insert or assign key-value pair"
             );
         }
 
@@ -830,14 +830,14 @@ namespace mdbxc {
             int rc = mdbx_del(txn_handle, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) return true;
             if (rc == MDBX_NOTFOUND) return false;
-            check_mdbx(rc, "mdbx_del");
+            check_mdbx(rc, "Failed to erase key");
             return false;
         }
 
         /// \brief Clears all key-value pairs from the database.
         /// \throws MdbxException if an MDBX error occurs.
         void db_clear(MDBX_txn* txn_handle) {
-            check_mdbx(mdbx_drop(txn_handle, m_dbi, 0), "mdbx_drop");
+            check_mdbx(mdbx_drop(txn_handle, m_dbi, 0), "Failed to clear table");
         }
 
     }; // KeyValueTable
