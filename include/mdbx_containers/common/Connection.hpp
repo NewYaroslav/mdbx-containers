@@ -8,6 +8,7 @@
 namespace mdbxc {
 
     /// \class Connection
+    /// \ingroup mdbxc_core
     /// \brief Manages a single MDBX environment and an optional read-only transaction.
     class Connection : private TransactionTracker {
         friend class BaseTable;

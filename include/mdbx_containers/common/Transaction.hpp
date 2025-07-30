@@ -17,6 +17,7 @@ namespace mdbxc {
     };
 
     /// \class Transaction
+    /// \ingroup mdbxc_core
     /// \brief Manages MDBX transactions with automatic cleanup and error handling.
     ///
     /// Supports both read-only and writable modes. Provides methods for beginning,

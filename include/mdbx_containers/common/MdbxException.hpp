@@ -8,6 +8,7 @@
 namespace mdbxc {
 
     /// \class MdbxException
+    /// \ingroup mdbxc_core
     /// \brief Represents a specific exception for MDBX-related errors.
     ///
     /// This exception is used to handle errors that occur during MDBX operations.
