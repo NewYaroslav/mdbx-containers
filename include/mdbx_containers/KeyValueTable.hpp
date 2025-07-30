@@ -111,8 +111,8 @@ namespace mdbxc {
             operator ValueT() const {
                 auto val = m_db.find(m_key);
                 if (val) return *val;
-                ValueT def{};
-                m_db.insert_or_assign(m_key, def);
+                ValueT def{}; // default construct if missing
+                m_db.insert_or_assign(m_key, def); // persist the default value
                 return def;
             }
 
@@ -145,7 +145,7 @@ namespace mdbxc {
         /// \brief Loads data from the database into the container using provided transaction.
         /// \tparam ContainerT Container type (e.g., std::map or std::unordered_map).
         /// \param container Container to be synchronized with database content.
-        /// \param txn
+        /// \param txn Transaction wrapper used for the operation.
         /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void load(ContainerT<KeyT, ValueT>& container, const Transaction& txn) {
@@ -154,7 +154,7 @@ namespace mdbxc {
         
         /// \brief Loads all key-value pairs into a std::vector of pairs.
         /// \param container Container to be synchronized with database content.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the operation.
         /// \throws MdbxException if a database error occurs.
         void load(std::vector<std::pair<KeyT, ValueT>>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
@@ -164,7 +164,7 @@ namespace mdbxc {
         
         /// \brief Loads all key-value pairs into a std::vector of pairs.
         /// \param container Container to be synchronized with database content.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the operation.
         /// \throws MdbxException if a database error occurs.
         void load(std::vector<std::pair<KeyT, ValueT>>& container, const Transaction& txn) {
             load(container, txn.handle());
@@ -192,7 +192,7 @@ namespace mdbxc {
         
         /// \brief Retrieves all key-value pairs into the specified container type.
         /// \tparam ContainerT Container type (e.g., std::map, std::unordered_map, std::vector).
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the retrieval.
         /// \return Filled container.
         /// \throws MdbxException if a database error occurs.
         template<template<class...> class ContainerT = std::map>
@@ -215,7 +215,7 @@ namespace mdbxc {
         /// \brief Appends data to the database.
         /// \tparam ContainerT Container type (e.g., std::map or std::unordered_map).
         /// \param container Container with content to be synchronized.
-        /// \param txn
+        /// \param txn Optional transaction handle.
         /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void append(const ContainerT<KeyT, ValueT>& container, const Transaction& txn) {
@@ -256,7 +256,7 @@ namespace mdbxc {
         /// \brief Reconciles the database with the container.
         /// \tparam ContainerT Container type (e.g., std::map or std::unordered_map).
         /// \param container Container to be reconciled with the database.
-        /// \param txn
+        /// \param txn Transaction wrapper used for the operation.
         /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void reconcile(const ContainerT<KeyT, ValueT>& container, const Transaction& txn) {
@@ -298,7 +298,7 @@ namespace mdbxc {
         /// \brief Inserts key-value only if key is absent.
         /// \param key The key to be inserted.
         /// \param value The value to be inserted.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the insertion.
         /// \return
         /// \throws MdbxException if a database error occurs.
         bool insert(const KeyT &key, const ValueT &value, const Transaction& txn) {
@@ -320,7 +320,7 @@ namespace mdbxc {
         
         /// \brief Inserts key-value only if key is absent.
         /// \param pair The key-value pair to be inserted.
-        /// \param txn
+        /// \param txn Transaction wrapper used for the operation.
         /// \return
         /// \throws MdbxException if a database error occurs.
         bool insert(const std::pair<KeyT, ValueT> &pair, const Transaction& txn) {
@@ -341,7 +341,7 @@ namespace mdbxc {
         /// \brief Inserts or replaces key-value pair.
         /// \param key The key to be inserted.
         /// \param value The value to be inserted.
-        /// \param txn
+        /// \param txn Transaction wrapper used for the operation.
         /// \throws MdbxException if a database error occurs.
         void insert_or_assign(const KeyT &key, const ValueT &value, const Transaction& txn) {
             insert_or_assign(key, value, txn.handle());
@@ -359,7 +359,7 @@ namespace mdbxc {
         
         /// \brief Inserts or replaces key-value pair.
         /// \param pair The key-value pair to be inserted.
-        /// \param txn
+        /// \param txn Transaction wrapper used for the operation.
         /// \throws MdbxException if a database error occurs.
         void insert_or_assign(const std::pair<KeyT, ValueT> &pair, const Transaction& txn) {
             insert_or_assign(pair, txn.handle());
@@ -383,7 +383,7 @@ namespace mdbxc {
         
         /// \brief Retrieves value by key or throws.
         /// \param key The key to look up.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the lookup.
         /// \return The value associated with the key.
         /// \throws std::out_of_range if key not found.
         /// \throws MdbxException if DB error occurs.
@@ -408,7 +408,7 @@ namespace mdbxc {
         /// \brief Tries to find value by key.
         /// \param key The key to look up.
         /// \param out Reference to output value.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the lookup.
         /// \return True if key exists, false otherwise.
         /// \throws MdbxException if DB error occurs.
         bool try_get(const KeyT& key, ValueT& out, const Transaction& txn) const {
@@ -434,7 +434,7 @@ namespace mdbxc {
         
         /// \brief Finds value by key.
         /// \param key Key to search for.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the lookup.
         /// \return std::optional with value if found, std::nullopt otherwise.
         /// \throws MdbxException on DB error.
         std::optional<ValueT> find(const KeyT& key, const Transaction& txn) const {
@@ -459,7 +459,7 @@ namespace mdbxc {
         
         /// \brief Finds value by key.
         /// \param key Key to search for.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the lookup.
         /// \return Pair of success flag and value.
         /// \throws MdbxException on DB error.
         std::pair<bool, ValueT> find_compat(const KeyT& key, const Transaction& txn) const {
@@ -481,7 +481,7 @@ namespace mdbxc {
         
         /// \brief Checks whether a key exists in the database.
         /// \param key The key to look up.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the lookup.
         /// \return True if the key exists, false otherwise.
         /// \throws MdbxException if DB error occurs.
         bool contains(const KeyT& key, const Transaction& txn) const {
@@ -501,7 +501,7 @@ namespace mdbxc {
         }
         
         /// \brief Returns the number of elements in the database.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the count operation.
         /// \return The number of key-value pairs.
         /// \throws MdbxException if DB error occurs.
         std::size_t count(const Transaction& txn) const {
@@ -509,7 +509,7 @@ namespace mdbxc {
         }
 
         /// \brief Checks if the database is empty.
-        /// \param txn 
+        /// \param txn Optional transaction handle.
         /// \return True if the database is empty, false otherwise.
         /// \throws MdbxException if a database error occurs.
         bool empty(MDBX_txn* txn = nullptr) const {
@@ -521,7 +521,7 @@ namespace mdbxc {
         }
         
         /// \brief Checks if the database is empty.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the check.
         /// \return True if the database is empty, false otherwise.
         /// \throws MdbxException if a database error occurs.
         bool empty(const Transaction& txn) const {
@@ -543,7 +543,7 @@ namespace mdbxc {
         
         /// \brief Removes key from DB.
         /// \param key The key of the pair to be removed.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the operation.
         /// \return True if the key was found and deleted, false if the key was not found.
         /// \throws MdbxException if deletion fails.
         bool erase(const KeyT &key, const Transaction& txn) {
@@ -560,7 +560,7 @@ namespace mdbxc {
         }
         
         /// \brief Clears all key-value pairs from the database.
-        /// \param txn 
+        /// \param txn Transaction wrapper used for the operation.
         /// \throws MdbxException if a database error occurs.
         void clear(const Transaction& txn) {
             clear(txn.handle());
@@ -579,7 +579,7 @@ namespace mdbxc {
                 action(txn);
                 return;
             }
-            txn = thread_txn();
+            txn = thread_txn(); // reuse transaction bound to this thread if any
             if (txn) {
                 action(txn);
                 return;
@@ -590,9 +590,12 @@ namespace mdbxc {
                 action(txn_guard.handle());
                 txn_guard.commit();
             } catch(...) {
+                // Ensure rollback on any exception and rethrow to the caller
                 try {
                     txn_guard.rollback();
-                } catch(...) {}
+                } catch(...) {
+                    // Ignore rollback errors here
+                }
                 throw;
             }
         }
@@ -719,7 +722,7 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void db_reconcile(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
-            // 1. Собрать все ключи из контейнера
+            // 1. Collect all keys from the container
             std::unordered_set<KeyT> new_keys;
             for (const auto& pair : container) {
                 new_keys.insert(pair.first);
@@ -731,7 +734,7 @@ namespace mdbxc {
                 );
             }
 
-            // 2. Пройти по всем существующим ключам в БД и удалить лишние
+            // 2. Iterate over existing keys in the DB and remove the extras
             MDBX_cursor* cursor = nullptr;
             check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "mdbx_cursor_open");
 
