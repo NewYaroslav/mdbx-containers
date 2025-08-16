@@ -170,7 +170,36 @@ The project follows [Conventional Commits](https://www.conventionalcommits.org/)
 - Commit message is short and imperative:  
   Examples: `fix(include): remove redundant header`, `refactor(server): simplify transaction logic`
 
-Format:  
+Format:
 ```text
 type(scope): short message
 ```
+
+## Naming Conventions
+
+- Prefix `m_` is required for class fields (e.g., `m_event_hub`, `m_task_manager`).
+- Prefixes `p_` and `str_` are optional and can be used when a function or method has more than five variables or arguments of different types.
+- Boolean variables should start with `is`, `has`, `use`, `enable` or with `m_is_`, `m_has_`, etc. for class fields.
+- Do not use prefixes `b_`, `n_`, `f_`.
+
+## Doxygen Comments
+
+- All comments and Doxygen documentation must be in English.
+- Use `/// \brief` before functions and classes.
+- Do not start descriptions with the word `The`.
+
+## File Names
+
+- If a file contains only one class, use `CamelCase` (e.g., `TradeManager.hpp`).
+- If a file contains multiple classes, utilities, or helper structures, use `snake_case` (e.g., `trade_utils.hpp`, `market_event_listener.hpp`).
+
+## Entity Names
+
+- Class, struct, and enum names use `CamelCase`.
+- Method names use `snake_case`.
+
+## Method Naming
+
+- Methods should be named in `snake_case`.
+- Getter methods may omit the `get_` prefix when they simply return a reference or value or when they provide access to an internal object and behave like a property (e.g., `size()`, `empty()`).
+- Use the `get_` prefix when the method performs computations to produce the returned value or when omitting `get_` would be misleading.
