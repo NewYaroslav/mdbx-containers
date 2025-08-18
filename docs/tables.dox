@@ -3,7 +3,9 @@
 \tableofcontents
 
 This page describes how to work with the persistent container classes such as
-\ref mdbxc::KeyValueTable. These containers expose familiar STL-like interfaces
+\ref mdbxc::KeyValueTable, \ref mdbxc::KeyTable,
+\ref mdbxc::KeyMultiValueTable, and \ref mdbxc::AnyValueTable.
+These containers expose familiar STL-like interfaces
 while storing data durably in an MDBX database.
 
 ## Basic Operations

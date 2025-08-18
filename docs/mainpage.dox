@@ -7,7 +7,7 @@ mdbx-containers bridges standard STL containers with high-performance [libmdbx](
 
 Key features:
 - Header-only usage or optional static library.
-- Unified API for `KeyTable`, `KeyValueTable`, and `KeyMultiValueTable`.
+- Unified API for `KeyTable`, `KeyValueTable`, `KeyMultiValueTable`, and `AnyValueTable`.
 - Automatic serialization of trivially copyable types and custom `to_bytes()`/`from_bytes()` support.
 - Multiple logical tables inside one MDBX environment.
 - Thread-safe operations with per-thread transactions.

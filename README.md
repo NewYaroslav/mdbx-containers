@@ -6,10 +6,11 @@
 
 ### Unified API
 - Identical interface for all table types: `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]` and more.
-- Three container flavours:
+- Four container flavours:
   - `KeyTable<K>` – keys only;
   - `KeyValueTable<K, V>` – one value per key;
-  - `KeyMultiValueTable<K, V>` – multiple values per key (`std::multimap`).
+  - `KeyMultiValueTable<K, V>` – multiple values per key (`std::multimap`);
+  - `AnyValueTable<K>` – heterogeneous values with runtime type checks.
 
 ### Serialization
 - Automatic serialization of trivially copyable types.
