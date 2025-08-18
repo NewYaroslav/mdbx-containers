@@ -1,8 +1,5 @@
 var searchData=
 [
-  ['_7ebasetable_0',['~BaseTable',['../classmdbxc_1_1BaseTable.html#af01c1c552169a86b26fd99cf46e4c2f0',1,'mdbxc::BaseTable']]],
-  ['_7econnection_1',['~Connection',['../classmdbxc_1_1Connection.html#aa6202b8cedddf4025277a8e62bb4f016',1,'mdbxc::Connection']]],
-  ['_7ekeyvaluetable_2',['~KeyValueTable',['../classmdbxc_1_1KeyValueTable.html#ac886c62766c916ce5f1e30f945a8925f',1,'mdbxc::KeyValueTable']]],
-  ['_7etransaction_3',['~Transaction',['../classmdbxc_1_1Transaction.html#a580a84f4ae2adb7567005c53d37f92f9',1,'mdbxc::Transaction']]],
-  ['_7etransactiontracker_4',['~TransactionTracker',['../classmdbxc_1_1TransactionTracker.html#aad84993383647f88957eb2a6cf7b18ff',1,'mdbxc::TransactionTracker']]]
+  ['with_5ftransaction_0',['with_transaction',['../classmdbxc_1_1AnyValueTable.html#a7c1c4a0beb37e3e74e5c38b5ec448f58',1,'mdbxc::AnyValueTable::with_transaction()'],['../classmdbxc_1_1KeyValueTable.html#af7810243c77636783fa2ac97bf78ec22',1,'mdbxc::KeyValueTable::with_transaction()']]],
+  ['wrap_5fwith_5ftype_5ftag_1',['wrap_with_type_tag',['../classmdbxc_1_1AnyValueTable.html#a2af955cd9592ff38f81ab84111e334cf',1,'mdbxc::AnyValueTable']]]
 ];

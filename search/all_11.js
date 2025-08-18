@@ -2,12 +2,14 @@ var searchData=
 [
   ['serialize_5fkey_0',['serialize_key',['../namespacemdbxc.html#a7032b7e4818b883e4178d9ba2c4a4fc7',1,'mdbxc::serialize_key(const T &amp;key)'],['../namespacemdbxc.html#a06e602747ac2998f74f5d13206299ebc',1,'mdbxc::serialize_key(const T &amp;key)'],['../namespacemdbxc.html#abd18e0739fbd9421f3989656ec4a0da2',1,'mdbxc::serialize_key(const T &amp;key)'],['../namespacemdbxc.html#ab09341ca8a757d6629a597c8c84fa372',1,'mdbxc::serialize_key(const T &amp;key)'],['../namespacemdbxc.html#aee8a7c4155bbb0f0c6b72b9463160e4e',1,'mdbxc::serialize_key(const T &amp;key)'],['../namespacemdbxc.html#a14a4a115d21ca982778e1d88508e0647',1,'mdbxc::serialize_key(const T &amp;key)'],['../namespacemdbxc.html#ae821ec4dacd9cd9b7842e5b3ddbbd100',1,'mdbxc::serialize_key(const T &amp;key)'],['../namespacemdbxc.html#afca9a6bdc1b8e932ab981b4c68a7ef05',1,'mdbxc::serialize_key(const std::bitset&lt; N &gt; &amp;data)']]],
   ['serialize_5fvalue_1',['serialize_value',['../namespacemdbxc.html#a315d93152895e29a8d84b887e5642318',1,'mdbxc::serialize_value(const T &amp;value)'],['../namespacemdbxc.html#a03f16051c6113bc197aaea4d02147fb8',1,'mdbxc::serialize_value(const T &amp;value)'],['../namespacemdbxc.html#a6a72e06fc6e8cc9686805ad4b89ec809',1,'mdbxc::serialize_value(const T &amp;container)'],['../namespacemdbxc.html#a177e6b8d521129ee61e2769ae04e10d3',1,'mdbxc::serialize_value(const T &amp;value)'],['../namespacemdbxc.html#a0ff967398e380d4f41f90ee5d782137f',1,'mdbxc::serialize_value(const T &amp;value)'],['../namespacemdbxc.html#aa1b54ea1b24dc0260993d5b218094fa6',1,'mdbxc::serialize_value(const T &amp;value)'],['../namespacemdbxc.html#ab2a5c62298edec2bd6adf30ff23ea4cf',1,'mdbxc::serialize_value(const T &amp;container)']]],
-  ['shrink_5fthreshold_2',['shrink_threshold',['../classmdbxc_1_1Config.html#a40d52ba5ccf4b658c4237c5dadd40a3e',1,'mdbxc::Config']]],
-  ['simplestruct_3',['SimpleStruct',['../structSimpleStruct.html',1,'']]],
-  ['single_5ftransaction_5fdemo_2ecpp_4',['single_transaction_demo.cpp',['../single__transaction__demo_8cpp.html',1,'']]],
-  ['size_5flower_5',['size_lower',['../classmdbxc_1_1Config.html#a7725c8890145b0db6fb3604c207927eb',1,'mdbxc::Config']]],
-  ['size_5fnow_6',['size_now',['../classmdbxc_1_1Config.html#a1c6cb060a2635e001c09de3160c4b091',1,'mdbxc::Config']]],
-  ['size_5fupper_7',['size_upper',['../classmdbxc_1_1Config.html#abd1ee5ad69187cc5c0ccfa42319bdfc1',1,'mdbxc::Config']]],
-  ['split_5fpath_8',['split_path',['../namespacemdbxc.html#a5a7e8da1bc85900d5b61de3e544069a8',1,'mdbxc']]],
-  ['sync_5fdurable_9',['sync_durable',['../classmdbxc_1_1Config.html#a56b2344c1f8d64817b1db669d435ae43',1,'mdbxc::Config']]]
+  ['set_2',['set',['../classmdbxc_1_1AnyValueTable.html#a3f29420179358cbe17b0880a16b130fc',1,'mdbxc::AnyValueTable::set(const KeyT &amp;key, const T &amp;value, MDBX_txn *txn=nullptr)'],['../classmdbxc_1_1AnyValueTable.html#a3a989cc6c1001f0d9aa84a8c7cf8ce3f',1,'mdbxc::AnyValueTable::set(const KeyT &amp;key, const T &amp;value, const Transaction &amp;txn)']]],
+  ['set_5ftype_5ftag_5fcheck_3',['set_type_tag_check',['../classmdbxc_1_1AnyValueTable.html#a5db056fd4e656aa4455e9bdc811b6e11',1,'mdbxc::AnyValueTable']]],
+  ['shrink_5fthreshold_4',['shrink_threshold',['../classmdbxc_1_1Config.html#a40d52ba5ccf4b658c4237c5dadd40a3e',1,'mdbxc::Config']]],
+  ['simplestruct_5',['SimpleStruct',['../structSimpleStruct.html',1,'']]],
+  ['single_5ftransaction_5fdemo_2ecpp_6',['single_transaction_demo.cpp',['../single__transaction__demo_8cpp.html',1,'']]],
+  ['size_5flower_7',['size_lower',['../classmdbxc_1_1Config.html#a7725c8890145b0db6fb3604c207927eb',1,'mdbxc::Config']]],
+  ['size_5fnow_8',['size_now',['../classmdbxc_1_1Config.html#a1c6cb060a2635e001c09de3160c4b091',1,'mdbxc::Config']]],
+  ['size_5fupper_9',['size_upper',['../classmdbxc_1_1Config.html#abd1ee5ad69187cc5c0ccfa42319bdfc1',1,'mdbxc::Config']]],
+  ['split_5fpath_10',['split_path',['../namespacemdbxc.html#a5a7e8da1bc85900d5b61de3e544069a8',1,'mdbxc']]],
+  ['sync_5fdurable_11',['sync_durable',['../classmdbxc_1_1Config.html#a56b2344c1f8d64817b1db669d435ae43',1,'mdbxc::Config']]]
 ];

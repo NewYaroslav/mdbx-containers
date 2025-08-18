@@ -1,5 +1,38 @@
 var group__mdbxc__tables =
 [
+    [ "mdbxc::AnyValueTable< KeyT >", "classmdbxc_1_1AnyValueTable.html", [
+      [ "AnyValueTable", "classmdbxc_1_1AnyValueTable.html#a8bd877c3aafdf8d5e390b0265f1f7110", null ],
+      [ "AnyValueTable", "classmdbxc_1_1AnyValueTable.html#a4bb66c9dbfc899d0a36d7e3f685dcf91", null ],
+      [ "~AnyValueTable", "classmdbxc_1_1AnyValueTable.html#a33a9745b61750e4f6324489f9d309d82", null ],
+      [ "contains", "classmdbxc_1_1AnyValueTable.html#ada431547dc65d4511e6a2341a42cd80b", null ],
+      [ "contains", "classmdbxc_1_1AnyValueTable.html#a9b6f6dd1db373468bafe4055067e0244", null ],
+      [ "db_contains", "classmdbxc_1_1AnyValueTable.html#a904fcc463706d9eeb296aab4c446d65d", null ],
+      [ "db_erase", "classmdbxc_1_1AnyValueTable.html#a6b202b8e7b207a2e42de3d81b17c35f4", null ],
+      [ "db_list_keys", "classmdbxc_1_1AnyValueTable.html#afb4719bf25ebd973daac63f30c0fd264", null ],
+      [ "erase", "classmdbxc_1_1AnyValueTable.html#a88f03fcfc542c7fb29a75ce8d37b9a12", null ],
+      [ "erase", "classmdbxc_1_1AnyValueTable.html#adc068fa245e2882851f0ada2aa45b757", null ],
+      [ "find", "classmdbxc_1_1AnyValueTable.html#a7113c6eb53b495bb2eb6a8e29cb6dc20", null ],
+      [ "find", "classmdbxc_1_1AnyValueTable.html#a1f49f0a704ab816dc9e2da3c6a6747c1", null ],
+      [ "get", "classmdbxc_1_1AnyValueTable.html#acd71cf7d6b300f97be38995e890d8932", null ],
+      [ "get", "classmdbxc_1_1AnyValueTable.html#acdcc378171d5d6dbc397b5d7ac71c68f", null ],
+      [ "get_or", "classmdbxc_1_1AnyValueTable.html#a992c1a1617524af30e3b13cf125051c8", null ],
+      [ "get_or", "classmdbxc_1_1AnyValueTable.html#a5ea36e793db88d85a9bf5ed7a53362f7", null ],
+      [ "get_typed", "classmdbxc_1_1AnyValueTable.html#a571626f0d576aed0f3a4d816e592951a", null ],
+      [ "insert", "classmdbxc_1_1AnyValueTable.html#a7b9ce2ca7f15d7c6708318efd485b556", null ],
+      [ "insert", "classmdbxc_1_1AnyValueTable.html#a12f9cd417d784261f01601c9297f6d8e", null ],
+      [ "keys", "classmdbxc_1_1AnyValueTable.html#a4fe7a4d65c077369fa68ff89baacf194", null ],
+      [ "keys", "classmdbxc_1_1AnyValueTable.html#a01d49826427744381e9aa501d859b1a5", null ],
+      [ "put_typed", "classmdbxc_1_1AnyValueTable.html#a9d2d03ab8849b061ce5471df94669f42", null ],
+      [ "set", "classmdbxc_1_1AnyValueTable.html#a3a989cc6c1001f0d9aa84a8c7cf8ce3f", null ],
+      [ "set", "classmdbxc_1_1AnyValueTable.html#a3f29420179358cbe17b0880a16b130fc", null ],
+      [ "set_type_tag_check", "classmdbxc_1_1AnyValueTable.html#a5db056fd4e656aa4455e9bdc811b6e11", null ],
+      [ "unwrap_and_check_type_tag", "classmdbxc_1_1AnyValueTable.html#af1fa7771b102ff733f5942d28a5fa517", null ],
+      [ "update", "classmdbxc_1_1AnyValueTable.html#a92d53158eb1c284e348460dbfdf86542", null ],
+      [ "update", "classmdbxc_1_1AnyValueTable.html#ab6b529fcadeec6a7c920c7352c9eecb2", null ],
+      [ "with_transaction", "classmdbxc_1_1AnyValueTable.html#a7c1c4a0beb37e3e74e5c38b5ec448f58", null ],
+      [ "wrap_with_type_tag", "classmdbxc_1_1AnyValueTable.html#a2af955cd9592ff38f81ab84111e334cf", null ],
+      [ "m_check_type_tag", "classmdbxc_1_1AnyValueTable.html#a96ad1a88c93bf5f8506dd7956b713490", null ]
+    ] ],
     [ "mdbxc::KeyValueTable< KeyT, ValueT >", "classmdbxc_1_1KeyValueTable.html", [
       [ "AssignmentProxy", "classmdbxc_1_1KeyValueTable_1_1AssignmentProxy.html", [
         [ "AssignmentProxy", "classmdbxc_1_1KeyValueTable_1_1AssignmentProxy.html#a745697860fc6dfcb608440389b44e41b", null ],

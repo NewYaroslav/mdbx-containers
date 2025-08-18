@@ -2,6 +2,7 @@ var hierarchy =
 [
     [ "mdbxc::KeyValueTable< KeyT, ValueT >::AssignmentProxy", "classmdbxc_1_1KeyValueTable_1_1AssignmentProxy.html", null ],
     [ "mdbxc::BaseTable", "classmdbxc_1_1BaseTable.html", [
+      [ "mdbxc::AnyValueTable< KeyT >", "classmdbxc_1_1AnyValueTable.html", null ],
       [ "mdbxc::KeyValueTable< KeyT, ValueT >", "classmdbxc_1_1KeyValueTable.html", null ]
     ] ],
     [ "ConcurrentStruct", "structConcurrentStruct.html", null ],

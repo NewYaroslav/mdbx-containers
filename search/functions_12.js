@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['with_5ftransaction_0',['with_transaction',['../classmdbxc_1_1KeyValueTable.html#af7810243c77636783fa2ac97bf78ec22',1,'mdbxc::KeyValueTable']]]
+  ['validate_0',['validate',['../classmdbxc_1_1Config.html#a0999d4dae98152ce014bc1310accc99d',1,'mdbxc::Config']]]
 ];

@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['b_0',['b',['../structMyStruct.html#a356d29b94655ea0120ca53283345d61b',1,'MyStruct']]],
+  ['b_0',['b',['../structMyStruct.html#a356d29b94655ea0120ca53283345d61b',1,'MyStruct::b'],['../structMyStruct.html#a22c577d70b41075228405748578fcbb8',1,'MyStruct::b']]],
   ['basetable_1',['BaseTable',['../classmdbxc_1_1BaseTable.html',1,'mdbxc::BaseTable'],['../classmdbxc_1_1Connection.html#ad3262cd32bc716abef29f5a84831186f',1,'mdbxc::Connection::BaseTable()'],['../classmdbxc_1_1BaseTable.html#ada66286aa3a0297f39f7324fc262fa70',1,'mdbxc::BaseTable::BaseTable()']]],
   ['basetable_2ehpp_2',['BaseTable.hpp',['../BaseTable_8hpp.html',1,'']]],
   ['basic_20usage_3',['Basic usage',['../index.html#ex_basic',1,'']]],

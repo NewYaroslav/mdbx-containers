@@ -1,5 +1,6 @@
 var namespacemdbxc =
 [
+    [ "AnyValueTable", "classmdbxc_1_1AnyValueTable.html", "classmdbxc_1_1AnyValueTable" ],
     [ "BaseTable", "classmdbxc_1_1BaseTable.html", "classmdbxc_1_1BaseTable" ],
     [ "Config", "classmdbxc_1_1Config.html", "classmdbxc_1_1Config" ],
     [ "Connection", "classmdbxc_1_1Connection.html", "classmdbxc_1_1Connection" ],
