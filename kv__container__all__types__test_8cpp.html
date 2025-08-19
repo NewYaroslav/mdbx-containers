@@ -110,6 +110,7 @@ $(function(){initNavTree('kv__container__all__types__test_8cpp.html',''); initRe
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Classes</a> &#124;
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">kv_container_all_types_test.cpp File Reference</div></div>
 </div><!--header-->
@@ -131,11 +132,49 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structConcurrentStruct.html">ConcurrentStruct</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:abe3c2e46095e7f2090641379cb17ba9f" id="r_abe3c2e46095e7f2090641379cb17ba9f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#abe3c2e46095e7f2090641379cb17ba9f">ASSERT_FOUND</a>(table,  key,  expected)</td></tr>
+<tr class="separator:abe3c2e46095e7f2090641379cb17ba9f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ae66f6b31b5ad750f1fe042a706a4e3d4" id="r_ae66f6b31b5ad750f1fe042a706a4e3d4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ae66f6b31b5ad750f1fe042a706a4e3d4">main</a> ()</td></tr>
 <tr class="separator:ae66f6b31b5ad750f1fe042a706a4e3d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="abe3c2e46095e7f2090641379cb17ba9f" name="abe3c2e46095e7f2090641379cb17ba9f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abe3c2e46095e7f2090641379cb17ba9f">&#9670;&#160;</a></span>ASSERT_FOUND</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define ASSERT_FOUND</td>
+          <td>(</td>
+          <td class="paramtype"></td>          <td class="paramname"><span class="paramname"><em>table</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"></td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"></td>          <td class="paramname"><span class="paramname"><em>expected</em></span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    <span class="keywordflow">do</span> {                                                                                  \</div>
+<div class="line">        <span class="keyword">auto</span> res = (table).find_compat(key);                                              \</div>
+<div class="line">        assert(res.first &amp;&amp; res.second == (expected));                                    \</div>
+<div class="line">    } <span class="keywordflow">while</span> (0)</div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00012">12</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ae66f6b31b5ad750f1fe042a706a4e3d4" name="ae66f6b31b5ad750f1fe042a706a4e3d4"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ae66f6b31b5ad750f1fe042a706a4e3d4">&#9670;&#160;</a></span>main()</h2>
@@ -152,7 +191,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00066">66</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00076">76</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
 
 </div>
 </div>
