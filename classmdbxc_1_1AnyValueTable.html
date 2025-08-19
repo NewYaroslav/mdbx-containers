@@ -174,21 +174,18 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:acd71cf7d6b300f97be38995e890d8932"><td class="memTemplItemLeft" align="right" valign="top">T&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#acd71cf7d6b300f97be38995e890d8932">get</a> (const KeyT &amp;key, const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;txn) const</td></tr>
 <tr class="memdesc:acd71cf7d6b300f97be38995e890d8932"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retrieve using external transaction.  <br /></td></tr>
 <tr class="separator:acd71cf7d6b300f97be38995e890d8932"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1f49f0a704ab816dc9e2da3c6a6747c1" id="r_a1f49f0a704ab816dc9e2da3c6a6747c1"><td class="memTemplParams" colspan="2">template&lt;class T&gt; </td></tr>
-<tr class="memitem:a1f49f0a704ab816dc9e2da3c6a6747c1"><td class="memTemplItemLeft" align="right" valign="top">std::optional&lt; T &gt;&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a1f49f0a704ab816dc9e2da3c6a6747c1">find</a> (const KeyT &amp;key, MDBX_txn *txn=nullptr) const</td></tr>
-<tr class="memdesc:a1f49f0a704ab816dc9e2da3c6a6747c1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find value by key.  <br /></td></tr>
-<tr class="separator:a1f49f0a704ab816dc9e2da3c6a6747c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7113c6eb53b495bb2eb6a8e29cb6dc20" id="r_a7113c6eb53b495bb2eb6a8e29cb6dc20"><td class="memTemplParams" colspan="2">template&lt;class T&gt; </td></tr>
-<tr class="memitem:a7113c6eb53b495bb2eb6a8e29cb6dc20"><td class="memTemplItemLeft" align="right" valign="top">std::optional&lt; T &gt;&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a7113c6eb53b495bb2eb6a8e29cb6dc20">find</a> (const KeyT &amp;key, const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;txn) const</td></tr>
-<tr class="memdesc:a7113c6eb53b495bb2eb6a8e29cb6dc20"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find using external transaction.  <br /></td></tr>
-<tr class="separator:a7113c6eb53b495bb2eb6a8e29cb6dc20"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab038380921d51643e9136c3ea9c080c9" id="r_ab038380921d51643e9136c3ea9c080c9"><td class="memTemplParams" colspan="2">template&lt;class T&gt; </td></tr>
+<tr class="memitem:ab038380921d51643e9136c3ea9c080c9"><td class="memTemplItemLeft" align="right" valign="top">std::pair&lt; bool, T &gt;&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab038380921d51643e9136c3ea9c080c9">find_compat</a> (const KeyT &amp;key, MDBX_txn *txn=nullptr) const</td></tr>
+<tr class="memdesc:ab038380921d51643e9136c3ea9c080c9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find value by key.  <br /></td></tr>
+<tr class="separator:ab038380921d51643e9136c3ea9c080c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1331a5fe7674cc186ba054228b37d3de" id="r_a1331a5fe7674cc186ba054228b37d3de"><td class="memTemplParams" colspan="2">template&lt;class T&gt; </td></tr>
+<tr class="memitem:a1331a5fe7674cc186ba054228b37d3de"><td class="memTemplItemLeft" align="right" valign="top">std::pair&lt; bool, T &gt;&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a1331a5fe7674cc186ba054228b37d3de">find_compat</a> (const KeyT &amp;key, const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;txn) const</td></tr>
+<tr class="separator:a1331a5fe7674cc186ba054228b37d3de"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5ea36e793db88d85a9bf5ed7a53362f7" id="r_a5ea36e793db88d85a9bf5ed7a53362f7"><td class="memTemplParams" colspan="2">template&lt;class T&gt; </td></tr>
 <tr class="memitem:a5ea36e793db88d85a9bf5ed7a53362f7"><td class="memTemplItemLeft" align="right" valign="top">T&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a5ea36e793db88d85a9bf5ed7a53362f7">get_or</a> (const KeyT &amp;key, T default_value, MDBX_txn *txn=nullptr) const</td></tr>
-<tr class="memdesc:a5ea36e793db88d85a9bf5ed7a53362f7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get value or default if missing.  <br /></td></tr>
 <tr class="separator:a5ea36e793db88d85a9bf5ed7a53362f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a992c1a1617524af30e3b13cf125051c8" id="r_a992c1a1617524af30e3b13cf125051c8"><td class="memTemplParams" colspan="2">template&lt;class T&gt; </td></tr>
 <tr class="memitem:a992c1a1617524af30e3b13cf125051c8"><td class="memTemplItemLeft" align="right" valign="top">T&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a992c1a1617524af30e3b13cf125051c8">get_or</a> (const KeyT &amp;key, T default_value, const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;txn) const</td></tr>
-<tr class="memdesc:a992c1a1617524af30e3b13cf125051c8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get value or default using external transaction.  <br /></td></tr>
 <tr class="separator:a992c1a1617524af30e3b13cf125051c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9b6f6dd1db373468bafe4055067e0244" id="r_a9b6f6dd1db373468bafe4055067e0244"><td class="memTemplParams" colspan="2">template&lt;class KT = KeyT&gt; </td></tr>
 <tr class="memitem:a9b6f6dd1db373468bafe4055067e0244"><td class="memTemplItemLeft" align="right" valign="top">bool&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a9b6f6dd1db373468bafe4055067e0244">contains</a> (const KT &amp;key, MDBX_txn *txn=nullptr) const</td></tr>
@@ -457,7 +454,7 @@ template&lt;class KeyT&gt; </div>
 
 <p>Check key existence using external transaction. </p>
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00183">183</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00219">219</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -494,7 +491,7 @@ template&lt;class KT = KeyT&gt; </div>
 
 <p>Check if key exists. </p>
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00176">176</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00212">212</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -527,7 +524,7 @@ template&lt;class KeyT&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00264">264</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00300">300</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -560,7 +557,7 @@ template&lt;class KeyT&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00273">273</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00309">309</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -593,7 +590,7 @@ template&lt;class KeyT&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00282">282</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00318">318</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -628,7 +625,7 @@ template&lt;class KeyT&gt; </div>
 
 <p>Erase using external transaction. </p>
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00195">195</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00231">231</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -663,12 +660,12 @@ template&lt;class KeyT&gt; </div>
 
 <p>Erase key from table. </p>
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00188">188</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00224">224</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a7113c6eb53b495bb2eb6a8e29cb6dc20" name="a7113c6eb53b495bb2eb6a8e29cb6dc20"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7113c6eb53b495bb2eb6a8e29cb6dc20">&#9670;&#160;</a></span>find() <span class="overload">[1/2]</span></h2>
+<a id="a1331a5fe7674cc186ba054228b37d3de" name="a1331a5fe7674cc186ba054228b37d3de"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1331a5fe7674cc186ba054228b37d3de">&#9670;&#160;</a></span>find_compat() <span class="overload">[1/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -681,7 +678,7 @@ template&lt;class T&gt; </div>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::optional&lt; T &gt; <a class="el" href="classmdbxc_1_1AnyValueTable.html">mdbxc::AnyValueTable</a>&lt; KeyT &gt;::find </td>
+          <td class="memname">std::pair&lt; bool, T &gt; <a class="el" href="classmdbxc_1_1AnyValueTable.html">mdbxc::AnyValueTable</a>&lt; KeyT &gt;::find_compat </td>
           <td>(</td>
           <td class="paramtype">const KeyT &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
         </tr>
@@ -698,14 +695,12 @@ template&lt;class T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p>Find using external transaction. </p>
-
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00151">151</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00189">189</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a1f49f0a704ab816dc9e2da3c6a6747c1" name="a1f49f0a704ab816dc9e2da3c6a6747c1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1f49f0a704ab816dc9e2da3c6a6747c1">&#9670;&#160;</a></span>find() <span class="overload">[2/2]</span></h2>
+<a id="ab038380921d51643e9136c3ea9c080c9" name="ab038380921d51643e9136c3ea9c080c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab038380921d51643e9136c3ea9c080c9">&#9670;&#160;</a></span>find_compat() <span class="overload">[2/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -718,7 +713,7 @@ template&lt;class T&gt; </div>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::optional&lt; T &gt; <a class="el" href="classmdbxc_1_1AnyValueTable.html">mdbxc::AnyValueTable</a>&lt; KeyT &gt;::find </td>
+          <td class="memname">std::pair&lt; bool, T &gt; <a class="el" href="classmdbxc_1_1AnyValueTable.html">mdbxc::AnyValueTable</a>&lt; KeyT &gt;::find_compat </td>
           <td>(</td>
           <td class="paramtype">const KeyT &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
         </tr>
@@ -738,7 +733,7 @@ template&lt;class T&gt; </div>
 <p>Find value by key. </p>
 <dl class="section return"><dt>Returns</dt><dd>Optional with value or std::nullopt. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00134">134</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00174">174</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -866,9 +861,7 @@ template&lt;class T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p>Get value or default using external transaction. </p>
-
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00168">168</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00203">203</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -908,16 +901,7 @@ template&lt;class T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p>Get value or default if missing. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">key</td><td>Key to look up. </td></tr>
-    <tr><td class="paramname">default_value</td><td>Value returned when key not found. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00159">159</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00194">194</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -957,7 +941,7 @@ template&lt;class T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00253">253</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00289">289</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1073,7 +1057,7 @@ template&lt;class KeyT&gt; </div>
 
 <p>List keys using external transaction. </p>
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00207">207</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00243">243</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1104,7 +1088,7 @@ template&lt;class KeyT&gt; </div>
 
 <p>List all keys stored in table. </p>
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00200">200</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00236">236</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1149,7 +1133,7 @@ template&lt;class T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00239">239</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00275">275</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1278,7 +1262,7 @@ template&lt;class KeyT&gt; </div>
 
 <p>Enable or disable type-tag checking. </p>
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00212">212</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00248">248</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1309,7 +1293,7 @@ template&lt;class T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00299">299</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00335">335</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1459,7 +1443,7 @@ template&lt;typename F&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00218">218</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00254">254</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1490,7 +1474,7 @@ template&lt;class T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00293">293</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00329">329</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1519,7 +1503,7 @@ template&lt;class KeyT&gt; </div>
 
 <p>Flag enabling type-tag verification. </p>
 
-<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00215">215</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="AnyValueTable_8hpp_source.html#l00251">251</a> of file <a class="el" href="AnyValueTable_8hpp_source.html">AnyValueTable.hpp</a>.</p>
 
 </div>
 </div>
