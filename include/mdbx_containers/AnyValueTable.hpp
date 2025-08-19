@@ -130,6 +130,7 @@ namespace mdbxc {
 
         /// \brief Find value by key.
         /// \return Optional with value or std::nullopt.
+#if __cplusplus >= 201703L
         template <class T>
         std::optional<T> find(const KeyT& key, MDBX_txn* txn = nullptr) const {
             std::optional<T> result;
@@ -168,6 +169,41 @@ namespace mdbxc {
         T get_or(const KeyT& key, T default_value, const Transaction& txn) const {
             return get_or<T>(key, std::move(default_value), txn.handle());
         }
+#else
+        template <class T>
+        std::pair<bool, T> find_compat(const KeyT& key, MDBX_txn* txn = nullptr) const {
+            std::pair<bool, T> result{false, T{}};
+            with_transaction([&](MDBX_txn* t){
+                try {
+                    if (get_typed(key, result.second, t)) {
+                        result.first = true;
+                    }
+                } catch (const std::bad_cast&) {
+                    // type mismatch -> treat as not found
+                }
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        template <class T>
+        std::pair<bool, T> find_compat(const KeyT& key, const Transaction& txn) const {
+            return find_compat<T>(key, txn.handle());
+        }
+
+        template <class T>
+        T get_or(const KeyT& key, T default_value, MDBX_txn* txn = nullptr) const {
+            auto res = find_compat<T>(key, txn);
+            if (res.first) {
+                return std::move(res.second);
+            }
+            return default_value;
+        }
+
+        template <class T>
+        T get_or(const KeyT& key, T default_value, const Transaction& txn) const {
+            return get_or<T>(key, std::move(default_value), txn.handle());
+        }
+#endif
 
         // --- Meta ---
 
