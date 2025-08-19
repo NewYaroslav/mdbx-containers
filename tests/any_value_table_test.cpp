@@ -45,7 +45,14 @@ int main() {
     table.set<MyStruct>("object", expected);
 
     assert(table.get<int>("answer") == 42);
+#if __cplusplus >= 201703L
     assert(table.find<std::string>("greeting").value() == "hello");
+#else
+    {
+        auto res = table.find_compat<std::string>("greeting");
+        assert(res.first && res.second == "hello");
+    }
+#endif
     assert(table.get<MyStruct>("object") == expected);
 
     auto ks = table.keys();

@@ -5,6 +5,7 @@
 
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <iostream>
+#include <limits>
 
 int main() {
     mdbxc::Config config;
@@ -21,4 +22,7 @@ int main() {
     auto val = table.find_compat(1);
     std::cout << "Found: " << (val.first ? val.second : "not found") << std::endl;
 #   endif
+
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::cin.get();
 }

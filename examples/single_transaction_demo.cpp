@@ -7,6 +7,7 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
+#include <limits>
 
 struct MyStruct {
     int a;
@@ -50,5 +51,8 @@ int main() {
 #   endif
 
     txn.commit();
+
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::cin.get();
     return 0;
 }
