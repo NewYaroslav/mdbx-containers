@@ -6,6 +6,16 @@
 #include <cassert>
 #include <mdbx_containers/KeyValueTable.hpp>
 
+#if __cplusplus >= 201703L
+#define ASSERT_FOUND(table, key, expected) assert((table).find(key).value() == (expected))
+#else
+#define ASSERT_FOUND(table, key, expected)                                                 \
+    do {                                                                                  \
+        auto res = (table).find_compat(key);                                              \
+        assert(res.first && res.second == (expected));                                    \
+    } while (0)
+#endif
+
 
 struct SimpleStruct {
     int x;
@@ -77,7 +87,7 @@ int main() {
     {
         mdbxc::KeyValueTable<int8_t, int8_t> kv(conn, "i8_i8");
         kv.insert_or_assign(1, 100);
-        assert(kv.find(1).value() == 100);
+        ASSERT_FOUND(kv, 1, 100);
     }
     
     // int8 -> int64
@@ -85,7 +95,7 @@ int main() {
     {
         mdbxc::KeyValueTable<int8_t, int64_t> kv(conn, "i8_i64");
         kv.insert_or_assign(2, 1234567890123456LL);
-        assert(kv.find(2).value() == 1234567890123456LL);
+        ASSERT_FOUND(kv, 2, 1234567890123456LL);
     }
     
     // int32 -> string
@@ -93,7 +103,7 @@ int main() {
     {
         mdbxc::KeyValueTable<int32_t, std::string> kv(conn, "i32_str");
         kv.insert_or_assign(3, "hello");
-        assert(kv.find(3).value() == "hello");
+        ASSERT_FOUND(kv, 3, std::string("hello"));
     }
 
     // string -> string
@@ -101,7 +111,7 @@ int main() {
     {
         mdbxc::KeyValueTable<std::string, std::string> kv(conn, "str_str");
         kv.insert_or_assign("key", "value");
-        assert(kv.find("key").value() == "value");
+        ASSERT_FOUND(kv, std::string("key"), std::string("value"));
     }
 
     // string -> POD
@@ -110,7 +120,7 @@ int main() {
         mdbxc::KeyValueTable<std::string, SimpleStruct> kv(conn, "str_struct");
         SimpleStruct s{42, 3.14f};
         kv.insert_or_assign("obj", s);
-        assert(kv.find("obj").value() == s);
+        ASSERT_FOUND(kv, std::string("obj"), s);
     }
 
     // int64 -> vector<byte>
@@ -119,7 +129,7 @@ int main() {
         mdbxc::KeyValueTable<int64_t, std::vector<uint8_t>> kv(conn, "i64_vec");
         std::vector<uint8_t> data{1, 2, 3, 4};
         kv.insert_or_assign(9, data);
-        assert(kv.find(9).value() == data);
+        ASSERT_FOUND(kv, 9, data);
     }
     
     // string -> vector<SimpleStruct>
@@ -128,7 +138,7 @@ int main() {
         mdbxc::KeyValueTable<std::string, std::vector<SimpleStruct>> kv(conn, "str_vec_struct");
         std::vector<SimpleStruct> vec{{1, 1.0f}, {2, 2.0f}};
         kv.insert_or_assign("many", vec);
-        assert(kv.find("many").value() == vec);
+        ASSERT_FOUND(kv, std::string("many"), vec);
     }
     
     // string -> list<string>
@@ -137,7 +147,7 @@ int main() {
         mdbxc::KeyValueTable<std::string, std::list<std::string>> kv(conn, "str_list_str");
         std::list<std::string> lst{"a", "b", "c"};
         kv.insert_or_assign("letters", lst);
-        assert(kv.find("letters").value() == lst);
+        ASSERT_FOUND(kv, std::string("letters"), lst);
     }
     
     // string -> vector<string>
@@ -146,7 +156,7 @@ int main() {
         mdbxc::KeyValueTable<std::string, std::vector<std::string>> kv(conn, "str_vector_str");
         std::vector<std::string> lst{"a", "b", "c"};
         kv.insert_or_assign("letters", lst);
-        assert(kv.find("letters").value() == lst);
+        ASSERT_FOUND(kv, std::string("letters"), lst);
     }
     
     // string -> set<string>
@@ -155,7 +165,7 @@ int main() {
         mdbxc::KeyValueTable<std::string, std::set<std::string>> kv(conn, "str_set_str");
         std::set<std::string> s{"a", "b", "c"};
         kv.insert_or_assign("letters", s);
-        assert(kv.find("letters").value() == s);
+        ASSERT_FOUND(kv, std::string("letters"), s);
     }
     
     // string -> set<int>
@@ -164,7 +174,7 @@ int main() {
         mdbxc::KeyValueTable<std::string, std::set<int>> kv(conn, "str_set_int");
         std::set<int> s{1, 2, 3};
         kv.insert_or_assign("digits", s);
-        assert(kv.find("digits").value() == s);
+        ASSERT_FOUND(kv, std::string("digits"), s);
     }
 
     // string -> self-serializable struct
@@ -202,7 +212,7 @@ int main() {
         mdbxc::KeyValueTable<std::string, Serializable> kv(conn, "str_serializable");
         Serializable s{7, "seven"};
         kv.insert_or_assign("ser", s);
-        assert(kv.find("ser").value() == s);
+        ASSERT_FOUND(kv, std::string("ser"), s);
     }
     
     {
@@ -265,7 +275,5 @@ int main() {
     }
 
     std::cout << "All tests passed.\n";
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    std::cin.get();
     return 0;
 }

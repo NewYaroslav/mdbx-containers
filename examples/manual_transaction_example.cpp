@@ -5,6 +5,7 @@
 
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <iostream>
+#include <limits>
 
 int main() {
     mdbxc::Config config;
@@ -47,5 +48,8 @@ int main() {
 
     // Commit transaction
     conn->commit();
+
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::cin.get();
     return 0;
 }

@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <cstring>
+#include <limits>
 
 /// \brief Simple struct for demonstration.
 struct MyStruct {
@@ -44,7 +45,12 @@ int main() {
     table.set<MyStruct>("struct", MyStruct{42, 0.5f});
 
     auto retries = table.get_or<int>("retries", 1);
+#if __cplusplus >= 201703L
     auto url = table.find<std::string>("url").value_or("none");
+#else
+    auto url_pair = table.find_compat<std::string>("url");
+    std::string url = url_pair.first ? url_pair.second : "none";
+#endif
 
     std::cout << "retries: " << retries << "\nurl: " << url << '\n';
 
@@ -52,5 +58,7 @@ int main() {
         std::cout << "key: " << key << '\n';
     }
 
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::cin.get();
     return 0;
 }

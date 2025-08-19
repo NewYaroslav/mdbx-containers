@@ -6,6 +6,7 @@
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <iostream>
 #include <vector>
+#include <limits>
 
 struct MyData {
     int id;
@@ -44,4 +45,7 @@ int main() {
     if (result.first)
         std::cout << "id: " << result.second.id << ", value: " << result.second.value << std::endl;
 #   endif
+
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::cin.get();
 }
