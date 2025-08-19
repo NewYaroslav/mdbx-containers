@@ -7,12 +7,12 @@
 /// \brief Utility functions for path manipulation, including relative path computation.
 
 #include <string>
+#include <vector>
+#include <stdexcept>
 #if __cplusplus >= 201703L
 #include <filesystem>
 #else
-#include <vector>
 #include <cctype>
-#include <stdexcept>
 #endif
 
 #ifdef _WIN32
@@ -23,6 +23,7 @@
 #include <locale>
 #include <codecvt>
 #endif
+#include <errno.h>
 #else
 // For POSIX systems
 #include <unistd.h>
@@ -36,6 +37,13 @@ namespace mdbxc {
 #   if __cplusplus >= 201703L
     namespace fs = std::filesystem;
 #   endif
+
+#if __cplusplus >= 202002L
+    /// \brief Converts a UTF-8 string with char8_t characters to std::string.
+    inline std::string u8string_to_string(const std::u8string& s) {
+        return std::string(s.begin(), s.end());
+    }
+#endif
 
     /// \brief Checks whether the given path is absolute (cross-platform).
     /// \param path File or directory path.
@@ -61,7 +69,12 @@ namespace mdbxc {
     /// \return Directory path (e.g., "data")
     inline std::string get_parent_path(const std::string& file_path) {
 #       if __cplusplus >= 201703L
+#       if __cplusplus >= 202002L
+        auto parent = fs::u8path(file_path).parent_path().u8string();
+        return u8string_to_string(parent);
+#       else
         return fs::u8path(file_path).parent_path().u8string();
+#       endif
 #       else
         size_t pos = file_path.find_last_of("/\\");
         if (pos == std::string::npos)
@@ -72,7 +85,7 @@ namespace mdbxc {
 
     /// \brief Retrieves the directory of the executable file.
     /// \return A string containing the directory path of the executable.
-    std::string get_exec_dir() {
+    inline std::string get_exec_dir() {
 #       ifdef _WIN32
         std::vector<wchar_t> buffer(MAX_PATH);
         HMODULE hModule = GetModuleHandle(NULL);
@@ -100,7 +113,8 @@ namespace mdbxc {
 
 #       if __cplusplus >= 202002L
         fs::path path_wide = exe_path;
-        return path_wide.u8string();
+        auto tmp = path_wide.u8string();
+        return u8string_to_string(tmp);
 #       else
         // Convert from std::wstring (UTF-16) to std::string (UTF-8)
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
@@ -130,14 +144,41 @@ namespace mdbxc {
     /// \brief Extracts the file name from a full file path.
     /// \param file_path The full file path as a string.
     /// \return The extracted file name, or the full string if no directory separator is found.
-    std::string get_file_name(const std::string& file_path) {
+    inline std::string get_file_name(const std::string& file_path) {
 #       if __cplusplus >= 201703L
+#       if __cplusplus >= 202002L
+        auto name = fs::u8path(file_path).filename().u8string();
+        return u8string_to_string(name);
+#       else
         return fs::u8path(file_path).filename().u8string();
+#       endif
 #       else
         size_t pos = file_path.find_last_of("/\\");
         if (pos == std::string::npos) return file_path;
         return file_path.substr(pos + 1);
 #       endif
+    }
+
+    /// \brief Converts a UTF-8 string to an ANSI string (Windows-specific).
+    /// \param utf8 The UTF-8 encoded string.
+    /// \return The converted ANSI string.
+    inline std::string utf8_to_ansi(const std::string& utf8) noexcept {
+#ifdef _WIN32
+        int n_len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, NULL, 0);
+        if (n_len == 0) return {};
+
+        std::wstring wide_string(n_len + 1, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, &wide_string[0], n_len);
+
+        n_len = WideCharToMultiByte(CP_ACP, 0, wide_string.c_str(), -1, NULL, 0, NULL, NULL);
+        if (n_len == 0) return {};
+
+        std::string ansi_string(n_len - 1, '\0');
+        WideCharToMultiByte(CP_ACP, 0, wide_string.c_str(), -1, &ansi_string[0], n_len, NULL, NULL);
+        return ansi_string;
+#else
+        return utf8;
+#endif
     }
 
 #if __cplusplus >= 201703L
@@ -156,14 +197,18 @@ namespace mdbxc {
             // If there is an error, return the original file_path
             return file_path;
         } else {
+#       if __cplusplus >= 202002L
+            return u8string_to_string(relativeP.u8string());
+#       else
             return relativeP.u8string();
+#       endif
         }
     }
 
     /// \brief Creates directories recursively for the given path using C++17 std::filesystem.
     /// \param path The directory path to create.
     /// \throws std::runtime_error if the directories cannot be created.
-    void create_directories(const std::string& path) {
+      inline void create_directories(const std::string& path) {
 #   ifdef _WIN32
 #       if __cplusplus >= 202002L
         fs::path parent_dir = fs::u8path(get_parent_path(path));
@@ -180,7 +225,12 @@ namespace mdbxc {
         if (!fs::exists(parent_dir)) {
             std::error_code ec;
             if (!std::filesystem::create_directories(parent_dir, ec)) {
+#       if __cplusplus >= 202002L
+                auto p = parent_dir.u8string();
+                throw std::runtime_error("Failed to create directories for path: " + u8string_to_string(p));
+#       else
                 throw std::runtime_error("Failed to create directories for path: " + parent_dir.u8string());
+#       endif
             }
         }
     }
@@ -197,7 +247,7 @@ namespace mdbxc {
     /// \brief Splits a path into its root and components.
     /// \param path The path to split.
     /// \return A PathComponents object containing the root and components of the path.
-    PathComponents split_path(const std::string& path) {
+      inline PathComponents split_path(const std::string& path) {
         PathComponents result;
         size_t i = 0;
         size_t n = path.size();
@@ -237,28 +287,10 @@ namespace mdbxc {
         return result;
     }
     
-    /// \brief Converts a UTF-8 string to an ANSI string (Windows-specific).
-    /// \param utf8 The UTF-8 encoded string.
-    /// \return The converted ANSI string.
-    std::string utf8_to_ansi(const std::string& utf8) noexcept {
-        int n_len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, NULL, 0);
-        if (n_len == 0) return {};
-
-        std::wstring wide_string(n_len + 1, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, &wide_string[0], n_len);
-
-        n_len = WideCharToMultiByte(CP_ACP, 0, wide_string.c_str(), -1, NULL, 0, NULL, NULL);
-        if (n_len == 0) return {};
-
-        std::string ansi_string(n_len - 1, '\0');
-        WideCharToMultiByte(CP_ACP, 0, wide_string.c_str(), -1, &ansi_string[0], n_len, NULL, NULL);
-        return ansi_string;
-    }
-
     /// \brief Creates directories recursively for the given path.
     /// \param path The directory path to create.
     /// \throws std::runtime_error if the directories cannot be created.
-    void create_directories(const std::string& path) {
+      inline void create_directories(const std::string& path) {
         if (path.empty()) return;
         PathComponents path_pc = split_path(get_parent_path(path));
         auto &components = path_pc.components;
