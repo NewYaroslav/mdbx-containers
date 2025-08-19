@@ -182,7 +182,11 @@ namespace mdbxc {
         std::string pathname = m_config->pathname;
         if (m_config->relative_to_exe && !is_absolute_path(pathname)) {
 #if __cplusplus >= 201703L
+#if __cplusplus >= 202002L
+            pathname = u8string_to_string((fs::u8path(get_exec_dir()) / fs::u8path(pathname)).u8string());
+#else
             pathname = (fs::u8path(get_exec_dir()) / fs::u8path(pathname)).u8string();
+#endif
 #else
 #   ifdef _WIN32
             pathname = get_exec_dir() + "\\" + pathname;
