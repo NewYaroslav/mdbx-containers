@@ -1,5 +1,3 @@
-#include <iostream>
-
 namespace mdbxc {
 
     inline Transaction::Transaction(TransactionTracker* registry, MDBX_env* env, TransactionMode mode)
@@ -8,13 +6,9 @@ namespace mdbxc {
     }
 
     inline Transaction::~Transaction() {
-        std::cout << "u1" << std::endl;
-	    m_registry->unbind_txn();
-		std::cout << "u2" << std::endl;
+        m_registry->unbind_txn();
         if (!m_txn) return;
-		std::cout << "u3" << std::endl;
         mdbx_txn_abort(m_txn);
-		std::cout << "u4" << std::endl;
         m_txn = nullptr;
     }
 
