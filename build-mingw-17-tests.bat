@@ -19,7 +19,8 @@ cmake -S . -B "%BUILD_DIR%" ^
     -DMDBXC_DEPS_MODE=AUTO ^
     -DMDBXC_BUILD_STATIC_LIB=OFF ^
     -DMDBXC_BUILD_TESTS=ON ^
-    -DMDBXC_BUILD_EXAMPLES=OFF
+    -DMDBXC_BUILD_EXAMPLES=OFF ^
+	-DMDBXC_USE_ASAN=ON
 
 if errorlevel 1 (
     echo [ERROR] CMake generation failed.
@@ -41,6 +42,7 @@ REM Добавим bin в PATH на случай, если зависят от D
 set "PATH=%CD%\%BUILD_DIR%\bin;%PATH%"
 
 ctest --test-dir "%BUILD_DIR%" --output-on-failure
+REM ctest -R kv_container_all_types_test -V
 
 if errorlevel 1 (
     echo [ERROR] Tests failed.

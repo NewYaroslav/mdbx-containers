@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.18)
 project(mdbx_containers VERSION 1.0.0 LANGUAGES CXX)
 
+include(CheckCXXCompilerFlag)
+include(CheckLinkerFlag)
+
 # ---------------------------------------
 # Output directories
 # ---------------------------------------
@@ -14,6 +17,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE PATH "")
 option(MDBXC_BUILD_EXAMPLES     "Build examples"                                  ON)
 option(MDBXC_BUILD_TESTS        "Build tests with CTest"                           ON)
 option(MDBXC_BUILD_STATIC_LIB   "Build static library from src/*.cpp (optional)"   OFF)
+option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmdbx)" ON)
 
 # Three-mode dependency policy for MDBX: AUTO | SYSTEM | BUNDLED
 set(MDBXC_DEPS_MODE "AUTO" CACHE STRING "Dependency mode for MDBX: AUTO|SYSTEM|BUNDLED")
@@ -23,6 +27,32 @@ message(STATUS "MDBXC_DEPS_MODE         = ${MDBXC_DEPS_MODE}")
 message(STATUS "MDBXC_BUILD_STATIC_LIB  = ${MDBXC_BUILD_STATIC_LIB}")
 message(STATUS "MDBXC_BUILD_EXAMPLES    = ${MDBXC_BUILD_EXAMPLES}")
 message(STATUS "MDBXC_BUILD_TESTS       = ${MDBXC_BUILD_TESTS}")
+message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
+
+set(MDBXC_HAS_ASAN OFF CACHE BOOL "Compiler+linker support -fsanitize=address")
+
+if (MDBXC_USE_ASAN AND (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang") AND NOT MSVC)
+    # Проверяем, понимает ли компилятор флаг
+    check_cxx_compiler_flag("-fsanitize=address" MDBXC_ASAN_CFLAG_OK)
+    # И умеет ли линкер
+    check_linker_flag(CXX "-fsanitize=address" MDBXC_ASAN_LDFLAG_OK)
+
+    if (MDBXC_ASAN_CFLAG_OK AND MDBXC_ASAN_LDFLAG_OK)
+        set(MDBXC_HAS_ASAN ON CACHE BOOL "" FORCE)
+    else()
+        message(WARNING "ASan недоступен у текущего toolchain (compiler: ${MDBXC_ASAN_CFLAG_OK}, linker: ${MDBXC_ASAN_LDFLAG_OK}). Отключаю MDBXC_USE_ASAN.")
+        set(MDBXC_HAS_ASAN OFF CACHE BOOL "" FORCE)
+    endif()
+endif()
+
+function(mdbxc_enable_asan tgt)
+    if(MDBXC_USE_ASAN AND (CMAKE_BUILD_TYPE MATCHES "Debug|RelWithDebInfo")
+       AND (MINGW OR CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang"))
+        target_compile_options(${tgt} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(${tgt} PRIVATE -fsanitize=address)
+    endif()
+endfunction()
+
 
 # ---------------------------------------
 # Include paths for our headers
@@ -138,6 +168,8 @@ if(MDBXC_BUILD_TESTS)
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests
         )
         target_compile_features(${test_name} PRIVATE cxx_std_11)
+        
+        mdbxc_enable_asan(${test_name})
 
         if(MDBXC_BUILD_STATIC_LIB)
             target_link_libraries(${test_name} PRIVATE ${_PKG_TARGET})
@@ -153,6 +185,13 @@ if(MDBXC_BUILD_TESTS)
 
         # IMPORTANT: we do NOT define INTERACTIVE_TEST for tests.
         add_test(NAME ${test_name} COMMAND ${test_name})
+        
+        if(MDBXC_USE_ASAN)
+            set_tests_properties(${test_name} PROPERTIES
+                ENVIRONMENT "ASAN_OPTIONS=abort_on_error=1,detect_leaks=0,allocator_may_return_null=1"
+            )
+        endif()
+        
     endforeach()
 endif()
 

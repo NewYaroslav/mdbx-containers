@@ -1,5 +1,4 @@
 /*! \page tables_page Persistent Containers Usage
-\ingroup mdbxc_tables
 \tableofcontents
 
 This page describes how to work with the persistent container classes such as

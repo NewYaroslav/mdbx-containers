@@ -65,10 +65,10 @@ cmake -S . -B build -DBUILD_DEPS=ON -DBUILD_STATIC_LIB=ON
 cmake --build build
 ```
 
-For more details on container usage and C++ version differences see \ref tables_page.
+For more details on container usage and C++ version differences see \subpage tables_page.
 
 \section config_sec Configuration Guide
-Details on tuning the MDBX environment are available on \ref config_page.
+Details on tuning the MDBX environment are available on \subpage config_page.
 
 \section repo_sec Repository
 Sources: [GitHub repository](https://github.com/NewYaroslav/mdbx-containers).

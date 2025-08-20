@@ -654,7 +654,8 @@ namespace mdbxc {
         /// \return True if found, false otherwise.
         /// \throws MdbxException if a database error occurs.
         bool db_get(const KeyT& key, ValueT& value, MDBX_txn* txn_handle) const {
-            MDBX_val db_key = serialize_key(key);
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key(key, sc_key);
             MDBX_val db_val;
             int rc = mdbx_get(txn_handle, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
@@ -669,7 +670,8 @@ namespace mdbxc {
         /// \return True if key exists, false otherwise.
         /// \throws MdbxException if a database error occurs.
         bool db_contains(const KeyT& key, MDBX_txn* txn_handle) const {
-            MDBX_val db_key = serialize_key(key);
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key(key, sc_key);
             MDBX_val db_val; // dummy
             int rc = mdbx_get(txn_handle, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
@@ -694,9 +696,12 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void db_append(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            
             for (const auto& pair : container) {
-                MDBX_val db_key = serialize_key(pair.first);
-                MDBX_val db_val = serialize_value(pair.second);
+                MDBX_val db_key = serialize_key(pair.first, sc_key);
+                MDBX_val db_val = serialize_value(pair.second, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
@@ -709,9 +714,12 @@ namespace mdbxc {
         /// \param txn_handle Active transaction handle.
         /// \throws MdbxException if a database error occurs.
         void db_append(const std::vector<std::pair<KeyT, ValueT>>& container, MDBX_txn* txn_handle) {
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            
             for (const auto& [key, value] : container) {
-                MDBX_val db_key = serialize_key(key);
-                MDBX_val db_val = serialize_value(value);
+                MDBX_val db_key = serialize_key(key, sc_key);
+                MDBX_val db_val = serialize_value(value, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
@@ -728,12 +736,15 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void db_reconcile(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            
             // 1. Collect all keys from the container
             std::unordered_set<KeyT> new_keys;
             for (const auto& pair : container) {
                 new_keys.insert(pair.first);
-                MDBX_val db_key = serialize_key(pair.first);
-                MDBX_val db_val = serialize_value(pair.second);
+                MDBX_val db_key = serialize_key(pair.first, sc_key);
+                MDBX_val db_val = serialize_value(pair.second, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
@@ -761,6 +772,9 @@ namespace mdbxc {
         /// \param txn_handle Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
         void db_reconcile(const std::vector<std::pair<KeyT, ValueT>>& container, MDBX_txn* txn_handle) {
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            
             // 1. Collect keys and upsert values
             std::unordered_set<KeyT> new_keys;
             for (size_t i = 0; i < container.size(); ++i) {
@@ -769,8 +783,8 @@ namespace mdbxc {
 
                 new_keys.insert(key);
 
-                MDBX_val db_key = serialize_key(key);
-                MDBX_val db_val = serialize_value(value);
+                MDBX_val db_key = serialize_key(key, sc_key);
+                MDBX_val db_val = serialize_value(value, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
@@ -799,8 +813,10 @@ namespace mdbxc {
         /// \return true if the key-value pair was inserted, false if the key already existed.
         /// \throws MdbxException if the insert fails for reasons other than key existence.
         bool db_insert_if_absent(const KeyT& key, const ValueT& value, MDBX_txn* txn_handle) {
-            MDBX_val db_key = serialize_key(key);
-            MDBX_val db_val = serialize_value(value);
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_val = serialize_value(value, sc_value);
             int rc = mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
 
             if (rc == MDBX_SUCCESS)
@@ -818,8 +834,10 @@ namespace mdbxc {
         /// \param txn_handle The active MDBX transaction.
         /// \throws MdbxException if the operation fails.
         void db_insert_or_assign(const KeyT& key, const ValueT& value, MDBX_txn* txn_handle) {
-            MDBX_val db_key = serialize_key(key);
-            MDBX_val db_val = serialize_value(value);
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_val = serialize_value(value, sc_value);
             check_mdbx(
                 mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),  // or 0
                 "Failed to insert or assign key-value pair"
@@ -832,7 +850,8 @@ namespace mdbxc {
         /// \return True if the key was found and deleted, false if the key was not found.
         /// \throws MdbxException if deletion fails for other reasons.
         bool db_erase(const KeyT& key, MDBX_txn* txn_handle) {
-            MDBX_val db_key = serialize_key(key);
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key(key, sc_key);
             int rc = mdbx_del(txn_handle, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) return true;
             if (rc == MDBX_NOTFOUND) return false;

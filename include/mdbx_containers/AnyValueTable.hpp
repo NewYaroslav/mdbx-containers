@@ -273,8 +273,10 @@ namespace mdbxc {
 
         template <class T>
         bool put_typed(const KeyT& key, const T& value, bool upsert, MDBX_txn* txn) {
-            MDBX_val db_key = serialize_key(key);
-            MDBX_val raw_val = serialize_value(value);
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val raw_val = serialize_value(value, sc_value);
             MDBX_val db_val = wrap_with_type_tag<T>(raw_val);
             MDBX_put_flags_t flags = upsert ? MDBX_UPSERT : MDBX_NOOVERWRITE;
             int rc = mdbx_put(txn, m_dbi, &db_key, &db_val, flags);
@@ -287,7 +289,8 @@ namespace mdbxc {
 
         template <class T>
         bool get_typed(const KeyT& key, T& out, MDBX_txn* txn) const {
-            MDBX_val db_key = serialize_key(key);
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key(key, sc_key);
             MDBX_val db_val{};
             int rc = mdbx_get(txn, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
@@ -298,7 +301,8 @@ namespace mdbxc {
         }
 
         bool db_contains(const KeyT& key, MDBX_txn* txn) const {
-            MDBX_val db_key = serialize_key(key);
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key(key, sc_key);
             int rc = mdbx_get(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) return true;
             if (rc == MDBX_NOTFOUND) return false;
@@ -307,7 +311,8 @@ namespace mdbxc {
         }
 
         bool db_erase(const KeyT& key, MDBX_txn* txn) {
-            MDBX_val db_key = serialize_key(key);
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key(key, sc_key);
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) return true;
             if (rc == MDBX_NOTFOUND) return false;
