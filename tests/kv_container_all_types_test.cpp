@@ -113,7 +113,7 @@ struct ConcurrentStruct {
 
 int main() {
     mdbxc::Config cfg;
-    cfg.pathname       = "./data/testdb";
+    cfg.pathname       = "data/kv_container_all_types";
     cfg.max_dbs        = 14;
     cfg.no_subdir      = false;
     cfg.relative_to_exe= true;
@@ -272,7 +272,7 @@ int main() {
                     // sync_cout() << "[writer] i=" << i << "\n";
                     {
                         std::lock_guard<std::mutex> lock(mtx);
-						kv.insert_or_assign(1, w);
+                        kv.insert_or_assign(1, w);
                         written = w;
                         ++epoch;
                     }

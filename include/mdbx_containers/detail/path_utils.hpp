@@ -45,6 +45,12 @@ namespace mdbxc {
     }
 #endif
 
+    /// \brief
+    inline bool is_explicitly_relative(const std::string& s) noexcept {
+        auto sw = [&](const char* p){ return s.rfind(p, 0) == 0; };
+        return sw("./") || sw("../") || sw(".\\") || sw("..\\");
+    }
+
     /// \brief Checks whether the given path is absolute (cross-platform).
     /// \param path File or directory path.
     /// \return True if path is absolute, false otherwise.
@@ -236,6 +242,163 @@ namespace mdbxc {
     }
 
 #else
+    // С++11/14
+
+    inline bool is_path_sep(char c) { 
+        return c == '/' || c == '\\'; 
+    }
+
+    inline std::string lexically_normal_compat(const std::string& in) {
+#       ifdef _WIN32
+        const char SEP = '\\';
+#       else
+        const char SEP = '/';
+#       endif
+        const char* s = in.c_str();
+        const size_t n = in.size();
+        size_t i = 0;
+
+        // ----- parse prefix (root) -----
+#       ifdef _WIN32
+        bool is_unc = false;
+        std::string drive;          // "C:"
+        std::vector<std::string> root_parts; // for UNC: server, share
+
+        // UNC: \\server\share\...
+        if (n >= 2 && is_path_sep(s[0]) && is_path_sep(s[1])) {
+            is_unc = true;
+            i = 2;
+            // server
+            size_t start = i;
+            while (i < n && !is_path_sep(s[i])) ++i;
+            if (i > start) root_parts.push_back(in.substr(start, i - start));
+            if (i < n && is_path_sep(s[i])) ++i;
+            // share
+            start = i;
+            while (i < n && !is_path_sep(s[i])) ++i;
+            if (i > start) root_parts.push_back(in.substr(start, i - start));
+            // пропускаем дополнительные слеши
+            while (i < n && is_path_sep(s[i])) ++i;
+        }
+        // Drive: "X:" (возможно абсолютный "X:\..." или относительный "X:foo")
+        else if (n >= 2 && std::isalpha(static_cast<unsigned char>(s[0])) && s[1] == ':') {
+            drive.assign(in, 0, 2);
+            i = 2;
+            // пропустим один/несколько разделителей, если есть
+            while (i < n && is_path_sep(s[i])) ++i;
+        }
+        const bool is_abs_root = is_unc || (!drive.empty() && (n >= 3 && is_path_sep(s[2]))) ||
+                                 (!drive.size() && n >= 1 && is_path_sep(s[0]));
+#       else
+        const bool is_abs_root = (n >= 1 && s[0] == '/');
+        if (is_abs_root) i = 1;
+#       endif
+
+        // ----- tokenize and fold . / .. -----
+        std::vector<std::string> comps;
+
+        auto push_component = [&](const std::string& token) {
+            if (token.empty() || token == ".") return;
+            if (token == "..") {
+#           ifdef _WIN32
+            // Для UNC «корень» — server/share: их нельзя выталкивать назад.
+            size_t protected_root = 0;
+            if (
+                    // UNC и есть server/share
+                    true
+#               ifdef _WIN32
+                    && false
+#               endif
+                ) { /* защищённая зона настроена ниже */ }
+#           endif
+                if (!comps.empty() && comps.back() != "..") {
+                    // нельзя уходить выше корня абсолютного пути
+                    comps.pop_back();
+                } else {
+                    // относительный путь или уже нет куда сворачивать
+                    comps.push_back("..");
+                }
+            } else {
+                comps.push_back(token);
+            }
+        };
+
+#       ifdef _WIN32
+        // Для UNC защищаем первые два компонента (server/share) от свёртки ".."
+        size_t protected_count = 0;
+        if (is_unc) {
+            for (size_t k = 0; k < root_parts.size(); ++k) {
+                comps.push_back(root_parts[k]);
+            }
+            protected_count = comps.size();
+        }
+#       endif
+
+        while (i < n) {
+            // пропускаем повторные разделители
+            while (i < n && is_path_sep(s[i])) ++i;
+            if (i >= n) break;
+            size_t start = i;
+            while (i < n && !is_path_sep(s[i])) ++i;
+            std::string token = in.substr(start, i - start);
+
+            if (token == "..") {
+#               ifdef _WIN32
+                if (!comps.empty() && comps.size() > protected_count && comps.back() != "..") {
+                    comps.pop_back();
+                } else if (!is_abs_root || (is_unc && comps.size() > protected_count)) {
+                    comps.push_back("..");
+                }
+#               else
+                if (is_abs_root) {
+                    if (!comps.empty() && comps.back() != "..") comps.pop_back();
+                } else {
+                    comps.push_back("..");
+                }
+#               endif
+            } else if (token != ".") {
+                comps.push_back(token);
+            }
+        }
+
+        // ----- rebuild -----
+        std::string out;
+
+#       ifdef _WIN32
+        if (is_unc) {
+            out = "\\\\";
+            for (size_t k = 0; k < comps.size(); ++k) {
+                if (k) out += SEP;
+                out += comps[k];
+            }
+            return out;
+        }
+        if (!drive.empty()) {
+            // Абсолютный drive-root → "X:\", drive-relative → "X:"
+            bool drive_absolute = (n >= 3 && std::isalpha(static_cast<unsigned char>(s[0])) && s[1]==':' && is_path_sep(s[2]));
+            out = drive;
+            if (drive_absolute) out += SEP;
+        } else if (is_abs_root) {
+            out.push_back(SEP);
+        }
+#       else
+        if (is_abs_root) out.push_back(SEP);
+#       endif
+
+        for (size_t k = 0; k < comps.size(); ++k) {
+            if (!out.empty() && out.back() != SEP) out.push_back(SEP);
+            out += comps[k];
+        }
+
+        if (out.empty()) {
+#           ifdef _WIN32
+            out = !drive.empty() ? drive : std::string(".");
+#           else
+            out = is_abs_root ? std::string(1, SEP) : std::string(".");
+#           endif
+        }
+        return out;
+    }
 
     /// \struct PathComponents
     /// \brief Structure to hold the root and components of a path.

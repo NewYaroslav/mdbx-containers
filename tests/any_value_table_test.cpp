@@ -32,7 +32,7 @@ struct MyStruct {
 
 int main() {
     mdbxc::Config cfg;
-    cfg.pathname = "any_value_table_test.mdbx";
+    cfg.pathname = "data/any_value_table.mdbx";
     cfg.max_dbs = 8;
     cfg.no_subdir = true;
     cfg.relative_to_exe = true;

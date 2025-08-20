@@ -4,6 +4,7 @@
 #include <thread>
 #include <unordered_map>
 #include <filesystem>
+#include <iostream>
 
 #if __cplusplus < 202002L
 # include <codecvt>
@@ -115,7 +116,6 @@ namespace mdbxc {
 
     inline void Connection::initialize() {
         try {
-            create_directories(m_config->pathname);
             db_init();
         } catch (...) {
             if (m_env && mdbx_env_close(m_env) == MDBX_SUCCESS) {
@@ -180,21 +180,28 @@ namespace mdbxc {
         if (m_config->writemap_mode) env_flags |= MDBX_WRITEMAP;
 
         std::string pathname = m_config->pathname;
-        if (m_config->relative_to_exe && !is_absolute_path(pathname)) {
-#if __cplusplus >= 201703L
-#if __cplusplus >= 202002L
+        if (m_config->relative_to_exe && 
+            !is_absolute_path(pathname) &&
+            !is_explicitly_relative(pathname)) {
+#       if __cplusplus >= 201703L
+#           if __cplusplus >= 202002L
             pathname = u8string_to_string((fs::u8path(get_exec_dir()) / fs::u8path(pathname)).u8string());
-#else
+#           else
             pathname = (fs::u8path(get_exec_dir()) / fs::u8path(pathname)).u8string();
-#endif
-#else
-#   ifdef _WIN32
+#           endif
+#       else
+#           ifdef _WIN32
             pathname = get_exec_dir() + "\\" + pathname;
-#   else
+#           else
             pathname = get_exec_dir() + "/" + pathname;
-#   endif
-#endif
+#           endif
+#       endif
+            std::cout << "- pathname: " << pathname << std::endl;
         }
+        
+        std::cout << "-- pathname: " << pathname << std::endl;
+        
+        create_directories(pathname);
 
 #ifdef _WIN32
 #   if __cplusplus >= 201703L
@@ -205,11 +212,17 @@ namespace mdbxc {
         std::wstring wide_path = converter.from_bytes(pathname);
         fs::path file_path = fs::path(wide_path);
 #       endif
+        file_path = file_path.lexically_normal();
+        std::cout << "- file_path: " << file_path.u8string() << std::endl;
         check_mdbx(
             mdbx_env_openW(m_env, file_path.c_str(), env_flags, 0664),
             "Failed to open environment"
         );
 #   else
+        pathname = lexically_normal_compat(pathname);
+        
+        std::cout << "- pathname(cpp11): " << pathname << std::endl;
+        
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
         std::wstring wide_path = converter.from_bytes(pathname);
         check_mdbx(
