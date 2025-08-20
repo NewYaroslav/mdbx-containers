@@ -4,7 +4,6 @@
 #include <thread>
 #include <unordered_map>
 #include <filesystem>
-#include <iostream>
 
 #if __cplusplus < 202002L
 # include <codecvt>
@@ -196,11 +195,7 @@ namespace mdbxc {
             pathname = get_exec_dir() + "/" + pathname;
 #           endif
 #       endif
-            std::cout << "- pathname: " << pathname << std::endl;
         }
-        
-        std::cout << "-- pathname: " << pathname << std::endl;
-        
         create_directories(pathname);
 
 #ifdef _WIN32
@@ -213,16 +208,12 @@ namespace mdbxc {
         fs::path file_path = fs::path(wide_path);
 #       endif
         file_path = file_path.lexically_normal();
-        std::cout << "- file_path: " << file_path.u8string() << std::endl;
         check_mdbx(
             mdbx_env_openW(m_env, file_path.c_str(), env_flags, 0664),
             "Failed to open environment"
         );
 #   else
         pathname = lexically_normal_compat(pathname);
-        
-        std::cout << "- pathname(cpp11): " << pathname << std::endl;
-        
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
         std::wstring wide_path = converter.from_bytes(pathname);
         check_mdbx(

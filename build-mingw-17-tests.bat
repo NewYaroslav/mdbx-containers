@@ -20,7 +20,7 @@ cmake -S . -B "%BUILD_DIR%" ^
     -DMDBXC_BUILD_STATIC_LIB=OFF ^
     -DMDBXC_BUILD_TESTS=ON ^
     -DMDBXC_BUILD_EXAMPLES=OFF ^
-	-DMDBXC_USE_ASAN=ON
+    -DMDBXC_USE_ASAN=ON
 
 if errorlevel 1 (
     echo [ERROR] CMake generation failed.
