@@ -392,7 +392,7 @@ namespace mdbxc {
         return SerializeScratch::view(static_cast<const void*>(value.data()), value.size());
     }
     
-    /// \brief Serializes containers (vector, deque, list, set) of trivially copyable elements.
+    /// \brief Serializes containers (vector, deque, list, set, unordered_set) of trivially copyable elements.
     /// \tparam T Container type with value_type.
     /// \param container The container to serialize.
     template <typename T>
@@ -402,7 +402,8 @@ namespace mdbxc {
         (
             std::is_same<T, std::deque<typename T::value_type>>::value ||
             std::is_same<T, std::list<typename T::value_type>>::value ||
-            std::is_same<T, std::set<typename T::value_type>>::value
+            std::is_same<T, std::set<typename T::value_type>>::value ||
+            std::is_same<T, std::unordered_set<typename T::value_type>>::value
         ),
         MDBX_val>::type
     serialize_value(const T& container, SerializeScratch& sc) {
@@ -478,8 +479,9 @@ namespace mdbxc {
     /// \return Deserialized T.
     template<typename T>
     typename std::enable_if<
-        !has_from_bytes<T>::value && 
-        !std::is_same<T, std::string>::value && 
+        !has_value_type<T>::value &&
+        !has_from_bytes<T>::value &&
+        !std::is_same<T, std::string>::value &&
         !std::is_trivially_copyable<T>::value, T>::type
     deserialize_value(const MDBX_val& val) {
         (void)val;
@@ -547,7 +549,13 @@ namespace mdbxc {
     typename std::enable_if<
         has_value_type<T>::value &&
         std::is_same<T, std::vector<typename T::value_type>>::value &&
-        std::is_trivially_copyable<typename T::value_type>::value, T>::type
+        std::is_trivially_copyable<typename T::value_type>::value &&
+#       if __cplusplus >= 201703L
+        !std::is_same<T, std::vector<std::byte>>::value &&
+#       endif
+        !std::is_same<T, std::vector<uint8_t>>::value &&
+        !std::is_same<T, std::vector<char>>::value &&
+        !std::is_same<T, std::vector<unsigned char>>::value, T>::type
     deserialize_value(const MDBX_val& val) {
         typedef typename T::value_type Elem;
         if (val.iov_len % sizeof(Elem) != 0)
@@ -569,6 +577,25 @@ namespace mdbxc {
         if (val.iov_len % sizeof(Elem) != 0) {
             throw std::runtime_error("deserialize_value: size not aligned");
         }
+        const size_t count = val.iov_len / sizeof(Elem);
+        const Elem* data = static_cast<const Elem*>(val.iov_base);
+        return T(data, data + count);
+    }
+
+    /// \brief Deserializes a set or unordered_set of trivially copyable elements.
+    /// \tparam T Set-like container type.
+    template<typename T>
+    typename std::enable_if<
+        (
+            std::is_same<T, std::set<typename T::value_type>>::value ||
+            std::is_same<T, std::unordered_set<typename T::value_type>>::value
+        ) &&
+        std::is_trivially_copyable<typename T::value_type>::value,
+        T>::type
+    deserialize_value(const MDBX_val& val) {
+        typedef typename T::value_type Elem;
+        if (val.iov_len % sizeof(Elem) != 0)
+            throw std::runtime_error("deserialize_value: size not aligned");
         const size_t count = val.iov_len / sizeof(Elem);
         const Elem* data = static_cast<const Elem*>(val.iov_base);
         return T(data, data + count);

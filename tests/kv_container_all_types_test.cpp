@@ -9,6 +9,7 @@
 #include <vector>
 #include <cstring>
 #include <bitset>
+#include <utility>
 
 #include <mdbx_containers/KeyValueTable.hpp>
 
@@ -51,13 +52,20 @@ private:
     }
 };
 
-inline SyncOStream sync_cout() { return SyncOStream(std::cout); }
-inline SyncOStream sync_cerr() { return SyncOStream(std::cerr); }
+inline SyncOStream sync_cout() {
+    SyncOStream s(std::cout);
+    return std::move(s);
+}
+inline SyncOStream sync_cerr() {
+    SyncOStream s(std::cerr);
+    return std::move(s);
+}
 
 // ---- thread runner that captures exceptions ----
 template <class F>
 std::thread make_thread_catching(F&& f, std::exception_ptr& out_eptr) {
-    return std::thread([fn = std::forward<F>(f), &out_eptr] {
+    auto fn = std::forward<F>(f);
+    return std::thread([fn, &out_eptr]() mutable {
         try { fn(); }
         catch (...) { out_eptr = std::current_exception(); }
     });
@@ -72,6 +80,9 @@ inline void safe_join(std::thread& t) noexcept {
 struct SimpleStruct {
     int   x{};
     float y{};
+
+    SimpleStruct() = default;
+    SimpleStruct(int x_, float y_) : x(x_), y(y_) {}
 
     std::vector<uint8_t> to_bytes() const {
         std::vector<uint8_t> bytes(sizeof(int) + sizeof(float));
@@ -95,6 +106,9 @@ struct SimpleStruct {
 
 struct ConcurrentStruct {
     int value{};
+
+    ConcurrentStruct() = default;
+    explicit ConcurrentStruct(int v) : value(v) {}
 
     std::vector<uint8_t> to_bytes() const {
         std::vector<uint8_t> bytes(sizeof(int));
@@ -157,6 +171,15 @@ int main() {
         ASSERT_FOUND(kv, std::string("obj"), s);
     }
 
+    std::cout << "[case] string -> set<int>\n";
+    {
+        mdbxc::KeyValueTable<std::string, std::set<int>> kv(conn, "str_set_int");
+        std::set<int> s{1, 2, 3};
+        kv.insert_or_assign("digits", s);
+        ASSERT_FOUND(kv, std::string("digits"), s);
+    }
+
+#if __cplusplus >= 201703L
     std::cout << "[case] int64 -> vector<uint8_t>\n";
     {
         mdbxc::KeyValueTable<int64_t, std::vector<uint8_t>> kv(conn, "i64_vec");
@@ -196,14 +219,7 @@ int main() {
         kv.insert_or_assign("letters", s);
         ASSERT_FOUND(kv, std::string("letters"), s);
     }
-
-    std::cout << "[case] string -> set<int>\n";
-    {
-        mdbxc::KeyValueTable<std::string, std::set<int>> kv(conn, "str_set_int");
-        std::set<int> s{1, 2, 3};
-        kv.insert_or_assign("digits", s);
-        ASSERT_FOUND(kv, std::string("digits"), s);
-    }
+#endif
 
     std::cout << "[case] string -> self-serializable struct\n";
     {
