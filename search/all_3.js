@@ -10,7 +10,7 @@ var searchData=
   ['compatibility_7',['C++ Compatibility',['../tables_page.html#autotoc_md1',1,'']]],
   ['components_8',['Core Components',['../group__mdbxc__core.html',1,'']]],
   ['components_9',['components',['../structmdbxc_1_1PathComponents.html#a46eebcf9c8713c7072766d1acb7af974',1,'mdbxc::PathComponents']]],
-  ['concurrentstruct_10',['ConcurrentStruct',['../structConcurrentStruct.html',1,'']]],
+  ['concurrentstruct_10',['ConcurrentStruct',['../structConcurrentStruct.html',1,'ConcurrentStruct'],['../structConcurrentStruct.html#ac33cca57208b4fabbb59b7641f3504ce',1,'ConcurrentStruct::ConcurrentStruct()=default'],['../structConcurrentStruct.html#a719afc43a34c603eac58b660cbcbcc14',1,'ConcurrentStruct::ConcurrentStruct(int v)']]],
   ['config_11',['Config',['../classmdbxc_1_1Config.html',1,'mdbxc']]],
   ['config_2ehpp_12',['Config.hpp',['../Config_8hpp.html',1,'']]],
   ['config_5finitialized_5ftable_2ecpp_13',['config_initialized_table.cpp',['../config__initialized__table_8cpp.html',1,'']]],

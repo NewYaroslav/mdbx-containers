@@ -1,5 +1,7 @@
 var structSimpleStruct =
 [
+    [ "SimpleStruct", "structSimpleStruct.html#a68b5c8e1d1a27d76e7f8f513f27a476c", null ],
+    [ "SimpleStruct", "structSimpleStruct.html#a3b1800ae6b790708c217a1e88b696fd3", null ],
     [ "from_bytes", "structSimpleStruct.html#aaed2513721facc10e872f83f8513930c", null ],
     [ "operator==", "structSimpleStruct.html#a6a3be47eb5204087c9b443cfdc5e9dcf", null ],
     [ "to_bytes", "structSimpleStruct.html#ae8e14491ac00b53f09bebefd01ac9fc8", null ],
