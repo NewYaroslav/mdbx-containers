@@ -138,6 +138,33 @@ Types can be nested, e.g., `KeyValueTable<std::string, std::vector<MyStruct>>`.
 - Serialization is performed via `serialize_value()` / `deserialize_value()` from `detail/serialization.hpp`.  
 - Supports both custom `to_bytes()` / `from_bytes()` and fallback to `std::is_trivially_copyable`.  
 
+### Thread-local issue and SerializeScratch
+
+Originally, temporary buffers for serialization used `thread_local` STL containers
+(e.g., `std::vector<uint8_t>`). On Windows/MinGW this led to **heap corruption**
+and random crashes at thread shutdown, because:
+
+- `thread_local` destructors run when the CRT/heap may already be partially finalized
+- STL containers may free memory using a different heap arena than the one they were created in
+- destructor order across `thread_local` objects is not guaranteed
+
+To fix this, we replaced all `thread_local` STL buffers with a dedicated helper:
+
+```cpp
+struct SerializeScratch {
+    alignas(8) unsigned char small[16];
+    std::vector<uint8_t> bytes;
+    // ...
+};
+```
+
+* `small[16]` provides a stack-like inline buffer for INTEGERKEY and other small values
+* `bytes` is used for larger or variable-sized data, owned by the calling scope
+* Returned `MDBX_val` is valid only until the next serialization call on the same scratch
+
+This approach removes dependency on `thread_local` destructors, is portable across compilers,
+and avoids MinGW-specific runtime crashes.
+
 ## Named Tables
 
 Each table (`KeyValueTable`, `KeyTable`, etc.) is associated with a named sub-database (`MDBX_dbi`) within the same MDBX file.  
