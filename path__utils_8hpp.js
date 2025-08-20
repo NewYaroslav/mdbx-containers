@@ -7,6 +7,9 @@ var path__utils_8hpp =
     [ "mdbxc::get_file_name", "namespacemdbxc.html#ac6da8d4fe92dd123447b6fa7815737f5", null ],
     [ "mdbxc::get_parent_path", "namespacemdbxc.html#a4cf5307e460ea21d46524f7509fad91e", null ],
     [ "mdbxc::is_absolute_path", "namespacemdbxc.html#aba3401409b5ff32b9d06f43942ceaa10", null ],
+    [ "mdbxc::is_explicitly_relative", "namespacemdbxc.html#a620570627bd4f65866a4b91c3dac8b8a", null ],
+    [ "mdbxc::is_path_sep", "namespacemdbxc.html#a932370a996791e192e2126bb1973cc79", null ],
+    [ "mdbxc::lexically_normal_compat", "namespacemdbxc.html#af52d809ac3fb1f92ee0f0a5f4659cf69", null ],
     [ "mdbxc::split_path", "namespacemdbxc.html#a5a7e8da1bc85900d5b61de3e544069a8", null ],
     [ "mdbxc::utf8_to_ansi", "namespacemdbxc.html#ac4bdf4b7df5f28445a63d26812e696c2", null ]
 ];

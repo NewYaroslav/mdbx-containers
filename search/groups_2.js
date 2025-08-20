@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['functions_0',['Utility functions',['../group__mdbxc__utils.html',1,'']]]
+  ['functions_0',['Utility Functions',['../group__mdbxc__utils.html',1,'']]]
 ];

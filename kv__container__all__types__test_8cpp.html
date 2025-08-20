@@ -116,17 +116,24 @@ $(function(){initNavTree('kv__container__all__types__test_8cpp.html',''); initRe
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &lt;iostream&gt;</code><br />
+<code>#include &lt;sstream&gt;</code><br />
 <code>#include &lt;thread&gt;</code><br />
 <code>#include &lt;mutex&gt;</code><br />
 <code>#include &lt;condition_variable&gt;</code><br />
 <code>#include &lt;atomic&gt;</code><br />
 <code>#include &lt;cassert&gt;</code><br />
+<code>#include &lt;chrono&gt;</code><br />
+<code>#include &lt;vector&gt;</code><br />
+<code>#include &lt;cstring&gt;</code><br />
+<code>#include &lt;bitset&gt;</code><br />
 <code>#include &lt;<a class="el" href="KeyValueTable_8hpp_source.html">mdbx_containers/KeyValueTable.hpp</a>&gt;</code><br />
 </div>
 <p><a href="kv__container__all__types__test_8cpp_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Classes</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classSyncOStream.html">SyncOStream</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structSimpleStruct.html">SimpleStruct</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structConcurrentStruct.html">ConcurrentStruct</a></td></tr>
@@ -139,6 +146,15 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:af5b6f0c15067f2103b84e6db24c11719" id="r_af5b6f0c15067f2103b84e6db24c11719"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classSyncOStream.html">SyncOStream</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af5b6f0c15067f2103b84e6db24c11719">sync_cout</a> ()</td></tr>
+<tr class="separator:af5b6f0c15067f2103b84e6db24c11719"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab0621ab211608f75f7238062b95308ce" id="r_ab0621ab211608f75f7238062b95308ce"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classSyncOStream.html">SyncOStream</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab0621ab211608f75f7238062b95308ce">sync_cerr</a> ()</td></tr>
+<tr class="separator:ab0621ab211608f75f7238062b95308ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acff751a1dcee8ebd75e3b24c14a5f1c0" id="r_acff751a1dcee8ebd75e3b24c14a5f1c0"><td class="memTemplParams" colspan="2">template&lt;class F&gt; </td></tr>
+<tr class="memitem:acff751a1dcee8ebd75e3b24c14a5f1c0"><td class="memTemplItemLeft" align="right" valign="top">std::thread&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#acff751a1dcee8ebd75e3b24c14a5f1c0">make_thread_catching</a> (F &amp;&amp;f, std::exception_ptr &amp;out_eptr)</td></tr>
+<tr class="separator:acff751a1dcee8ebd75e3b24c14a5f1c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab8df11038a89de3d877da05e9ac589a0" id="r_ab8df11038a89de3d877da05e9ac589a0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab8df11038a89de3d877da05e9ac589a0">safe_join</a> (std::thread &amp;t) noexcept</td></tr>
+<tr class="separator:ab8df11038a89de3d877da05e9ac589a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae66f6b31b5ad750f1fe042a706a4e3d4" id="r_ae66f6b31b5ad750f1fe042a706a4e3d4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ae66f6b31b5ad750f1fe042a706a4e3d4">main</a> ()</td></tr>
 <tr class="separator:ae66f6b31b5ad750f1fe042a706a4e3d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -171,7 +187,7 @@ Functions</h2></td></tr>
 <div class="line">        assert(res.first &amp;&amp; res.second == (expected));                                    \</div>
 <div class="line">    } <span class="keywordflow">while</span> (0)</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00012">12</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00018">18</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
 
 </div>
 </div>
@@ -191,7 +207,113 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00076">76</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00114">114</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
+
+</div>
+</div>
+<a id="acff751a1dcee8ebd75e3b24c14a5f1c0" name="acff751a1dcee8ebd75e3b24c14a5f1c0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acff751a1dcee8ebd75e3b24c14a5f1c0">&#9670;&#160;</a></span>make_thread_catching()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class F&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">std::thread make_thread_catching </td>
+          <td>(</td>
+          <td class="paramtype">F &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em>f</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::exception_ptr &amp;</td>          <td class="paramname"><span class="paramname"><em>out_eptr</em></span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00059">59</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
+
+</div>
+</div>
+<a id="ab8df11038a89de3d877da05e9ac589a0" name="ab8df11038a89de3d877da05e9ac589a0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab8df11038a89de3d877da05e9ac589a0">&#9670;&#160;</a></span>safe_join()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void safe_join </td>
+          <td>(</td>
+          <td class="paramtype">std::thread &amp;</td>          <td class="paramname"><span class="paramname"><em>t</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span><span class="mlabel noexcept">noexcept</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00067">67</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
+
+</div>
+</div>
+<a id="ab0621ab211608f75f7238062b95308ce" name="ab0621ab211608f75f7238062b95308ce"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab0621ab211608f75f7238062b95308ce">&#9670;&#160;</a></span>sync_cerr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classSyncOStream.html">SyncOStream</a> sync_cerr </td>
+          <td>(</td>
+          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00055">55</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
+
+</div>
+</div>
+<a id="af5b6f0c15067f2103b84e6db24c11719" name="af5b6f0c15067f2103b84e6db24c11719"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af5b6f0c15067f2103b84e6db24c11719">&#9670;&#160;</a></span>sync_cout()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classSyncOStream.html">SyncOStream</a> sync_cout </td>
+          <td>(</td>
+          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="kv__container__all__types__test_8cpp_source.html#l00054">54</a> of file <a class="el" href="kv__container__all__types__test_8cpp_source.html">kv_container_all_types_test.cpp</a>.</p>
 
 </div>
 </div>

@@ -112,7 +112,7 @@ $(function(){initNavTree('namespacemdbxc.html',''); initResizable(true); });
 <a href="#nested-classes">Classes</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
-  <div class="headertitle"><div class="title">mdbxc Namespace Reference<div class="ingroups"><a class="el" href="group__mdbxc__utils.html">Utility functions</a></div></div></div>
+  <div class="headertitle"><div class="title">mdbxc Namespace Reference<div class="ingroups"><a class="el" href="group__mdbxc__utils.html">Utility Functions</a></div></div></div>
 </div><!--header-->
 <div class="contents">
 <table class="memberdecls">
@@ -139,6 +139,12 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Trait indicating that a container defines <code>value_type</code>.  <a href="structmdbxc_1_1has__value__type.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classmdbxc_1_1KeyMultiValueTable.html">KeyMultiValueTable</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Multi-value table (duplicate keys allowed) persisted in MDBX.  <a href="classmdbxc_1_1KeyMultiValueTable.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classmdbxc_1_1KeyTable.html">KeyTable</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Ordered key-&gt;value table persisted in MDBX.  <a href="classmdbxc_1_1KeyTable.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classmdbxc_1_1KeyValueTable.html">KeyValueTable</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Template class for managing key-value pairs in an MDBX database.  <a href="classmdbxc_1_1KeyValueTable.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -147,6 +153,9 @@ Classes</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmdbxc_1_1PathComponents.html">PathComponents</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Structure to hold the root and components of a path.  <a href="structmdbxc_1_1PathComponents.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Per-call scratch buffer to produce <code>MDBX_val</code> without using <code>thread_local</code>.  <a href="structmdbxc_1_1SerializeScratch.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Manages MDBX transactions with automatic cleanup and error handling.  <a href="classmdbxc_1_1Transaction.html#details">More...</a><br /></td></tr>
@@ -165,6 +174,8 @@ Enumerations</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a620570627bd4f65866a4b91c3dac8b8a" id="r_a620570627bd4f65866a4b91c3dac8b8a"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a620570627bd4f65866a4b91c3dac8b8a">is_explicitly_relative</a> (const std::string &amp;s) noexcept</td></tr>
+<tr class="separator:a620570627bd4f65866a4b91c3dac8b8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aba3401409b5ff32b9d06f43942ceaa10" id="r_aba3401409b5ff32b9d06f43942ceaa10"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aba3401409b5ff32b9d06f43942ceaa10">is_absolute_path</a> (const std::string &amp;path)</td></tr>
 <tr class="memdesc:aba3401409b5ff32b9d06f43942ceaa10"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks whether the given path is absolute (cross-platform).  <br /></td></tr>
 <tr class="separator:aba3401409b5ff32b9d06f43942ceaa10"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -180,6 +191,10 @@ Functions</h2></td></tr>
 <tr class="memitem:ac4bdf4b7df5f28445a63d26812e696c2" id="r_ac4bdf4b7df5f28445a63d26812e696c2"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ac4bdf4b7df5f28445a63d26812e696c2">utf8_to_ansi</a> (const std::string &amp;utf8) noexcept</td></tr>
 <tr class="memdesc:ac4bdf4b7df5f28445a63d26812e696c2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Converts a UTF-8 string to an ANSI string (Windows-specific).  <br /></td></tr>
 <tr class="separator:ac4bdf4b7df5f28445a63d26812e696c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a932370a996791e192e2126bb1973cc79" id="r_a932370a996791e192e2126bb1973cc79"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a932370a996791e192e2126bb1973cc79">is_path_sep</a> (char c)</td></tr>
+<tr class="separator:a932370a996791e192e2126bb1973cc79"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af52d809ac3fb1f92ee0f0a5f4659cf69" id="r_af52d809ac3fb1f92ee0f0a5f4659cf69"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af52d809ac3fb1f92ee0f0a5f4659cf69">lexically_normal_compat</a> (const std::string &amp;in)</td></tr>
+<tr class="separator:af52d809ac3fb1f92ee0f0a5f4659cf69"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5a7e8da1bc85900d5b61de3e544069a8" id="r_a5a7e8da1bc85900d5b61de3e544069a8"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structmdbxc_1_1PathComponents.html">PathComponents</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5a7e8da1bc85900d5b61de3e544069a8">split_path</a> (const std::string &amp;path)</td></tr>
 <tr class="memdesc:a5a7e8da1bc85900d5b61de3e544069a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Splits a path into its root and components.  <br /></td></tr>
 <tr class="separator:a5a7e8da1bc85900d5b61de3e544069a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -189,6 +204,12 @@ Functions</h2></td></tr>
 <tr class="memitem:ade2a5844f1a6ac6db2227f1f4a263ca7" id="r_ade2a5844f1a6ac6db2227f1f4a263ca7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ade2a5844f1a6ac6db2227f1f4a263ca7">check_mdbx</a> (int rc, const std::string &amp;context)</td></tr>
 <tr class="memdesc:ade2a5844f1a6ac6db2227f1f4a263ca7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Throws an <a class="el" href="classmdbxc_1_1MdbxException.html" title="Represents a specific exception for MDBX-related errors.">MdbxException</a> if MDBX return code indicates an error.  <br /></td></tr>
 <tr class="separator:ade2a5844f1a6ac6db2227f1f4a263ca7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a57b9c73bb7c6cd186c353725de2acbca" id="r_a57b9c73bb7c6cd186c353725de2acbca"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a57b9c73bb7c6cd186c353725de2acbca">sortable_key_from_float</a> (float f)</td></tr>
+<tr class="memdesc:a57b9c73bb7c6cd186c353725de2acbca"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert IEEE754 float to monotonic sortable unsigned int key.  <br /></td></tr>
+<tr class="separator:a57b9c73bb7c6cd186c353725de2acbca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad1f3f3010a3ca2ba5cbccb5971a0318d" id="r_ad1f3f3010a3ca2ba5cbccb5971a0318d"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad1f3f3010a3ca2ba5cbccb5971a0318d">sortable_key_from_double</a> (double d)</td></tr>
+<tr class="memdesc:ad1f3f3010a3ca2ba5cbccb5971a0318d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert IEEE754 double to monotonic sortable unsigned int key.  <br /></td></tr>
+<tr class="separator:ad1f3f3010a3ca2ba5cbccb5971a0318d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9ea975a889dbb6cf92104f1556519534" id="r_a9ea975a889dbb6cf92104f1556519534"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
 <tr class="memitem:a9ea975a889dbb6cf92104f1556519534"><td class="memTemplItemLeft" align="right" valign="top">MDBX_db_flags_t&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a9ea975a889dbb6cf92104f1556519534">get_mdbx_flags</a> ()</td></tr>
 <tr class="memdesc:a9ea975a889dbb6cf92104f1556519534"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns MDBX flags for a given key type.  <br /></td></tr>
@@ -197,66 +218,74 @@ Functions</h2></td></tr>
 <tr class="memitem:a10b93f35fcde3b56010f527c6d2eeb03"><td class="memTemplItemLeft" align="right" valign="top">size_t&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a10b93f35fcde3b56010f527c6d2eeb03">get_key_size</a> (const T &amp;key)</td></tr>
 <tr class="memdesc:a10b93f35fcde3b56010f527c6d2eeb03"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the size in bytes of a given key type.  <br /></td></tr>
 <tr class="separator:a10b93f35fcde3b56010f527c6d2eeb03"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7032b7e4818b883e4178d9ba2c4a4fc7" id="r_a7032b7e4818b883e4178d9ba2c4a4fc7"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:a7032b7e4818b883e4178d9ba2c4a4fc7"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; T &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a7032b7e4818b883e4178d9ba2c4a4fc7">serialize_key</a> (const T &amp;key)</td></tr>
-<tr class="memdesc:a7032b7e4818b883e4178d9ba2c4a4fc7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a key into MDBX_val for database operations.  <br /></td></tr>
-<tr class="separator:a7032b7e4818b883e4178d9ba2c4a4fc7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a06e602747ac2998f74f5d13206299ebc" id="r_a06e602747ac2998f74f5d13206299ebc"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:a06e602747ac2998f74f5d13206299ebc"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, std::string &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a06e602747ac2998f74f5d13206299ebc">serialize_key</a> (const T &amp;key)</td></tr>
-<tr class="memdesc:a06e602747ac2998f74f5d13206299ebc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a key of type std::string.  <br /></td></tr>
-<tr class="separator:a06e602747ac2998f74f5d13206299ebc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abd18e0739fbd9421f3989656ec4a0da2" id="r_abd18e0739fbd9421f3989656ec4a0da2"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:abd18e0739fbd9421f3989656ec4a0da2"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, std::vector&lt; uint8_t &gt; &gt;::value||std::is_same&lt; T, std::vector&lt; char &gt; &gt;::value||std::is_same&lt; T, std::vector&lt; unsignedchar &gt; &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#abd18e0739fbd9421f3989656ec4a0da2">serialize_key</a> (const T &amp;key)</td></tr>
-<tr class="memdesc:abd18e0739fbd9421f3989656ec4a0da2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a key stored in a byte vector.  <br /></td></tr>
-<tr class="separator:abd18e0739fbd9421f3989656ec4a0da2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab09341ca8a757d6629a597c8c84fa372" id="r_ab09341ca8a757d6629a597c8c84fa372"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:ab09341ca8a757d6629a597c8c84fa372"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_integral&lt; T &gt;::value &amp;&amp;(sizeof(T)&lt;=2), MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab09341ca8a757d6629a597c8c84fa372">serialize_key</a> (const T &amp;key)</td></tr>
-<tr class="memdesc:ab09341ca8a757d6629a597c8c84fa372"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a small integral key (&lt;=16 bits).  <br /></td></tr>
-<tr class="separator:ab09341ca8a757d6629a597c8c84fa372"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aee8a7c4155bbb0f0c6b72b9463160e4e" id="r_aee8a7c4155bbb0f0c6b72b9463160e4e"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:aee8a7c4155bbb0f0c6b72b9463160e4e"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, int32_t &gt;::value||std::is_same&lt; T, uint32_t &gt;::value||std::is_same&lt; T, float &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aee8a7c4155bbb0f0c6b72b9463160e4e">serialize_key</a> (const T &amp;key)</td></tr>
-<tr class="memdesc:aee8a7c4155bbb0f0c6b72b9463160e4e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a 32-bit integral or float key.  <br /></td></tr>
-<tr class="separator:aee8a7c4155bbb0f0c6b72b9463160e4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a14a4a115d21ca982778e1d88508e0647" id="r_a14a4a115d21ca982778e1d88508e0647"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:a14a4a115d21ca982778e1d88508e0647"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, int64_t &gt;::value||std::is_same&lt; T, uint64_t &gt;::value||std::is_same&lt; T, double &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a14a4a115d21ca982778e1d88508e0647">serialize_key</a> (const T &amp;key)</td></tr>
-<tr class="memdesc:a14a4a115d21ca982778e1d88508e0647"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a 64-bit integral or double key.  <br /></td></tr>
-<tr class="separator:a14a4a115d21ca982778e1d88508e0647"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae821ec4dacd9cd9b7842e5b3ddbbd100" id="r_ae821ec4dacd9cd9b7842e5b3ddbbd100"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:ae821ec4dacd9cd9b7842e5b3ddbbd100"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_trivially_copyable&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!(std::is_integral&lt; T &gt;::value &amp;&amp;sizeof(T)&lt;=2)&amp;&amp;!std::is_same&lt; T, int32_t &gt;::value &amp;&amp;!std::is_same&lt; T, uint32_t &gt;::value &amp;&amp;!std::is_same&lt; T, float &gt;::value &amp;&amp;!std::is_same&lt; T, int64_t &gt;::value &amp;&amp;!std::is_same&lt; T, uint64_t &gt;::value &amp;&amp;!std::is_same&lt; T, double &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ae821ec4dacd9cd9b7842e5b3ddbbd100">serialize_key</a> (const T &amp;key)</td></tr>
-<tr class="memdesc:ae821ec4dacd9cd9b7842e5b3ddbbd100"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes any other trivially copyable key type.  <br /></td></tr>
-<tr class="separator:ae821ec4dacd9cd9b7842e5b3ddbbd100"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afca9a6bdc1b8e932ab981b4c68a7ef05" id="r_afca9a6bdc1b8e932ab981b4c68a7ef05"><td class="memTemplParams" colspan="2">template&lt;size_t N&gt; </td></tr>
-<tr class="memitem:afca9a6bdc1b8e932ab981b4c68a7ef05"><td class="memTemplItemLeft" align="right" valign="top">MDBX_val&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#afca9a6bdc1b8e932ab981b4c68a7ef05">serialize_key</a> (const std::bitset&lt; N &gt; &amp;data)</td></tr>
-<tr class="memdesc:afca9a6bdc1b8e932ab981b4c68a7ef05"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a std::bitset as a key.  <br /></td></tr>
-<tr class="separator:afca9a6bdc1b8e932ab981b4c68a7ef05"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a315d93152895e29a8d84b887e5642318" id="r_a315d93152895e29a8d84b887e5642318"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:a315d93152895e29a8d84b887e5642318"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::vector&lt; typenameT::value_type &gt; &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; typenameT::value_type &gt;::value &amp;&amp;!<a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; T &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a315d93152895e29a8d84b887e5642318">serialize_value</a> (const T &amp;value)</td></tr>
-<tr class="memdesc:a315d93152895e29a8d84b887e5642318"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a general value into MDBX_val.  <br /></td></tr>
-<tr class="separator:a315d93152895e29a8d84b887e5642318"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a03f16051c6113bc197aaea4d02147fb8" id="r_a03f16051c6113bc197aaea4d02147fb8"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:a03f16051c6113bc197aaea4d02147fb8"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, std::string &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a03f16051c6113bc197aaea4d02147fb8">serialize_value</a> (const T &amp;value)</td></tr>
-<tr class="memdesc:a03f16051c6113bc197aaea4d02147fb8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a std::string value.  <br /></td></tr>
-<tr class="separator:a03f16051c6113bc197aaea4d02147fb8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6a72e06fc6e8cc9686805ad4b89ec809" id="r_a6a72e06fc6e8cc9686805ad4b89ec809"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:a6a72e06fc6e8cc9686805ad4b89ec809"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_trivially_copyable&lt; typenameT::value_type &gt;::value &amp;&amp;(std::is_same&lt; T, std::deque&lt; typenameT::value_type &gt; &gt;::value||std::is_same&lt; T, std::list&lt; typenameT::value_type &gt; &gt;::value||std::is_same&lt; T, std::set&lt; typenameT::value_type &gt; &gt;::value), MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a6a72e06fc6e8cc9686805ad4b89ec809">serialize_value</a> (const T &amp;container)</td></tr>
-<tr class="memdesc:a6a72e06fc6e8cc9686805ad4b89ec809"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes containers (vector, deque, list, set) of trivially copyable elements.  <br /></td></tr>
-<tr class="separator:a6a72e06fc6e8cc9686805ad4b89ec809"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a177e6b8d521129ee61e2769ae04e10d3" id="r_a177e6b8d521129ee61e2769ae04e10d3"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:a177e6b8d521129ee61e2769ae04e10d3"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_same&lt; T, std::vector&lt; typenameT::value_type &gt; &gt;::value &amp;&amp;std::is_trivially_copyable&lt; typenameT::value_type &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a177e6b8d521129ee61e2769ae04e10d3">serialize_value</a> (const T &amp;value)</td></tr>
-<tr class="memdesc:a177e6b8d521129ee61e2769ae04e10d3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a vector of trivially copyable elements.  <br /></td></tr>
-<tr class="separator:a177e6b8d521129ee61e2769ae04e10d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0ff967398e380d4f41f90ee5d782137f" id="r_a0ff967398e380d4f41f90ee5d782137f"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:a0ff967398e380d4f41f90ee5d782137f"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a0ff967398e380d4f41f90ee5d782137f">serialize_value</a> (const T &amp;value)</td></tr>
-<tr class="memdesc:a0ff967398e380d4f41f90ee5d782137f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a value using its <code>to_bytes()</code> method.  <br /></td></tr>
-<tr class="separator:a0ff967398e380d4f41f90ee5d782137f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa1b54ea1b24dc0260993d5b218094fa6" id="r_aa1b54ea1b24dc0260993d5b218094fa6"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:aa1b54ea1b24dc0260993d5b218094fa6"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value &amp;&amp;std::is_trivially_copyable&lt; T &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aa1b54ea1b24dc0260993d5b218094fa6">serialize_value</a> (const T &amp;value)</td></tr>
-<tr class="memdesc:aa1b54ea1b24dc0260993d5b218094fa6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes any trivially copyable value.  <br /></td></tr>
-<tr class="separator:aa1b54ea1b24dc0260993d5b218094fa6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab2a5c62298edec2bd6adf30ff23ea4cf" id="r_ab2a5c62298edec2bd6adf30ff23ea4cf"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
-<tr class="memitem:ab2a5c62298edec2bd6adf30ff23ea4cf"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_same&lt; typenameT::value_type, std::string &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab2a5c62298edec2bd6adf30ff23ea4cf">serialize_value</a> (const T &amp;container)</td></tr>
-<tr class="memdesc:ab2a5c62298edec2bd6adf30ff23ea4cf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a container of strings.  <br /></td></tr>
-<tr class="separator:ab2a5c62298edec2bd6adf30ff23ea4cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aab87f0f0cf8d7111203046ca8b6fed02" id="r_aab87f0f0cf8d7111203046ca8b6fed02"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:aab87f0f0cf8d7111203046ca8b6fed02"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; T &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aab87f0f0cf8d7111203046ca8b6fed02">serialize_key</a> (const T &amp;key, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:aab87f0f0cf8d7111203046ca8b6fed02"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a key into MDBX_val for database operations.  <br /></td></tr>
+<tr class="separator:aab87f0f0cf8d7111203046ca8b6fed02"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a53da23157605964271594f8bcd8dcdba" id="r_a53da23157605964271594f8bcd8dcdba"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:a53da23157605964271594f8bcd8dcdba"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, std::string &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a53da23157605964271594f8bcd8dcdba">serialize_key</a> (const T &amp;key, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:a53da23157605964271594f8bcd8dcdba"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a key of type std::string.  <br /></td></tr>
+<tr class="separator:a53da23157605964271594f8bcd8dcdba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3c3e5b77f2434dab29ea923ea0aaf6cb" id="r_a3c3e5b77f2434dab29ea923ea0aaf6cb"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:a3c3e5b77f2434dab29ea923ea0aaf6cb"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, std::vector&lt; uint8_t &gt; &gt;::value||std::is_same&lt; T, std::vector&lt; char &gt; &gt;::value||std::is_same&lt; T, std::vector&lt; unsignedchar &gt; &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a3c3e5b77f2434dab29ea923ea0aaf6cb">serialize_key</a> (const T &amp;key, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:a3c3e5b77f2434dab29ea923ea0aaf6cb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a key stored in a byte vector.  <br /></td></tr>
+<tr class="separator:a3c3e5b77f2434dab29ea923ea0aaf6cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac385cd3b766fc4882f6d1e4fb8ad0bb9" id="r_ac385cd3b766fc4882f6d1e4fb8ad0bb9"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:ac385cd3b766fc4882f6d1e4fb8ad0bb9"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_integral&lt; T &gt;::value &amp;&amp;(sizeof(T)&lt;=2), MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ac385cd3b766fc4882f6d1e4fb8ad0bb9">serialize_key</a> (const T &amp;key, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:ac385cd3b766fc4882f6d1e4fb8ad0bb9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a small integral key (&lt;=16 bits).  <br /></td></tr>
+<tr class="separator:ac385cd3b766fc4882f6d1e4fb8ad0bb9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aedf5c4df091bf313fcb69ebce4f49708" id="r_aedf5c4df091bf313fcb69ebce4f49708"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:aedf5c4df091bf313fcb69ebce4f49708"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, int32_t &gt;::value||std::is_same&lt; T, uint32_t &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aedf5c4df091bf313fcb69ebce4f49708">serialize_key</a> (const T &amp;key, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:aedf5c4df091bf313fcb69ebce4f49708"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a 32-bit integral key.  <br /></td></tr>
+<tr class="separator:aedf5c4df091bf313fcb69ebce4f49708"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afb7479a6766de91c704901d6b605a372" id="r_afb7479a6766de91c704901d6b605a372"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:afb7479a6766de91c704901d6b605a372"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, float &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#afb7479a6766de91c704901d6b605a372">serialize_key</a> (const T &amp;key, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:afb7479a6766de91c704901d6b605a372"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a 32-bit float key.  <br /></td></tr>
+<tr class="separator:afb7479a6766de91c704901d6b605a372"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a18401b62f9cdf71f29875285cccd9d1d" id="r_a18401b62f9cdf71f29875285cccd9d1d"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:a18401b62f9cdf71f29875285cccd9d1d"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, int64_t &gt;::value||std::is_same&lt; T, uint64_t &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a18401b62f9cdf71f29875285cccd9d1d">serialize_key</a> (const T &amp;key, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:a18401b62f9cdf71f29875285cccd9d1d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a 64-bit integral key.  <br /></td></tr>
+<tr class="separator:a18401b62f9cdf71f29875285cccd9d1d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a66826d370b2dbdae0a426ae97a1cfc77" id="r_a66826d370b2dbdae0a426ae97a1cfc77"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:a66826d370b2dbdae0a426ae97a1cfc77"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, double &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a66826d370b2dbdae0a426ae97a1cfc77">serialize_key</a> (const T &amp;key, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:a66826d370b2dbdae0a426ae97a1cfc77"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a 64-bit double key.  <br /></td></tr>
+<tr class="separator:a66826d370b2dbdae0a426ae97a1cfc77"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab6835ce0322eee8f0c8a6375770f1e4a" id="r_ab6835ce0322eee8f0c8a6375770f1e4a"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:ab6835ce0322eee8f0c8a6375770f1e4a"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_trivially_copyable&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!(std::is_integral&lt; T &gt;::value &amp;&amp;sizeof(T)&lt;=2)&amp;&amp;!std::is_same&lt; T, int32_t &gt;::value &amp;&amp;!std::is_same&lt; T, uint32_t &gt;::value &amp;&amp;!std::is_same&lt; T, float &gt;::value &amp;&amp;!std::is_same&lt; T, int64_t &gt;::value &amp;&amp;!std::is_same&lt; T, uint64_t &gt;::value &amp;&amp;!std::is_same&lt; T, double &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab6835ce0322eee8f0c8a6375770f1e4a">serialize_key</a> (const T &amp;key, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:ab6835ce0322eee8f0c8a6375770f1e4a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes any other trivially copyable key type.  <br /></td></tr>
+<tr class="separator:ab6835ce0322eee8f0c8a6375770f1e4a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a58c489e72ebe34f299df0e8a01529d8f" id="r_a58c489e72ebe34f299df0e8a01529d8f"><td class="memTemplParams" colspan="2">template&lt;size_t N&gt; </td></tr>
+<tr class="memitem:a58c489e72ebe34f299df0e8a01529d8f"><td class="memTemplItemLeft" align="right" valign="top">MDBX_val&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a58c489e72ebe34f299df0e8a01529d8f">serialize_key</a> (const std::bitset&lt; N &gt; &amp;data, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:a58c489e72ebe34f299df0e8a01529d8f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a std::bitset as a key.  <br /></td></tr>
+<tr class="separator:a58c489e72ebe34f299df0e8a01529d8f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a54c9ad574a6ae51f993f2b9688e9eddd" id="r_a54c9ad574a6ae51f993f2b9688e9eddd"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:a54c9ad574a6ae51f993f2b9688e9eddd"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::vector&lt; typenameT::value_type &gt; &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; typenameT::value_type &gt;::value &amp;&amp;!<a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; T &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a54c9ad574a6ae51f993f2b9688e9eddd">serialize_value</a> (const T &amp;value, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:a54c9ad574a6ae51f993f2b9688e9eddd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a general value into MDBX_val.  <br /></td></tr>
+<tr class="separator:a54c9ad574a6ae51f993f2b9688e9eddd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab7de02e21edc9a1c1d49c3df2a6d1cde" id="r_ab7de02e21edc9a1c1d49c3df2a6d1cde"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:ab7de02e21edc9a1c1d49c3df2a6d1cde"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; std::is_same&lt; T, std::string &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab7de02e21edc9a1c1d49c3df2a6d1cde">serialize_value</a> (const T &amp;value, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:ab7de02e21edc9a1c1d49c3df2a6d1cde"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a std::string value.  <br /></td></tr>
+<tr class="separator:ab7de02e21edc9a1c1d49c3df2a6d1cde"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab38927e59a93e79c2b6672cc6d575fcc" id="r_ab38927e59a93e79c2b6672cc6d575fcc"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:ab38927e59a93e79c2b6672cc6d575fcc"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_trivially_copyable&lt; typenameT::value_type &gt;::value &amp;&amp;(std::is_same&lt; T, std::deque&lt; typenameT::value_type &gt; &gt;::value||std::is_same&lt; T, std::list&lt; typenameT::value_type &gt; &gt;::value||std::is_same&lt; T, std::set&lt; typenameT::value_type &gt; &gt;::value), MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab38927e59a93e79c2b6672cc6d575fcc">serialize_value</a> (const T &amp;container, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:ab38927e59a93e79c2b6672cc6d575fcc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes containers (vector, deque, list, set) of trivially copyable elements.  <br /></td></tr>
+<tr class="separator:ab38927e59a93e79c2b6672cc6d575fcc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9f6e9c463998dd4c340a208bd3c0db6d" id="r_a9f6e9c463998dd4c340a208bd3c0db6d"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:a9f6e9c463998dd4c340a208bd3c0db6d"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_same&lt; T, std::vector&lt; typenameT::value_type &gt; &gt;::value &amp;&amp;std::is_trivially_copyable&lt; typenameT::value_type &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a9f6e9c463998dd4c340a208bd3c0db6d">serialize_value</a> (const T &amp;container, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:a9f6e9c463998dd4c340a208bd3c0db6d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a vector of trivially copyable elements.  <br /></td></tr>
+<tr class="separator:a9f6e9c463998dd4c340a208bd3c0db6d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1a55bdc47071782a70a00381a1604091" id="r_a1a55bdc47071782a70a00381a1604091"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:a1a55bdc47071782a70a00381a1604091"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a1a55bdc47071782a70a00381a1604091">serialize_value</a> (const T &amp;value, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:a1a55bdc47071782a70a00381a1604091"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a value using its <code>to_bytes()</code> method.  <br /></td></tr>
+<tr class="separator:a1a55bdc47071782a70a00381a1604091"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a388707467b5a679d3511ee102e1ac34c" id="r_a388707467b5a679d3511ee102e1ac34c"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:a388707467b5a679d3511ee102e1ac34c"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value &amp;&amp;std::is_trivially_copyable&lt; T &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a388707467b5a679d3511ee102e1ac34c">serialize_value</a> (const T &amp;value, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:a388707467b5a679d3511ee102e1ac34c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes any trivially copyable value.  <br /></td></tr>
+<tr class="separator:a388707467b5a679d3511ee102e1ac34c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abc387f1029413d1b1bf39989f032bf69" id="r_abc387f1029413d1b1bf39989f032bf69"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
+<tr class="memitem:abc387f1029413d1b1bf39989f032bf69"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_same&lt; typenameT::value_type, std::string &gt;::value, MDBX_val &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#abc387f1029413d1b1bf39989f032bf69">serialize_value</a> (const T &amp;container, <a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;sc)</td></tr>
+<tr class="memdesc:abc387f1029413d1b1bf39989f032bf69"><td class="mdescLeft">&#160;</td><td class="mdescRight">Serializes a container of strings.  <br /></td></tr>
+<tr class="separator:abc387f1029413d1b1bf39989f032bf69"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5906b44539b2a6194c80dc14be6703eb" id="r_a5906b44539b2a6194c80dc14be6703eb"><td class="memTemplParams" colspan="2">template&lt;typename T&gt; </td></tr>
 <tr class="memitem:a5906b44539b2a6194c80dc14be6703eb"><td class="memTemplItemLeft" align="right" valign="top">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__from__bytes.html">has_from_bytes</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; T &gt;::value, T &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a5906b44539b2a6194c80dc14be6703eb">deserialize_value</a> (const MDBX_val &amp;val)</td></tr>
 <tr class="memdesc:a5906b44539b2a6194c80dc14be6703eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Deserializes a value from MDBX_val into type <code>T</code>.  <br /></td></tr>
@@ -365,7 +394,7 @@ Functions</h2></td></tr>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00018">18</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00017">17</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -406,7 +435,7 @@ Functions</h2></td></tr>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00293">293</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00456">456</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -442,7 +471,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>Deserialized T. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00403">403</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00478">478</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -471,7 +500,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00413">413</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00489">489</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -500,7 +529,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00427">427</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00503">503</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -529,7 +558,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00442">442</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00518">518</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -558,7 +587,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00457">457</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00533">533</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -587,7 +616,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00469">469</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00545">545</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -616,7 +645,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00485">485</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00561">561</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -645,7 +674,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00499">499</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00576">576</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -674,7 +703,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00511">511</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00589">589</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -703,7 +732,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00522">522</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00600">600</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -732,7 +761,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00552">552</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00630">630</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -762,7 +791,7 @@ template&lt;typename T&gt; </div>
 <p>Retrieves the directory of the executable file. </p>
 <dl class="section return"><dt>Returns</dt><dd>A string containing the directory path of the executable. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00088">88</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00094">94</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -798,7 +827,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>The extracted file name, or the full string if no directory separator is found. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00147">147</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00153">153</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -834,7 +863,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>Size in bytes suitable for filling MDBX_val. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00088">88</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00105">105</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -872,7 +901,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>MDBX_INTEGERKEY if <code>T</code> is an integer-like type; 0 otherwise. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00071">71</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00088">88</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -908,7 +937,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>Directory path (e.g., "data") </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00070">70</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00076">76</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -944,12 +973,93 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>True if path is absolute, false otherwise. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00051">51</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00057">57</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="afca9a6bdc1b8e932ab981b4c68a7ef05" name="afca9a6bdc1b8e932ab981b4c68a7ef05"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afca9a6bdc1b8e932ab981b4c68a7ef05">&#9670;&#160;</a></span>serialize_key() <span class="overload">[1/8]</span></h2>
+<a id="a620570627bd4f65866a4b91c3dac8b8a" name="a620570627bd4f65866a4b91c3dac8b8a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a620570627bd4f65866a4b91c3dac8b8a">&#9670;&#160;</a></span>is_explicitly_relative()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool mdbxc::is_explicitly_relative </td>
+          <td>(</td>
+          <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>s</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span><span class="mlabel noexcept">noexcept</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00049">49</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+
+</div>
+</div>
+<a id="a932370a996791e192e2126bb1973cc79" name="a932370a996791e192e2126bb1973cc79"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a932370a996791e192e2126bb1973cc79">&#9670;&#160;</a></span>is_path_sep()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool mdbxc::is_path_sep </td>
+          <td>(</td>
+          <td class="paramtype">char</td>          <td class="paramname"><span class="paramname"><em>c</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00247">247</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+
+</div>
+</div>
+<a id="af52d809ac3fb1f92ee0f0a5f4659cf69" name="af52d809ac3fb1f92ee0f0a5f4659cf69"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af52d809ac3fb1f92ee0f0a5f4659cf69">&#9670;&#160;</a></span>lexically_normal_compat()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::string mdbxc::lexically_normal_compat </td>
+          <td>(</td>
+          <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>in</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00251">251</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+
+</div>
+</div>
+<a id="a58c489e72ebe34f299df0e8a01529d8f" name="a58c489e72ebe34f299df0e8a01529d8f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a58c489e72ebe34f299df0e8a01529d8f">&#9670;&#160;</a></span>serialize_key() <span class="overload">[1/10]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -962,8 +1072,12 @@ template&lt;size_t N&gt; </div>
         <tr>
           <td class="memname">MDBX_val mdbxc::serialize_key </td>
           <td>(</td>
-          <td class="paramtype">const std::bitset&lt; N &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>data</em></span></td><td>)</td>
+          <td class="paramtype">const std::bitset&lt; N &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>data</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
   </td>
@@ -987,12 +1101,12 @@ template&lt;size_t N&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00253">253</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00346">346</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a7032b7e4818b883e4178d9ba2c4a4fc7" name="a7032b7e4818b883e4178d9ba2c4a4fc7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7032b7e4818b883e4178d9ba2c4a4fc7">&#9670;&#160;</a></span>serialize_key() <span class="overload">[2/8]</span></h2>
+<a id="aab87f0f0cf8d7111203046ca8b6fed02" name="aab87f0f0cf8d7111203046ca8b6fed02"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aab87f0f0cf8d7111203046ca8b6fed02">&#9670;&#160;</a></span>serialize_key() <span class="overload">[2/10]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1002,8 +1116,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; T &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1023,12 +1141,12 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>MDBX_val representing the key. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00132">132</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00224">224</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a06e602747ac2998f74f5d13206299ebc" name="a06e602747ac2998f74f5d13206299ebc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a06e602747ac2998f74f5d13206299ebc">&#9670;&#160;</a></span>serialize_key() <span class="overload">[3/8]</span></h2>
+<a id="a53da23157605964271594f8bcd8dcdba" name="a53da23157605964271594f8bcd8dcdba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a53da23157605964271594f8bcd8dcdba">&#9670;&#160;</a></span>serialize_key() <span class="overload">[3/10]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1038,8 +1156,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt; std::is_same&lt; T, std::string &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1052,12 +1174,12 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00144">144</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00238">238</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="abd18e0739fbd9421f3989656ec4a0da2" name="abd18e0739fbd9421f3989656ec4a0da2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abd18e0739fbd9421f3989656ec4a0da2">&#9670;&#160;</a></span>serialize_key() <span class="overload">[4/8]</span></h2>
+<a id="a3c3e5b77f2434dab29ea923ea0aaf6cb" name="a3c3e5b77f2434dab29ea923ea0aaf6cb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3c3e5b77f2434dab29ea923ea0aaf6cb">&#9670;&#160;</a></span>serialize_key() <span class="overload">[4/10]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1067,8 +1189,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt; std::is_same&lt; T, std::vector&lt; uint8_t &gt; &gt;::value||std::is_same&lt; T, std::vector&lt; char &gt; &gt;::value||std::is_same&lt; T, std::vector&lt; unsignedchar &gt; &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1081,12 +1207,12 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00161">161</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00253">253</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="ab09341ca8a757d6629a597c8c84fa372" name="ab09341ca8a757d6629a597c8c84fa372"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab09341ca8a757d6629a597c8c84fa372">&#9670;&#160;</a></span>serialize_key() <span class="overload">[5/8]</span></h2>
+<a id="ac385cd3b766fc4882f6d1e4fb8ad0bb9" name="ac385cd3b766fc4882f6d1e4fb8ad0bb9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac385cd3b766fc4882f6d1e4fb8ad0bb9">&#9670;&#160;</a></span>serialize_key() <span class="overload">[5/10]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1096,8 +1222,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt; std::is_integral&lt; T &gt;::value &amp;&amp;(sizeof(T)&lt;=2), MDBX_val &gt;::type mdbxc::serialize_key </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1110,12 +1240,12 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00174">174</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00264">264</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="aee8a7c4155bbb0f0c6b72b9463160e4e" name="aee8a7c4155bbb0f0c6b72b9463160e4e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aee8a7c4155bbb0f0c6b72b9463160e4e">&#9670;&#160;</a></span>serialize_key() <span class="overload">[6/8]</span></h2>
+<a id="aedf5c4df091bf313fcb69ebce4f49708" name="aedf5c4df091bf313fcb69ebce4f49708"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aedf5c4df091bf313fcb69ebce4f49708">&#9670;&#160;</a></span>serialize_key() <span class="overload">[6/10]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1123,15 +1253,19 @@ template&lt;typename T&gt; </div>
 template&lt;typename T&gt; </div>
       <table class="memname">
         <tr>
-          <td class="memname">std::enable_if&lt; std::is_same&lt; T, int32_t &gt;::value||std::is_same&lt; T, uint32_t &gt;::value||std::is_same&lt; T, float &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
+          <td class="memname">std::enable_if&lt; std::is_same&lt; T, int32_t &gt;::value||std::is_same&lt; T, uint32_t &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Serializes a 32-bit integral or float key. </p>
+<p>Serializes a 32-bit integral key. </p>
 <dl class="tparams"><dt>Template Parameters</dt><dd>
   <table class="tparams">
     <tr><td class="paramname">T</td><td>Supported 32-bit type. </td></tr>
@@ -1139,12 +1273,12 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00192">192</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00276">276</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a14a4a115d21ca982778e1d88508e0647" name="a14a4a115d21ca982778e1d88508e0647"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a14a4a115d21ca982778e1d88508e0647">&#9670;&#160;</a></span>serialize_key() <span class="overload">[7/8]</span></h2>
+<a id="afb7479a6766de91c704901d6b605a372" name="afb7479a6766de91c704901d6b605a372"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afb7479a6766de91c704901d6b605a372">&#9670;&#160;</a></span>serialize_key() <span class="overload">[7/10]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1152,15 +1286,52 @@ template&lt;typename T&gt; </div>
 template&lt;typename T&gt; </div>
       <table class="memname">
         <tr>
-          <td class="memname">std::enable_if&lt; std::is_same&lt; T, int64_t &gt;::value||std::is_same&lt; T, uint64_t &gt;::value||std::is_same&lt; T, double &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
+          <td class="memname">std::enable_if&lt; std::is_same&lt; T, float &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Serializes a 64-bit integral or double key. </p>
+<p>Serializes a 32-bit float key. </p>
+<dl class="tparams"><dt>Template Parameters</dt><dd>
+  <table class="tparams">
+    <tr><td class="paramname">T</td><td>Supported 32-bit type. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00291">291</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+
+</div>
+</div>
+<a id="a18401b62f9cdf71f29875285cccd9d1d" name="a18401b62f9cdf71f29875285cccd9d1d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a18401b62f9cdf71f29875285cccd9d1d">&#9670;&#160;</a></span>serialize_key() <span class="overload">[8/10]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">std::enable_if&lt; std::is_same&lt; T, int64_t &gt;::value||std::is_same&lt; T, uint64_t &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
+          <td>(</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Serializes a 64-bit integral key. </p>
 <dl class="tparams"><dt>Template Parameters</dt><dd>
   <table class="tparams">
     <tr><td class="paramname">T</td><td>Supported 64-bit type. </td></tr>
@@ -1168,12 +1339,45 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00214">214</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00303">303</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="ae821ec4dacd9cd9b7842e5b3ddbbd100" name="ae821ec4dacd9cd9b7842e5b3ddbbd100"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae821ec4dacd9cd9b7842e5b3ddbbd100">&#9670;&#160;</a></span>serialize_key() <span class="overload">[8/8]</span></h2>
+<a id="a66826d370b2dbdae0a426ae97a1cfc77" name="a66826d370b2dbdae0a426ae97a1cfc77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a66826d370b2dbdae0a426ae97a1cfc77">&#9670;&#160;</a></span>serialize_key() <span class="overload">[9/10]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">std::enable_if&lt; std::is_same&lt; T, double &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
+          <td>(</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Serializes a 64-bit double key. </p>
+<dl class="tparams"><dt>Template Parameters</dt><dd>
+  <table class="tparams">
+    <tr><td class="paramname">T</td><td>Supported 64-bit type. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00318">318</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+
+</div>
+</div>
+<a id="ab6835ce0322eee8f0c8a6375770f1e4a" name="ab6835ce0322eee8f0c8a6375770f1e4a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab6835ce0322eee8f0c8a6375770f1e4a">&#9670;&#160;</a></span>serialize_key() <span class="overload">[10/10]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1183,8 +1387,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt; std::is_trivially_copyable&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!(std::is_integral&lt; T &gt;::value &amp;&amp;sizeof(T)&lt;=2)&amp;&amp;!std::is_same&lt; T, int32_t &gt;::value &amp;&amp;!std::is_same&lt; T, uint32_t &gt;::value &amp;&amp;!std::is_same&lt; T, float &gt;::value &amp;&amp;!std::is_same&lt; T, int64_t &gt;::value &amp;&amp;!std::is_same&lt; T, uint64_t &gt;::value &amp;&amp;!std::is_same&lt; T, double &gt;::value, MDBX_val &gt;::type mdbxc::serialize_key </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1197,12 +1405,12 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00242">242</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00337">337</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a6a72e06fc6e8cc9686805ad4b89ec809" name="a6a72e06fc6e8cc9686805ad4b89ec809"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6a72e06fc6e8cc9686805ad4b89ec809">&#9670;&#160;</a></span>serialize_value() <span class="overload">[1/7]</span></h2>
+<a id="ab38927e59a93e79c2b6672cc6d575fcc" name="ab38927e59a93e79c2b6672cc6d575fcc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab38927e59a93e79c2b6672cc6d575fcc">&#9670;&#160;</a></span>serialize_value() <span class="overload">[1/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1212,8 +1420,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_trivially_copyable&lt; typenameT::value_type &gt;::value &amp;&amp;(std::is_same&lt; T, std::deque&lt; typenameT::value_type &gt; &gt;::value||std::is_same&lt; T, std::list&lt; typenameT::value_type &gt; &gt;::value||std::is_same&lt; T, std::set&lt; typenameT::value_type &gt; &gt;::value), MDBX_val &gt;::type mdbxc::serialize_value </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>container</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>container</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1232,12 +1444,45 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00313">313</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00402">402</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="ab2a5c62298edec2bd6adf30ff23ea4cf" name="ab2a5c62298edec2bd6adf30ff23ea4cf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab2a5c62298edec2bd6adf30ff23ea4cf">&#9670;&#160;</a></span>serialize_value() <span class="overload">[2/7]</span></h2>
+<a id="a9f6e9c463998dd4c340a208bd3c0db6d" name="a9f6e9c463998dd4c340a208bd3c0db6d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9f6e9c463998dd4c340a208bd3c0db6d">&#9670;&#160;</a></span>serialize_value() <span class="overload">[2/7]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_same&lt; T, std::vector&lt; typenameT::value_type &gt; &gt;::value &amp;&amp;std::is_trivially_copyable&lt; typenameT::value_type &gt;::value, MDBX_val &gt;::type mdbxc::serialize_value </td>
+          <td>(</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>container</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Serializes a vector of trivially copyable elements. </p>
+<dl class="tparams"><dt>Template Parameters</dt><dd>
+  <table class="tparams">
+    <tr><td class="paramname">T</td><td>Vector type. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00418">418</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+
+</div>
+</div>
+<a id="abc387f1029413d1b1bf39989f032bf69" name="abc387f1029413d1b1bf39989f032bf69"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abc387f1029413d1b1bf39989f032bf69">&#9670;&#160;</a></span>serialize_value() <span class="overload">[3/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1247,8 +1492,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_same&lt; typenameT::value_type, std::string &gt;::value, MDBX_val &gt;::type mdbxc::serialize_value </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>container</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>container</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1261,12 +1510,12 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00374">374</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00455">455</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a315d93152895e29a8d84b887e5642318" name="a315d93152895e29a8d84b887e5642318"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a315d93152895e29a8d84b887e5642318">&#9670;&#160;</a></span>serialize_value() <span class="overload">[3/7]</span></h2>
+<a id="a54c9ad574a6ae51f993f2b9688e9eddd" name="a54c9ad574a6ae51f993f2b9688e9eddd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a54c9ad574a6ae51f993f2b9688e9eddd">&#9670;&#160;</a></span>serialize_value() <span class="overload">[4/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1276,8 +1525,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::vector&lt; typenameT::value_type &gt; &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; typenameT::value_type &gt;::value &amp;&amp;!<a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value &amp;&amp;!std::is_same&lt; T, std::string &gt;::value &amp;&amp;!std::is_trivially_copyable&lt; T &gt;::value, MDBX_val &gt;::type mdbxc::serialize_value </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>value</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>value</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1297,12 +1550,12 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>MDBX_val structure with binary representation of the value. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00280">280</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00370">370</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a03f16051c6113bc197aaea4d02147fb8" name="a03f16051c6113bc197aaea4d02147fb8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a03f16051c6113bc197aaea4d02147fb8">&#9670;&#160;</a></span>serialize_value() <span class="overload">[4/7]</span></h2>
+<a id="ab7de02e21edc9a1c1d49c3df2a6d1cde" name="ab7de02e21edc9a1c1d49c3df2a6d1cde"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab7de02e21edc9a1c1d49c3df2a6d1cde">&#9670;&#160;</a></span>serialize_value() <span class="overload">[5/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1312,8 +1565,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt; std::is_same&lt; T, std::string &gt;::value, MDBX_val &gt;::type mdbxc::serialize_value </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>value</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>value</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1326,41 +1583,12 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00292">292</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00384">384</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a177e6b8d521129ee61e2769ae04e10d3" name="a177e6b8d521129ee61e2769ae04e10d3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a177e6b8d521129ee61e2769ae04e10d3">&#9670;&#160;</a></span>serialize_value() <span class="overload">[5/7]</span></h2>
-
-<div class="memitem">
-<div class="memproto">
-<div class="memtemplate">
-template&lt;typename T&gt; </div>
-      <table class="memname">
-        <tr>
-          <td class="memname">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__value__type.html">has_value_type</a>&lt; T &gt;::value &amp;&amp;std::is_same&lt; T, std::vector&lt; typenameT::value_type &gt; &gt;::value &amp;&amp;std::is_trivially_copyable&lt; typenameT::value_type &gt;::value, MDBX_val &gt;::type mdbxc::serialize_value </td>
-          <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>value</em></span></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Serializes a vector of trivially copyable elements. </p>
-<dl class="tparams"><dt>Template Parameters</dt><dd>
-  <table class="tparams">
-    <tr><td class="paramname">T</td><td>Vector type. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00332">332</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
-
-</div>
-</div>
-<a id="a0ff967398e380d4f41f90ee5d782137f" name="a0ff967398e380d4f41f90ee5d782137f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0ff967398e380d4f41f90ee5d782137f">&#9670;&#160;</a></span>serialize_value() <span class="overload">[6/7]</span></h2>
+<a id="a1a55bdc47071782a70a00381a1604091" name="a1a55bdc47071782a70a00381a1604091"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1a55bdc47071782a70a00381a1604091">&#9670;&#160;</a></span>serialize_value() <span class="overload">[6/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1370,8 +1598,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt; <a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value, MDBX_val &gt;::type mdbxc::serialize_value </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>value</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>value</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1384,12 +1616,12 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00344">344</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00431">431</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
-<a id="aa1b54ea1b24dc0260993d5b218094fa6" name="aa1b54ea1b24dc0260993d5b218094fa6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa1b54ea1b24dc0260993d5b218094fa6">&#9670;&#160;</a></span>serialize_value() <span class="overload">[7/7]</span></h2>
+<a id="a388707467b5a679d3511ee102e1ac34c" name="a388707467b5a679d3511ee102e1ac34c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a388707467b5a679d3511ee102e1ac34c">&#9670;&#160;</a></span>serialize_value() <span class="overload">[7/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1399,8 +1631,12 @@ template&lt;typename T&gt; </div>
         <tr>
           <td class="memname">std::enable_if&lt;!<a class="el" href="structmdbxc_1_1has__to__bytes.html">has_to_bytes</a>&lt; T &gt;::value &amp;&amp;std::is_trivially_copyable&lt; T &gt;::value, MDBX_val &gt;::type mdbxc::serialize_value </td>
           <td>(</td>
-          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>value</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>value</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype"><a class="el" href="structmdbxc_1_1SerializeScratch.html">SerializeScratch</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>sc</em></span>&#160;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -1413,7 +1649,79 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00360">360</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00443">443</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+
+</div>
+</div>
+<a id="ad1f3f3010a3ca2ba5cbccb5971a0318d" name="ad1f3f3010a3ca2ba5cbccb5971a0318d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad1f3f3010a3ca2ba5cbccb5971a0318d">&#9670;&#160;</a></span>sortable_key_from_double()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint64_t mdbxc::sortable_key_from_double </td>
+          <td>(</td>
+          <td class="paramtype">double</td>          <td class="paramname"><span class="paramname"><em>d</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Convert IEEE754 double to monotonic sortable unsigned int key. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">d</td><td>Input double value. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Unsigned 64-bit integer with preserved numeric order. </dd></dl>
+
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00035">35</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
+
+</div>
+</div>
+<a id="a57b9c73bb7c6cd186c353725de2acbca" name="a57b9c73bb7c6cd186c353725de2acbca"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a57b9c73bb7c6cd186c353725de2acbca">&#9670;&#160;</a></span>sortable_key_from_float()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint32_t mdbxc::sortable_key_from_float </td>
+          <td>(</td>
+          <td class="paramtype">float</td>          <td class="paramname"><span class="paramname"><em>f</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Convert IEEE754 float to monotonic sortable unsigned int key. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">f</td><td>Input float value. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Unsigned 32-bit integer with preserved numeric order. </dd></dl>
+
+<p class="definition">Definition at line <a class="el" href="utils_8hpp_source.html#l00026">26</a> of file <a class="el" href="utils_8hpp_source.html">utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -1449,7 +1757,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>A <a class="el" href="structmdbxc_1_1PathComponents.html" title="Structure to hold the root and components of a path.">PathComponents</a> object containing the root and components of the path. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00250">250</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00413">413</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -1485,7 +1793,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>The converted ANSI string. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00165">165</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00171">171</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>

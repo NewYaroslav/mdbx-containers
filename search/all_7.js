@@ -6,10 +6,11 @@ var searchData=
   ['get_5ffile_5fname_3',['get_file_name',['../namespacemdbxc.html#ac6da8d4fe92dd123447b6fa7815737f5',1,'mdbxc']]],
   ['get_5fkey_5fsize_4',['get_key_size',['../namespacemdbxc.html#a10b93f35fcde3b56010f527c6d2eeb03',1,'mdbxc']]],
   ['get_5fmdbx_5fflags_5',['get_mdbx_flags',['../namespacemdbxc.html#a9ea975a889dbb6cf92104f1556519534',1,'mdbxc']]],
-  ['get_5for_6',['get_or',['../classmdbxc_1_1AnyValueTable.html#a5ea36e793db88d85a9bf5ed7a53362f7',1,'mdbxc::AnyValueTable::get_or(const KeyT &amp;key, T default_value, MDBX_txn *txn=nullptr) const'],['../classmdbxc_1_1AnyValueTable.html#a992c1a1617524af30e3b13cf125051c8',1,'mdbxc::AnyValueTable::get_or(const KeyT &amp;key, T default_value, const Transaction &amp;txn) const']]],
-  ['get_5fparent_5fpath_7',['get_parent_path',['../namespacemdbxc.html#a4cf5307e460ea21d46524f7509fad91e',1,'mdbxc']]],
-  ['get_5ftyped_8',['get_typed',['../classmdbxc_1_1AnyValueTable.html#a571626f0d576aed0f3a4d816e592951a',1,'mdbxc::AnyValueTable']]],
-  ['groups_2edox_9',['groups.dox',['../groups_8dox.html',1,'']]],
-  ['growth_5fstep_10',['growth_step',['../classmdbxc_1_1Config.html#aad7ab0b9aec90ddd7fde9cb354db6ed3',1,'mdbxc::Config']]],
-  ['guide_11',['Configuration Guide',['../index.html#config_sec',1,'']]]
+  ['get_5fmutex_6',['get_mutex',['../classSyncOStream.html#a2370fdb47286afa5f72bd87aa76838e9',1,'SyncOStream']]],
+  ['get_5for_7',['get_or',['../classmdbxc_1_1AnyValueTable.html#a5ea36e793db88d85a9bf5ed7a53362f7',1,'mdbxc::AnyValueTable::get_or(const KeyT &amp;key, T default_value, MDBX_txn *txn=nullptr) const'],['../classmdbxc_1_1AnyValueTable.html#a992c1a1617524af30e3b13cf125051c8',1,'mdbxc::AnyValueTable::get_or(const KeyT &amp;key, T default_value, const Transaction &amp;txn) const']]],
+  ['get_5fparent_5fpath_8',['get_parent_path',['../namespacemdbxc.html#a4cf5307e460ea21d46524f7509fad91e',1,'mdbxc']]],
+  ['get_5ftyped_9',['get_typed',['../classmdbxc_1_1AnyValueTable.html#a571626f0d576aed0f3a4d816e592951a',1,'mdbxc::AnyValueTable']]],
+  ['groups_2edox_10',['groups.dox',['../groups_8dox.html',1,'']]],
+  ['growth_5fstep_11',['growth_step',['../classmdbxc_1_1Config.html#aad7ab0b9aec90ddd7fde9cb354db6ed3',1,'mdbxc::Config']]],
+  ['guide_12',['Configuration Guide',['../index.html#config_sec',1,'']]]
 ];

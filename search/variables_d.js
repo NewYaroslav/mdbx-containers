@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['y_0',['y',['../structSimpleStruct.html#a9d1b2306fa6ad391968e1b3f5e6a9541',1,'SimpleStruct']]]
+  ['x_0',['x',['../structSimpleStruct.html#ad571e7686cdc4e52ba151ba095378b32',1,'SimpleStruct']]]
 ];

@@ -10,5 +10,7 @@ var index =
     [ "Building", "index.html#build_sec", null ],
     [ "Configuration Guide", "index.html#config_sec", null ],
     [ "Repository", "index.html#repo_sec", null ],
-    [ "License", "index.html#license_sec", null ]
+    [ "License", "index.html#license_sec", null ],
+    [ "Persistent Containers Usage", "tables_page.html", null ],
+    [ "Database Configuration", "config_page.html", null ]
 ];

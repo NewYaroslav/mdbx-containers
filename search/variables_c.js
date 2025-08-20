@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['x_0',['x',['../structSimpleStruct.html#ad571e7686cdc4e52ba151ba095378b32',1,'SimpleStruct']]]
+  ['writemap_5fmode_0',['writemap_mode',['../classmdbxc_1_1Config.html#a89ff26b0b3edb8c55023b8bd02cdbdcf',1,'mdbxc::Config']]]
 ];

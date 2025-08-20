@@ -1,4 +1,9 @@
 var searchData=
 [
-  ['value_0',['value',['../structmdbxc_1_1has__to__bytes.html#ab384fab2dd14e3c87cd968261b28cd5b',1,'mdbxc::has_to_bytes::value'],['../structmdbxc_1_1has__from__bytes.html#ada7709a1ea2ffa23d9459a64ddea45b1',1,'mdbxc::has_from_bytes::value'],['../structmdbxc_1_1has__value__type.html#a86c68207b36a69782498d5a3331c4289',1,'mdbxc::has_value_type::value'],['../structMyData.html#a184b2e74df52d3c6ef1f8509c9c7c756',1,'MyData::value'],['../structConcurrentStruct.html#ae53ac4309b43e4cc2917563662b00a39',1,'ConcurrentStruct::value']]]
+  ['shrink_5fthreshold_0',['shrink_threshold',['../classmdbxc_1_1Config.html#a40d52ba5ccf4b658c4237c5dadd40a3e',1,'mdbxc::Config']]],
+  ['size_5flower_1',['size_lower',['../classmdbxc_1_1Config.html#a7725c8890145b0db6fb3604c207927eb',1,'mdbxc::Config']]],
+  ['size_5fnow_2',['size_now',['../classmdbxc_1_1Config.html#a1c6cb060a2635e001c09de3160c4b091',1,'mdbxc::Config']]],
+  ['size_5fupper_3',['size_upper',['../classmdbxc_1_1Config.html#abd1ee5ad69187cc5c0ccfa42319bdfc1',1,'mdbxc::Config']]],
+  ['small_4',['small',['../structmdbxc_1_1SerializeScratch.html#a6665596f549e1d5ba28dfda07b5d7f3c',1,'mdbxc::SerializeScratch']]],
+  ['sync_5fdurable_5',['sync_durable',['../classmdbxc_1_1Config.html#a56b2344c1f8d64817b1db669d435ae43',1,'mdbxc::Config']]]
 ];

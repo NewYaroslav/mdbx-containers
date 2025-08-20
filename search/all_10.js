@@ -8,5 +8,6 @@ var searchData=
   ['repository_5',['Repository',['../index.html#repo_sec',1,'']]],
   ['retrieve_5fall_6',['retrieve_all',['../classmdbxc_1_1KeyValueTable.html#ae9704ce875d1173e2b229b546a5d47e7',1,'mdbxc::KeyValueTable::retrieve_all(MDBX_txn *txn=nullptr)'],['../classmdbxc_1_1KeyValueTable.html#a83ed6863cc5a3fad99efe30225077598',1,'mdbxc::KeyValueTable::retrieve_all(const Transaction &amp;txn)']]],
   ['rollback_7',['rollback',['../classmdbxc_1_1Connection.html#a6ee8593d834559db1446417c7ee26d76',1,'mdbxc::Connection::rollback()'],['../classmdbxc_1_1Transaction.html#a8c372f8bbc3bef9d8b7b6c0e0baa80f0',1,'mdbxc::Transaction::rollback()'],['../classmdbxc_1_1BaseTable.html#a932c1d9019da20331da5d690165ffb86',1,'mdbxc::BaseTable::rollback()']]],
-  ['root_8',['root',['../structmdbxc_1_1PathComponents.html#a6496e8bedeab8e12d975db24c9253e2a',1,'mdbxc::PathComponents']]]
+  ['root_8',['root',['../structmdbxc_1_1PathComponents.html#a6496e8bedeab8e12d975db24c9253e2a',1,'mdbxc::PathComponents']]],
+  ['run_5fcase_9',['run_case',['../path__resolution__test_8cpp.html#afb87926504a7e92d32971bb6a0b8afe9',1,'path_resolution_test.cpp']]]
 ];

@@ -26,7 +26,6 @@ var NAVTREE =
 [
   [ "MDBX Containers", "index.html", [
     [ "MDBX-Containers Library", "index.html", "index" ],
-    [ "Database Configuration", "config_page.html", null ],
     [ "Topics", "topics.html", "topics" ],
     [ "Namespaces", "namespaces.html", [
       [ "Namespace List", "namespaces.html", "namespaces_dup" ],
@@ -62,7 +61,7 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "AnyValueTable_8hpp.html",
-"functions_f.html"
+"dir_0e574930087f86f2d140c7b9c0d40c8b.html"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronization';
