@@ -20,5 +20,5 @@ var searchData=
   ['sync_5fcerr_17',['sync_cerr',['../kv__container__all__types__test_8cpp.html#ab0621ab211608f75f7238062b95308ce',1,'kv_container_all_types_test.cpp']]],
   ['sync_5fcout_18',['sync_cout',['../kv__container__all__types__test_8cpp.html#af5b6f0c15067f2103b84e6db24c11719',1,'kv_container_all_types_test.cpp']]],
   ['sync_5fdurable_19',['sync_durable',['../classmdbxc_1_1Config.html#a56b2344c1f8d64817b1db669d435ae43',1,'mdbxc::Config']]],
-  ['syncostream_20',['SyncOStream',['../classSyncOStream.html',1,'SyncOStream'],['../classSyncOStream.html#aac63d21d90a100bef014948542157727',1,'SyncOStream::SyncOStream()']]]
+  ['syncostream_20',['SyncOStream',['../classSyncOStream.html',1,'SyncOStream'],['../classSyncOStream.html#aac63d21d90a100bef014948542157727',1,'SyncOStream::SyncOStream(std::ostream &amp;os)'],['../classSyncOStream.html#a0b0a96d9b8b269b1292e469f36153ce7',1,'SyncOStream::SyncOStream(const SyncOStream &amp;)=delete'],['../classSyncOStream.html#a28b37c39eb494dfe37af15c46f21046e',1,'SyncOStream::SyncOStream(SyncOStream &amp;&amp;other) noexcept']]]
 ];

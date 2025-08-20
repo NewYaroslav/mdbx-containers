@@ -11,5 +11,5 @@ var searchData=
   ['split_5fpath_8',['split_path',['../namespacemdbxc.html#a5a7e8da1bc85900d5b61de3e544069a8',1,'mdbxc']]],
   ['sync_5fcerr_9',['sync_cerr',['../kv__container__all__types__test_8cpp.html#ab0621ab211608f75f7238062b95308ce',1,'kv_container_all_types_test.cpp']]],
   ['sync_5fcout_10',['sync_cout',['../kv__container__all__types__test_8cpp.html#af5b6f0c15067f2103b84e6db24c11719',1,'kv_container_all_types_test.cpp']]],
-  ['syncostream_11',['SyncOStream',['../classSyncOStream.html#aac63d21d90a100bef014948542157727',1,'SyncOStream']]]
+  ['syncostream_11',['SyncOStream',['../classSyncOStream.html#aac63d21d90a100bef014948542157727',1,'SyncOStream::SyncOStream(std::ostream &amp;os)'],['../classSyncOStream.html#a0b0a96d9b8b269b1292e469f36153ce7',1,'SyncOStream::SyncOStream(const SyncOStream &amp;)=delete'],['../classSyncOStream.html#a28b37c39eb494dfe37af15c46f21046e',1,'SyncOStream::SyncOStream(SyncOStream &amp;&amp;other) noexcept']]]
 ];
