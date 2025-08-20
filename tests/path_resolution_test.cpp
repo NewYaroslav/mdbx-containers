@@ -1,4 +1,11 @@
 // file: tests/path_resolution_test.cpp
+#if __cplusplus < 201703L
+#include <iostream>
+int main() {
+    std::cout << "path_resolution_test skipped for C++11" << std::endl;
+    return 0;
+}
+#else
 // build (пример):
 //   g++ -std=gnu++17 -O2 -Wall -Wextra -Iinclude \
 //       tests/path_resolution_test.cpp -o path_resolution_test \
@@ -266,3 +273,4 @@ catch (const std::exception& e) {
     std::cerr << "[error] " << e.what() << "\n";
     return 1;
 }
+#endif // __cplusplus < 201703L

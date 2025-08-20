@@ -9,6 +9,12 @@
 /// \ingroup mdbxc_utils
 /// @{
 
+#if __cplusplus >= 201703L
+#   define MDBXC_NODISCARD [[nodiscard]]
+#else
+#   define MDBXC_NODISCARD
+#endif
+
 namespace mdbxc {
     
     /// \brief Throws an MdbxException if MDBX return code indicates an error.
@@ -165,7 +171,7 @@ namespace mdbxc {
 
         /// \brief Zero-copy view over external memory (no ownership).
         /// \warning Caller must guarantee lifetime of \a p,\a n until MDBX finishes with it.
-        [[nodiscard]] static inline MDBX_val view(const void* p, size_t n) noexcept {
+        MDBXC_NODISCARD static inline MDBX_val view(const void* p, size_t n) noexcept {
             MDBX_val v;
             v.iov_base = (n ? const_cast<void*>(p) : nullptr);
             v.iov_len  = n;
@@ -173,7 +179,7 @@ namespace mdbxc {
         }
 
         /// \brief Copy \a n bytes from \a p into \c bytes and return a view.
-        [[nodiscard]] inline MDBX_val view_copy(const void* p, size_t n) {
+        MDBXC_NODISCARD inline MDBX_val view_copy(const void* p, size_t n) {
             bytes.clear();
             bytes.resize(n);
             if (n) std::memcpy(bytes.data(), p, n);
@@ -184,7 +190,7 @@ namespace mdbxc {
         }
         
         /// \brief Return a view over current \c bytes (no copy).
-        [[nodiscard]] inline MDBX_val view_bytes() const noexcept {
+        MDBXC_NODISCARD inline MDBX_val view_bytes() const noexcept {
             MDBX_val v;
             v.iov_base = (bytes.empty() ? nullptr : const_cast<void*>(static_cast<const void*>(bytes.data())));
             v.iov_len  = bytes.size();
@@ -193,7 +199,7 @@ namespace mdbxc {
         
         /// \brief Copy \a n bytes into the small inline buffer and return a view.
         /// \note \a n must be <= sizeof(small).
-        [[nodiscard]] inline MDBX_val view_small_copy(const void* p, size_t n) noexcept {
+        MDBXC_NODISCARD inline MDBX_val view_small_copy(const void* p, size_t n) noexcept {
             std::memcpy(small, p, n);
             MDBX_val v; 
             v.iov_base = (n ? static_cast<void*>(small) : nullptr); 
@@ -653,5 +659,7 @@ namespace mdbxc {
 }; // namespace mdbxc
 
 /// @}
+
+#undef MDBXC_NODISCARD
 
 #endif // _MDBX_CONTAINERS_UTILS_HPP_INCLUDED
