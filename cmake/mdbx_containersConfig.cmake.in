@@ -1,0 +1,15 @@
+# Config file for mdbx_containers
+@PACKAGE_INIT@
+
+# Public include dir of the package
+set(mdbx_containers_INCLUDE_DIRS "@PACKAGE_INCLUDE_INSTALL_DIR@")
+
+include(CMakeFindDependencyMacro)
+find_dependency(MDBX CONFIG)
+if(NOT MDBX_FOUND)
+    find_dependency(mdbx CONFIG)
+endif()
+
+# Pull in the exported targets (namespace mdbx_containers::)
+include("${CMAKE_CURRENT_LIST_DIR}/mdbx_containersTargets.cmake")
+

@@ -214,7 +214,7 @@ int main() {
         kv.insert_or_assign("ser", s);
         ASSERT_FOUND(kv, std::string("ser"), s);
     }
-    
+    std::cout << "Concurrent test.\n";
     {
         mdbxc::KeyValueTable<int, ConcurrentStruct> kv(conn, "concurrent_test");
 
