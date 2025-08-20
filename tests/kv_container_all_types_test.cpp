@@ -27,6 +27,14 @@
 class SyncOStream {
 public:
     explicit SyncOStream(std::ostream& os) : os_(os) {}
+    
+    SyncOStream(const SyncOStream&) = delete;
+    SyncOStream& operator=(const SyncOStream&) = delete;
+    
+    SyncOStream(SyncOStream&& other) noexcept
+        : os_(other.os_), buffer_(std::move(other.buffer_)) {}
+        
+    SyncOStream& operator=(SyncOStream&&) = delete;
 
     template <typename T>
     SyncOStream& operator<<(const T& value) {
@@ -52,21 +60,16 @@ private:
     }
 };
 
-inline SyncOStream sync_cout() {
-    SyncOStream s(std::cout);
-    return std::move(s);
-}
-inline SyncOStream sync_cerr() {
-    SyncOStream s(std::cerr);
-    return std::move(s);
-}
+inline SyncOStream sync_cout() { return SyncOStream(std::cout); }
+inline SyncOStream sync_cerr() { return SyncOStream(std::cerr); }
 
 // ---- thread runner that captures exceptions ----
 template <class F>
 std::thread make_thread_catching(F&& f, std::exception_ptr& out_eptr) {
-    auto fn = std::forward<F>(f);
-    return std::thread([fn, &out_eptr]() mutable {
-        try { fn(); }
+    typedef typename std::decay<F>::type Fn;
+    std::shared_ptr<Fn> fn(new Fn(std::forward<F>(f)));
+    return std::thread([fn, &out_eptr]{
+        try { (*fn)(); }
         catch (...) { out_eptr = std::current_exception(); }
     });
 }
@@ -276,6 +279,7 @@ int main() {
         std::size_t epoch = 0;
         std::size_t last_seen = 0;
         std::atomic<bool> failed(false);
+        std::atomic<bool> done(false);
         ConcurrentStruct written;
         std::exception_ptr w_ex, r_ex;
 
@@ -283,9 +287,7 @@ int main() {
             try {
                 for (int i = 0; i < 1000; ++i) {
                     if (failed) break;
-                    ConcurrentStruct w{i};
-                    // uncomment for verbose:
-                    // sync_cout() << "[writer] i=" << i << "\n";
+                    ConcurrentStruct w(i);
                     {
                         std::lock_guard<std::mutex> lock(mtx);
                         kv.insert_or_assign(1, w);
@@ -295,50 +297,61 @@ int main() {
                     cv.notify_one();
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
+                done.store(true, std::memory_order_release);
+                cv.notify_all();
                 sync_cout() << "[writer] done\n";
             } catch (const std::exception& ex) {
                 sync_cerr() << "[error] writer: " << ex.what() << "\n";
                 failed = true;
+                done.store(true, std::memory_order_release);
+                cv.notify_all();
             } catch (...) {
                 sync_cerr() << "[error] writer: unknown\n";
                 failed = true;
+                done.store(true, std::memory_order_release);
+                cv.notify_all();
             }
         }, w_ex);
 
         auto reader = make_thread_catching([&] {
             try {
-                for (int i = 0; i < 1000; ++i) {
+                for (;;) {
                     std::unique_lock<std::mutex> lock(mtx);
-                    bool ok = cv.wait_for(lock, std::chrono::seconds(2), [&] { return epoch > last_seen; });
+                    bool ok = cv.wait_for(lock, std::chrono::seconds(2), [&] {
+                        return epoch > last_seen || done.load(std::memory_order_acquire);
+                    });
                     if (!ok) {
-                        sync_cerr() << "[error] reader timeout at " << i
-                                    << " (epoch=" << epoch << ", last_seen=" << last_seen << ")\n";
+                        sync_cerr() << "[error] reader timeout (epoch=" << epoch
+                                    << ", last_seen=" << last_seen << ")\n";
                         failed = true;
+                        break;
+                    }
+                    if (done.load(std::memory_order_acquire) && epoch == last_seen) {
                         break;
                     }
                     last_seen = epoch;
-                    ConcurrentStruct expected = written; // snapshot under the same lock
+                    ConcurrentStruct expected = written;
                     lock.unlock();
 
-                #if __cplusplus >= 201703L
+#                   if __cplusplus >= 201703L
                     auto val = kv.find(1);
                     if (!val || *val != expected) {
-                        sync_cerr() << "[error] mismatch at " << i
-                                    << ": got " << (val ? val->value : -1)
+                        sync_cerr() << "[error] mismatch: got "
+                                    << (val ? val->value : -1)
                                     << ", expected " << expected.value << "\n";
                         failed = true;
                         break;
                     }
-                #else
+#                   else
                     auto val = kv.find_compat(1);
                     if (!val.first || val.second != expected) {
-                        sync_cerr() << "[error] mismatch at " << i
-                                    << ": got " << val.second.value
+                        sync_cerr() << "[error] mismatch: got "
+                                    << val.second.value
                                     << ", expected " << expected.value << "\n";
                         failed = true;
                         break;
                     }
-                #endif
+#                   endif
                 }
                 sync_cout() << "[reader] done\n";
             } catch (const std::exception& ex) {

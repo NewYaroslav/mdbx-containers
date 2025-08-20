@@ -29,7 +29,7 @@ if errorlevel 1 (
 )
 
 REM === Build ===
-cmake --build "%BUILD_DIR%" -- -j
+cmake --build "%BUILD_DIR%" -- -j > "build.log" 2>&1
 
 if errorlevel 1 (
     echo [ERROR] Build failed.
