@@ -155,10 +155,10 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a2fac7da02bde3aa546f90640184f2912" id="r_a2fac7da02bde3aa546f90640184f2912"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classmdbxc_1_1KeyValueTable.html">KeyValueTable</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2fac7da02bde3aa546f90640184f2912">operator=</a> (const std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &amp;container)</td></tr>
 <tr class="memdesc:a2fac7da02bde3aa546f90640184f2912"><td class="mdescLeft">&#160;</td><td class="mdescRight">Assigns a vector of key-value pairs to the database.  <br /></td></tr>
 <tr class="separator:a2fac7da02bde3aa546f90640184f2912"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a00a4579d91e141a9d1afa67e34b272f9" id="r_a00a4579d91e141a9d1afa67e34b272f9"><td class="memTemplParams" colspan="2">template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </td></tr>
-<tr class="memitem:a00a4579d91e141a9d1afa67e34b272f9"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a00a4579d91e141a9d1afa67e34b272f9">operator()</a> ()</td></tr>
-<tr class="memdesc:a00a4579d91e141a9d1afa67e34b272f9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Loads all key-value pairs from the database into a container.  <br /></td></tr>
-<tr class="separator:a00a4579d91e141a9d1afa67e34b272f9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad8f5ff773b86bf786bbc3dcda22f9d76" id="r_ad8f5ff773b86bf786bbc3dcda22f9d76"><td class="memTemplParams" colspan="2">template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </td></tr>
+<tr class="memitem:ad8f5ff773b86bf786bbc3dcda22f9d76"><td class="memTemplItemLeft" align="right" valign="top">std::conditional&lt; std::is_same&lt; ContainerT&lt; KeyT, ValueT &gt;, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &gt;::value, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt;, ContainerT&lt; KeyT, ValueT &gt; &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ad8f5ff773b86bf786bbc3dcda22f9d76">operator()</a> ()</td></tr>
+<tr class="memdesc:ad8f5ff773b86bf786bbc3dcda22f9d76"><td class="mdescLeft">&#160;</td><td class="mdescRight">Loads all key-value pairs from the database into a container.  <br /></td></tr>
+<tr class="separator:ad8f5ff773b86bf786bbc3dcda22f9d76"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5e510582ed37cf10f28ecb0a8e4ea293" id="r_a5e510582ed37cf10f28ecb0a8e4ea293"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classmdbxc_1_1KeyValueTable_1_1AssignmentProxy.html">AssignmentProxy</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5e510582ed37cf10f28ecb0a8e4ea293">operator[]</a> (const KeyT &amp;key)</td></tr>
 <tr class="memdesc:a5e510582ed37cf10f28ecb0a8e4ea293"><td class="mdescLeft">&#160;</td><td class="mdescRight">Provides convenient access to insert or read a value by key.  <br /></td></tr>
 <tr class="separator:a5e510582ed37cf10f28ecb0a8e4ea293"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -176,14 +176,14 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:aa1b049993a6b11574e54231736298ff6" id="r_aa1b049993a6b11574e54231736298ff6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa1b049993a6b11574e54231736298ff6">load</a> (std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &amp;container, const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;txn)</td></tr>
 <tr class="memdesc:aa1b049993a6b11574e54231736298ff6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Loads all key-value pairs into a std::vector of pairs.  <br /></td></tr>
 <tr class="separator:aa1b049993a6b11574e54231736298ff6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae9704ce875d1173e2b229b546a5d47e7" id="r_ae9704ce875d1173e2b229b546a5d47e7"><td class="memTemplParams" colspan="2">template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </td></tr>
-<tr class="memitem:ae9704ce875d1173e2b229b546a5d47e7"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ae9704ce875d1173e2b229b546a5d47e7">retrieve_all</a> (MDBX_txn *txn=nullptr)</td></tr>
-<tr class="memdesc:ae9704ce875d1173e2b229b546a5d47e7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retrieves all key-value pairs into the specified container type.  <br /></td></tr>
-<tr class="separator:ae9704ce875d1173e2b229b546a5d47e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a83ed6863cc5a3fad99efe30225077598" id="r_a83ed6863cc5a3fad99efe30225077598"><td class="memTemplParams" colspan="2">template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </td></tr>
-<tr class="memitem:a83ed6863cc5a3fad99efe30225077598"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a83ed6863cc5a3fad99efe30225077598">retrieve_all</a> (const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;txn)</td></tr>
-<tr class="memdesc:a83ed6863cc5a3fad99efe30225077598"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retrieves all key-value pairs into the specified container type.  <br /></td></tr>
-<tr class="separator:a83ed6863cc5a3fad99efe30225077598"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:add4f98a7c62935f004ff3505ed2a4640" id="r_add4f98a7c62935f004ff3505ed2a4640"><td class="memTemplParams" colspan="2">template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </td></tr>
+<tr class="memitem:add4f98a7c62935f004ff3505ed2a4640"><td class="memTemplItemLeft" align="right" valign="top">std::conditional&lt; std::is_same&lt; ContainerT&lt; KeyT, ValueT &gt;, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &gt;::value, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt;, ContainerT&lt; KeyT, ValueT &gt; &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#add4f98a7c62935f004ff3505ed2a4640">retrieve_all</a> (MDBX_txn *txn=nullptr)</td></tr>
+<tr class="memdesc:add4f98a7c62935f004ff3505ed2a4640"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retrieves all key-value pairs into the specified container type.  <br /></td></tr>
+<tr class="separator:add4f98a7c62935f004ff3505ed2a4640"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad4cc26fd67a4201bb064ef597b35451a" id="r_ad4cc26fd67a4201bb064ef597b35451a"><td class="memTemplParams" colspan="2">template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </td></tr>
+<tr class="memitem:ad4cc26fd67a4201bb064ef597b35451a"><td class="memTemplItemLeft" align="right" valign="top">std::conditional&lt; std::is_same&lt; ContainerT&lt; KeyT, ValueT &gt;, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &gt;::value, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt;, ContainerT&lt; KeyT, ValueT &gt; &gt;::type&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ad4cc26fd67a4201bb064ef597b35451a">retrieve_all</a> (const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;txn)</td></tr>
+<tr class="memdesc:ad4cc26fd67a4201bb064ef597b35451a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retrieves all key-value pairs into the specified container type.  <br /></td></tr>
+<tr class="separator:ad4cc26fd67a4201bb064ef597b35451a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae4fac4f2bad6957887a8c46d02050e40" id="r_ae4fac4f2bad6957887a8c46d02050e40"><td class="memTemplParams" colspan="2">template&lt;template&lt; class... &gt; class ContainerT&gt; </td></tr>
 <tr class="memitem:ae4fac4f2bad6957887a8c46d02050e40"><td class="memTemplItemLeft" align="right" valign="top">void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ae4fac4f2bad6957887a8c46d02050e40">append</a> (const ContainerT&lt; KeyT, ValueT &gt; &amp;container, MDBX_txn *txn=nullptr)</td></tr>
 <tr class="memdesc:ae4fac4f2bad6957887a8c46d02050e40"><td class="mdescLeft">&#160;</td><td class="mdescRight">Appends data to the database.  <br /></td></tr>
@@ -248,6 +248,12 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a47b3e283301d3769180f2acdbdc6a0d3" id="r_a47b3e283301d3769180f2acdbdc6a0d3"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a47b3e283301d3769180f2acdbdc6a0d3">try_get</a> (const KeyT &amp;key, ValueT &amp;out, const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;txn) const</td></tr>
 <tr class="memdesc:a47b3e283301d3769180f2acdbdc6a0d3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Tries to find value by key.  <br /></td></tr>
 <tr class="separator:a47b3e283301d3769180f2acdbdc6a0d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a80319ade3b290ab35bea88375f78d3d2" id="r_a80319ade3b290ab35bea88375f78d3d2"><td class="memItemLeft" align="right" valign="top">std::pair&lt; bool, ValueT &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a80319ade3b290ab35bea88375f78d3d2">find</a> (const KeyT &amp;key, MDBX_txn *txn=nullptr) const</td></tr>
+<tr class="memdesc:a80319ade3b290ab35bea88375f78d3d2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Finds value by key.  <br /></td></tr>
+<tr class="separator:a80319ade3b290ab35bea88375f78d3d2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a97c5b61132977db53e5d1799657ee7a3" id="r_a97c5b61132977db53e5d1799657ee7a3"><td class="memItemLeft" align="right" valign="top">std::pair&lt; bool, ValueT &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a97c5b61132977db53e5d1799657ee7a3">find</a> (const KeyT &amp;key, const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;txn) const</td></tr>
+<tr class="memdesc:a97c5b61132977db53e5d1799657ee7a3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Finds value by key.  <br /></td></tr>
+<tr class="separator:a97c5b61132977db53e5d1799657ee7a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6218ccb8290208bbb37e1db87a78d962" id="r_a6218ccb8290208bbb37e1db87a78d962"><td class="memItemLeft" align="right" valign="top">std::pair&lt; bool, ValueT &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a6218ccb8290208bbb37e1db87a78d962">find_compat</a> (const KeyT &amp;key, MDBX_txn *txn=nullptr) const</td></tr>
 <tr class="memdesc:a6218ccb8290208bbb37e1db87a78d962"><td class="mdescLeft">&#160;</td><td class="mdescRight">Finds value by key.  <br /></td></tr>
 <tr class="separator:a6218ccb8290208bbb37e1db87a78d962"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -571,7 +577,7 @@ template&lt;template&lt; class... &gt; class ContainerT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00230">230</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00289">289</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -627,7 +633,7 @@ template&lt;template&lt; class... &gt; class ContainerT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00218">218</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00277">277</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -675,7 +681,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00249">249</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00308">308</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -723,7 +729,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00239">239</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00298">298</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -773,7 +779,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00399">399</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00458">458</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -823,7 +829,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00383">383</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00442">442</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -866,7 +872,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00574">574</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00657">657</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -909,7 +915,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00565">565</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00648">648</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -958,7 +964,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00496">496</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00579">579</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1007,7 +1013,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00483">483</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00566">566</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1051,7 +1057,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00516">516</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00599">599</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1095,7 +1101,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00504">504</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00587">587</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1151,7 +1157,7 @@ template&lt;template&lt; class... &gt; class ContainerT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00698">698</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00781">781</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1199,7 +1205,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00716">716</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00799">799</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1236,7 +1242,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00864">864</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00961">961</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1285,7 +1291,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00672">672</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00755">755</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1329,7 +1335,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00686">686</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00769">769</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1378,7 +1384,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00852">852</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00949">949</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1433,7 +1439,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00656">656</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00739">739</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1488,7 +1494,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00815">815</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00912">912</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1542,7 +1548,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00836">836</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00933">933</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1598,7 +1604,7 @@ template&lt;template&lt; class... &gt; class ContainerT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00618">618</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00701">701</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1646,7 +1652,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00636">636</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00719">719</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1702,7 +1708,7 @@ template&lt;template&lt; class... &gt; class ContainerT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00738">738</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00835">835</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1750,7 +1756,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00774">774</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00871">871</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1794,7 +1800,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00536">536</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00619">619</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1838,7 +1844,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00524">524</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00607">607</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1887,7 +1893,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00558">558</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00641">641</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1936,7 +1942,105 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00545">545</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00628">628</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+
+</div>
+</div>
+<a id="a97c5b61132977db53e5d1799657ee7a3" name="a97c5b61132977db53e5d1799657ee7a3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a97c5b61132977db53e5d1799657ee7a3">&#9670;&#160;</a></span>find() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class KeyT, class ValueT&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::pair&lt; bool, ValueT &gt; <a class="el" href="classmdbxc_1_1KeyValueTable.html">mdbxc::KeyValueTable</a>&lt; KeyT, ValueT &gt;::find </td>
+          <td>(</td>
+          <td class="paramtype">const KeyT &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>txn</em></span>&#160;) const</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Finds value by key. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">key</td><td>Key to search for. </td></tr>
+    <tr><td class="paramname">txn</td><td><a class="el" href="classmdbxc_1_1Transaction.html" title="Manages MDBX transactions with automatic cleanup and error handling.">Transaction</a> wrapper used for the lookup. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Pair of success flag and value. </dd></dl>
+<dl class="exception"><dt>Exceptions</dt><dd>
+  <table class="exception">
+    <tr><td class="paramname"><a class="el" href="classmdbxc_1_1MdbxException.html" title="Represents a specific exception for MDBX-related errors.">MdbxException</a></td><td>on DB error. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00532">532</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+
+</div>
+</div>
+<a id="a80319ade3b290ab35bea88375f78d3d2" name="a80319ade3b290ab35bea88375f78d3d2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a80319ade3b290ab35bea88375f78d3d2">&#9670;&#160;</a></span>find() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class KeyT, class ValueT&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::pair&lt; bool, ValueT &gt; <a class="el" href="classmdbxc_1_1KeyValueTable.html">mdbxc::KeyValueTable</a>&lt; KeyT, ValueT &gt;::find </td>
+          <td>(</td>
+          <td class="paramtype">const KeyT &amp;</td>          <td class="paramname"><span class="paramname"><em>key</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">MDBX_txn *</td>          <td class="paramname"><span class="paramname"><em>txn</em></span><span class="paramdefsep"> = </span><span class="paramdefval">nullptr</span>&#160;) const</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Finds value by key. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">key</td><td>Key to search for. </td></tr>
+    <tr><td class="paramname">txn</td><td>Optional active MDBX transaction. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Pair of success flag and value. </dd></dl>
+<dl class="exception"><dt>Exceptions</dt><dd>
+  <table class="exception">
+    <tr><td class="paramname"><a class="el" href="classmdbxc_1_1MdbxException.html" title="Represents a specific exception for MDBX-related errors.">MdbxException</a></td><td>on DB error. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00517">517</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -1985,7 +2089,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00474">474</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00557">557</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2034,7 +2138,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00459">459</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00542">542</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2089,7 +2193,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00313">313</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00372">372</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2144,7 +2248,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00299">299</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00358">358</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2193,7 +2297,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00335">335</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00394">394</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2242,7 +2346,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00322">322</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00381">381</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2296,7 +2400,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00355">355</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00414">414</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2350,7 +2454,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00344">344</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00403">403</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2398,7 +2502,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00373">373</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00432">432</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2446,7 +2550,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00363">363</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00422">422</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2502,7 +2606,7 @@ template&lt;template&lt; class... &gt; class ContainerT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00160">160</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00185">185</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2558,7 +2662,7 @@ template&lt;template&lt; class... &gt; class ContainerT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00148">148</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00173">173</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2606,7 +2710,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00178">178</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00203">203</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2654,12 +2758,12 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00168">168</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00193">193</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a00a4579d91e141a9d1afa67e34b272f9" name="a00a4579d91e141a9d1afa67e34b272f9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a00a4579d91e141a9d1afa67e34b272f9">&#9670;&#160;</a></span>operator()()</h2>
+<a id="ad8f5ff773b86bf786bbc3dcda22f9d76" name="ad8f5ff773b86bf786bbc3dcda22f9d76"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad8f5ff773b86bf786bbc3dcda22f9d76">&#9670;&#160;</a></span>operator()()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -2672,7 +2776,7 @@ template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </div>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">auto <a class="el" href="classmdbxc_1_1KeyValueTable.html">mdbxc::KeyValueTable</a>&lt; KeyT, ValueT &gt;::operator() </td>
+          <td class="memname">std::conditional&lt; std::is_same&lt; ContainerT&lt; KeyT, ValueT &gt;, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &gt;::value, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt;, ContainerT&lt; KeyT, ValueT &gt; &gt;::type <a class="el" href="classmdbxc_1_1KeyValueTable.html">mdbxc::KeyValueTable</a>&lt; KeyT, ValueT &gt;::operator() </td>
           <td>(</td>
           <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
           <td></td>
@@ -2700,7 +2804,7 @@ template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00087">87</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00106">106</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2830,7 +2934,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>Proxy object used for assignment or implicit read. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00136">136</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00161">161</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2886,7 +2990,7 @@ template&lt;template&lt; class... &gt; class ContainerT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00271">271</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00330">330</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2942,7 +3046,7 @@ template&lt;template&lt; class... &gt; class ContainerT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00259">259</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00318">318</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -2990,7 +3094,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00289">289</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00348">348</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -3038,12 +3142,12 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00279">279</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00338">338</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
-<a id="a83ed6863cc5a3fad99efe30225077598" name="a83ed6863cc5a3fad99efe30225077598"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a83ed6863cc5a3fad99efe30225077598">&#9670;&#160;</a></span>retrieve_all() <span class="overload">[1/2]</span></h2>
+<a id="ad4cc26fd67a4201bb064ef597b35451a" name="ad4cc26fd67a4201bb064ef597b35451a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad4cc26fd67a4201bb064ef597b35451a">&#9670;&#160;</a></span>retrieve_all() <span class="overload">[1/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -3056,7 +3160,7 @@ template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </div>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">auto <a class="el" href="classmdbxc_1_1KeyValueTable.html">mdbxc::KeyValueTable</a>&lt; KeyT, ValueT &gt;::retrieve_all </td>
+          <td class="memname">std::conditional&lt; std::is_same&lt; ContainerT&lt; KeyT, ValueT &gt;, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &gt;::value, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt;, ContainerT&lt; KeyT, ValueT &gt; &gt;::type <a class="el" href="classmdbxc_1_1KeyValueTable.html">mdbxc::KeyValueTable</a>&lt; KeyT, ValueT &gt;::retrieve_all </td>
           <td>(</td>
           <td class="paramtype">const <a class="el" href="classmdbxc_1_1Transaction.html">Transaction</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>txn</em></span></td><td>)</td>
           <td></td>
@@ -3090,12 +3194,12 @@ template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00208">208</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00266">266</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
-<a id="ae9704ce875d1173e2b229b546a5d47e7" name="ae9704ce875d1173e2b229b546a5d47e7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae9704ce875d1173e2b229b546a5d47e7">&#9670;&#160;</a></span>retrieve_all() <span class="overload">[2/2]</span></h2>
+<a id="add4f98a7c62935f004ff3505ed2a4640" name="add4f98a7c62935f004ff3505ed2a4640"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#add4f98a7c62935f004ff3505ed2a4640">&#9670;&#160;</a></span>retrieve_all() <span class="overload">[2/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -3108,7 +3212,7 @@ template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </div>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">auto <a class="el" href="classmdbxc_1_1KeyValueTable.html">mdbxc::KeyValueTable</a>&lt; KeyT, ValueT &gt;::retrieve_all </td>
+          <td class="memname">std::conditional&lt; std::is_same&lt; ContainerT&lt; KeyT, ValueT &gt;, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt; &gt;::value, std::vector&lt; std::pair&lt; KeyT, ValueT &gt; &gt;, ContainerT&lt; KeyT, ValueT &gt; &gt;::type <a class="el" href="classmdbxc_1_1KeyValueTable.html">mdbxc::KeyValueTable</a>&lt; KeyT, ValueT &gt;::retrieve_all </td>
           <td>(</td>
           <td class="paramtype">MDBX_txn *</td>          <td class="paramname"><span class="paramname"><em>txn</em></span><span class="paramdefsep"> = </span><span class="paramdefval">nullptr</span></td><td>)</td>
           <td></td>
@@ -3142,7 +3246,7 @@ template&lt;template&lt; class... &gt; class ContainerT = std::map&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00188">188</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00242">242</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -3197,7 +3301,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00423">423</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00482">482</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -3252,7 +3356,7 @@ template&lt;class KeyT, class ValueT&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00409">409</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00468">468</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -3308,7 +3412,7 @@ template&lt;typename F&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00586">586</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="KeyValueTable_8hpp_source.html#l00669">669</a> of file <a class="el" href="KeyValueTable_8hpp_source.html">KeyValueTable.hpp</a>.</p>
 
 </div>
 </div>

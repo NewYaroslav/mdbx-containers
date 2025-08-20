@@ -113,132 +113,16 @@ $(function(){initNavTree('path__resolution__test_8cpp.html',''); initResizable(t
   <div class="headertitle"><div class="title">path_resolution_test.cpp File Reference</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><code>#include &lt;cassert&gt;</code><br />
-<code>#include &lt;cstdint&gt;</code><br />
-<code>#include &lt;iostream&gt;</code><br />
-<code>#include &lt;fstream&gt;</code><br />
-<code>#include &lt;string&gt;</code><br />
-<code>#include &lt;vector&gt;</code><br />
-<code>#include &lt;chrono&gt;</code><br />
-<code>#include &lt;random&gt;</code><br />
-<code>#include &lt;filesystem&gt;</code><br />
-<code>#include &lt;unistd.h&gt;</code><br />
-<code>#include &lt;<a class="el" href="KeyValueTable_8hpp_source.html">mdbx_containers/KeyValueTable.hpp</a>&gt;</code><br />
+<div class="textblock"><code>#include &lt;iostream&gt;</code><br />
 </div>
 <p><a href="path__resolution__test_8cpp_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a76911d52b6da8a057c7439071d728390" id="r_a76911d52b6da8a057c7439071d728390"><td class="memItemLeft" align="right" valign="top">static std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a76911d52b6da8a057c7439071d728390">exe_dir</a> ()</td></tr>
-<tr class="separator:a76911d52b6da8a057c7439071d728390"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa1c365aa666b7c94a5c1770456df9d51" id="r_aa1c365aa666b7c94a5c1770456df9d51"><td class="memItemLeft" align="right" valign="top">static std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa1c365aa666b7c94a5c1770456df9d51">uniq_suffix</a> ()</td></tr>
-<tr class="separator:aa1c365aa666b7c94a5c1770456df9d51"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7e65283c6ca6911bb192ce166c013e7b" id="r_a7e65283c6ca6911bb192ce166c013e7b"><td class="memItemLeft" align="right" valign="top">static bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a7e65283c6ca6911bb192ce166c013e7b">dir_nonempty</a> (const fs::path &amp;p)</td></tr>
-<tr class="separator:a7e65283c6ca6911bb192ce166c013e7b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a79e117914adccb9402302b77dc83792f" id="r_a79e117914adccb9402302b77dc83792f"><td class="memItemLeft" align="right" valign="top">static fs::path&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a79e117914adccb9402302b77dc83792f">expected_path_from_policy</a> (const std::string &amp;pathname, bool relative_to_exe, const fs::path &amp;exeDir, const fs::path &amp;cwd)</td></tr>
-<tr class="separator:a79e117914adccb9402302b77dc83792f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afb87926504a7e92d32971bb6a0b8afe9" id="r_afb87926504a7e92d32971bb6a0b8afe9"><td class="memTemplParams" colspan="2">template&lt;typename DoWriteVerify&gt; </td></tr>
-<tr class="memitem:afb87926504a7e92d32971bb6a0b8afe9"><td class="memTemplItemLeft" align="right" valign="top">static void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#afb87926504a7e92d32971bb6a0b8afe9">run_case</a> (const std::string &amp;case_name, const std::string &amp;raw_pathname, bool relative_to_exe, bool no_subdir, const fs::path &amp;exeDir, const fs::path &amp;cwd, DoWriteVerify &amp;&amp;doWriteVerify)</td></tr>
-<tr class="separator:afb87926504a7e92d32971bb6a0b8afe9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae66f6b31b5ad750f1fe042a706a4e3d4" id="r_ae66f6b31b5ad750f1fe042a706a4e3d4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ae66f6b31b5ad750f1fe042a706a4e3d4">main</a> ()</td></tr>
 <tr class="separator:ae66f6b31b5ad750f1fe042a706a4e3d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a7e65283c6ca6911bb192ce166c013e7b" name="a7e65283c6ca6911bb192ce166c013e7b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7e65283c6ca6911bb192ce166c013e7b">&#9670;&#160;</a></span>dir_nonempty()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static bool dir_nonempty </td>
-          <td>(</td>
-          <td class="paramtype">const fs::path &amp;</td>          <td class="paramname"><span class="paramname"><em>p</em></span></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel static">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="path__resolution__test_8cpp_source.html#l00067">67</a> of file <a class="el" href="path__resolution__test_8cpp_source.html">path_resolution_test.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a76911d52b6da8a057c7439071d728390" name="a76911d52b6da8a057c7439071d728390"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a76911d52b6da8a057c7439071d728390">&#9670;&#160;</a></span>exe_dir()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static std::string exe_dir </td>
-          <td>(</td>
-          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel static">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="path__resolution__test_8cpp_source.html#l00033">33</a> of file <a class="el" href="path__resolution__test_8cpp_source.html">path_resolution_test.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a79e117914adccb9402302b77dc83792f" name="a79e117914adccb9402302b77dc83792f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a79e117914adccb9402302b77dc83792f">&#9670;&#160;</a></span>expected_path_from_policy()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static fs::path expected_path_from_policy </td>
-          <td>(</td>
-          <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>pathname</em></span>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">bool</td>          <td class="paramname"><span class="paramname"><em>relative_to_exe</em></span>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const fs::path &amp;</td>          <td class="paramname"><span class="paramname"><em>exeDir</em></span>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const fs::path &amp;</td>          <td class="paramname"><span class="paramname"><em>cwd</em></span>&#160;)</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel static">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="path__resolution__test_8cpp_source.html#l00073">73</a> of file <a class="el" href="path__resolution__test_8cpp_source.html">path_resolution_test.cpp</a>.</p>
-
-</div>
-</div>
 <a id="ae66f6b31b5ad750f1fe042a706a4e3d4" name="ae66f6b31b5ad750f1fe042a706a4e3d4"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ae66f6b31b5ad750f1fe042a706a4e3d4">&#9670;&#160;</a></span>main()</h2>
 
@@ -254,92 +138,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="path__resolution__test_8cpp_source.html#l00142">142</a> of file <a class="el" href="path__resolution__test_8cpp_source.html">path_resolution_test.cpp</a>.</p>
-
-</div>
-</div>
-<a id="afb87926504a7e92d32971bb6a0b8afe9" name="afb87926504a7e92d32971bb6a0b8afe9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afb87926504a7e92d32971bb6a0b8afe9">&#9670;&#160;</a></span>run_case()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<div class="memtemplate">
-template&lt;typename DoWriteVerify&gt; </div>
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void run_case </td>
-          <td>(</td>
-          <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>case_name</em></span>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>raw_pathname</em></span>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">bool</td>          <td class="paramname"><span class="paramname"><em>relative_to_exe</em></span>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">bool</td>          <td class="paramname"><span class="paramname"><em>no_subdir</em></span>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const fs::path &amp;</td>          <td class="paramname"><span class="paramname"><em>exeDir</em></span>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const fs::path &amp;</td>          <td class="paramname"><span class="paramname"><em>cwd</em></span>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">DoWriteVerify &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em>doWriteVerify</em></span>&#160;)</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel static">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="path__resolution__test_8cpp_source.html#l00100">100</a> of file <a class="el" href="path__resolution__test_8cpp_source.html">path_resolution_test.cpp</a>.</p>
-
-</div>
-</div>
-<a id="aa1c365aa666b7c94a5c1770456df9d51" name="aa1c365aa666b7c94a5c1770456df9d51"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa1c365aa666b7c94a5c1770456df9d51">&#9670;&#160;</a></span>uniq_suffix()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static std::string uniq_suffix </td>
-          <td>(</td>
-          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel static">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="path__resolution__test_8cpp_source.html#l00057">57</a> of file <a class="el" href="path__resolution__test_8cpp_source.html">path_resolution_test.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__resolution__test_8cpp_source.html#l00004">4</a> of file <a class="el" href="path__resolution__test_8cpp_source.html">path_resolution_test.cpp</a>.</p>
 
 </div>
 </div>

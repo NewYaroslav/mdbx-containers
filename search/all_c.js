@@ -28,10 +28,11 @@ var searchData=
   ['mdbx_5fcontainers_5fheader_5fonly_25',['MDBX_CONTAINERS_HEADER_ONLY',['../common_8hpp.html#ae6221f78db749cea5f34f9f655009b24',1,'common.hpp']]],
   ['mdbx_5ftest_2ecpp_26',['mdbx_test.cpp',['../mdbx__test_8cpp.html',1,'']]],
   ['mdbxc_27',['mdbxc',['../namespacemdbxc.html',1,'']]],
-  ['mdbxexception_28',['MdbxException',['../classmdbxc_1_1MdbxException.html',1,'mdbxc::MdbxException'],['../classmdbxc_1_1MdbxException.html#a3c316734d7efa5bb6923abc389365249',1,'mdbxc::MdbxException::MdbxException()']]],
-  ['mdbxexception_2ehpp_29',['MdbxException.hpp',['../MdbxException_8hpp.html',1,'']]],
-  ['multi_5ftable_5fdemo_2ecpp_30',['multi_table_demo.cpp',['../multi__table__demo_8cpp.html',1,'']]],
-  ['multiple_20tables_31',['Multiple tables',['../index.html#ex_multitable',1,'']]],
-  ['mydata_32',['MyData',['../structMyData.html',1,'']]],
-  ['mystruct_33',['MyStruct',['../structMyStruct.html',1,'']]]
+  ['mdbxc_5fnodiscard_28',['MDBXC_NODISCARD',['../group__mdbxc__utils.html#ga92e5abfa4a9ac5cbbbdc24df6b075a8e',1,'utils.hpp']]],
+  ['mdbxexception_29',['MdbxException',['../classmdbxc_1_1MdbxException.html',1,'mdbxc::MdbxException'],['../classmdbxc_1_1MdbxException.html#a3c316734d7efa5bb6923abc389365249',1,'mdbxc::MdbxException::MdbxException()']]],
+  ['mdbxexception_2ehpp_30',['MdbxException.hpp',['../MdbxException_8hpp.html',1,'']]],
+  ['multi_5ftable_5fdemo_2ecpp_31',['multi_table_demo.cpp',['../multi__table__demo_8cpp.html',1,'']]],
+  ['multiple_20tables_32',['Multiple tables',['../index.html#ex_multitable',1,'']]],
+  ['mydata_33',['MyData',['../structMyData.html',1,'']]],
+  ['mystruct_34',['MyStruct',['../structMyStruct.html',1,'']]]
 ];

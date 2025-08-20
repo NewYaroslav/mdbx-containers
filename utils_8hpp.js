@@ -5,6 +5,7 @@ var utils_8hpp =
     [ "mdbxc::has_value_type< T >", "structmdbxc_1_1has__value__type.html", "structmdbxc_1_1has__value__type" ],
     [ "mdbxc::SerializeScratch", "structmdbxc_1_1SerializeScratch.html", "structmdbxc_1_1SerializeScratch" ],
     [ "_MDBX_CONTAINERS_UTILS_HPP_INCLUDED", "utils_8hpp.html#a968d96e072579383c049434175119a27", null ],
+    [ "MDBXC_NODISCARD", "group__mdbxc__utils.html#ga92e5abfa4a9ac5cbbbdc24df6b075a8e", null ],
     [ "mdbxc::check_mdbx", "namespacemdbxc.html#ade2a5844f1a6ac6db2227f1f4a263ca7", null ],
     [ "mdbxc::deserialize_value", "namespacemdbxc.html#a5906b44539b2a6194c80dc14be6703eb", null ],
     [ "mdbxc::deserialize_value", "namespacemdbxc.html#a8943216637682007b201faafa40b5ed7", null ],
