@@ -20,6 +20,8 @@
 
 include(FetchContent)
 
+set(MDBX_GIT_TAG "v0.13.7" CACHE STRING "libmdbx release tag")
+
 # -------- internals ----------------------------------------------------------
 
 function(_mdbx_make_aliases _maybe_shared _maybe_static)
@@ -126,6 +128,30 @@ function(_mdbx_try_submodule out_ok)
         else()
             set(_MDBX_SRC_REAL "${_MDBX_SRC}")
         endif()
+        
+        # Try to ensure git tags are available for version.c generation
+        # If submodule is a git repo, fetch tags (best-effort).
+        find_program(_GIT git)
+        if(_GIT)
+            execute_process(
+                COMMAND "${_GIT}" rev-parse --is-inside-work-tree
+                WORKING_DIRECTORY "${_MDBX_SRC_REAL}"
+                OUTPUT_VARIABLE _is_repo
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+            )
+            if(_is_repo STREQUAL "true")
+                execute_process(
+                COMMAND "${_GIT}" fetch --tags --force
+                WORKING_DIRECTORY "${_MDBX_SRC_REAL}"
+                RESULT_VARIABLE _fetch_rc
+                OUTPUT_QUIET ERROR_QUIET
+                )
+                if(NOT _fetch_rc EQUAL 0)
+                    message(WARNING "[mdbx] failed to fetch tags for submodule; falling back to VERSION.json if present")
+                endif()
+            endif()
+        endif()
 
         # Build options BEFORE add_subdirectory (keep static as before)
         set(MDBX_BUILD_SHARED_LIBRARY OFF CACHE BOOL "" FORCE)
@@ -136,10 +162,27 @@ function(_mdbx_try_submodule out_ok)
             set(MDBX_INSTALL_STATIC ON CACHE BOOL "" FORCE)
         endif()
 
-        # VERSION.json cleanup to rely on git metadata (as in your original workaround)
-        if(EXISTS "${_MDBX_SRC_REAL}/VERSION.json")
-            file(REMOVE "${_MDBX_SRC_REAL}/VERSION.json")
-            message(STATUS "libmdbx: removed stray VERSION.json (using git metadata)")
+        # Remove VERSION.json only if tags are available; otherwise keep it as fallback
+        set(_have_tags FALSE)
+        if(_GIT AND _is_repo STREQUAL "true")
+            execute_process(
+                COMMAND "${_GIT}" tag -l
+                WORKING_DIRECTORY "${_MDBX_SRC_REAL}"
+                OUTPUT_VARIABLE _tags_out
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+            )
+            if(NOT "${_tags_out}" STREQUAL "")
+                set(_have_tags TRUE)
+            endif()
+        endif()
+        if(_have_tags)
+            if(EXISTS "${_MDBX_SRC_REAL}/VERSION.json")
+                file(REMOVE "${_MDBX_SRC_REAL}/VERSION.json")
+                message(STATUS "libmdbx: tags present -> removed VERSION.json to use git metadata")
+            endif()
+        else()
+            message(STATUS "libmdbx: no git tags detected -> keeping VERSION.json if present")
         endif()
 
         # Unique binary dir to avoid clobbering
@@ -177,10 +220,10 @@ function(_mdbx_try_fetchcontent out_ok)
         libmdbx
         GIT_REPOSITORY https://github.com/erthink/libmdbx.git
         GIT_TAG        stable
-        GIT_SHALLOW    TRUE
+        GIT_SHALLOW    FALSE
         FIND_PACKAGE_ARGS
     )
-    message(STATUS "[mdbx] Fetching libmdbx (stable)")
+    message(STATUS "[mdbx] Fetching libmdbx (${MDBX_GIT_TAG})")
     FetchContent_MakeAvailable(libmdbx)
 
     if(TARGET mdbx-static)
