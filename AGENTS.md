@@ -55,7 +55,7 @@ You can use **mdbx-containers** as a header-only library or build it as a static
 
 - CMake 3.18+
 - C++11 or later
-- [libmdbx](https://github.com/erthink/libmdbx) (automatically built if `BUILD_DEPS=ON`)
+- [libmdbx](https://github.com/erthink/libmdbx) (fetched automatically; control via `MDBXC_DEPS_MODE`)
 
 ### Using as a Submodule
 
@@ -75,10 +75,11 @@ Or build the static library (optional):
 
 ```bash
 cmake -S . -B build \
-    -DBUILD_DEPS=ON \
-    -DBUILD_STATIC_LIB=ON \
-    -DBUILD_TESTS=ON \
-    -DBUILD_EXAMPLES=ON
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_STATIC_LIB=ON \
+    -DMDBXC_BUILD_TESTS=ON \
+    -DMDBXC_BUILD_EXAMPLES=ON \
+    -DCMAKE_CXX_STANDARD=17
 
 cmake --build build
 ```
@@ -92,13 +93,34 @@ ctest --output-on-failure
 
 ### CMake Options
 
-| Option               | Default | Description                                                                 |
-|----------------------|---------|-----------------------------------------------------------------------------|
-| `BUILD_DEPS`         | OFF     | Build internal libmdbx (submodule in `libs/`)                               |
-| `BUILD_STATIC_LIB`   | OFF     | Build `mdbx_containers` as a precompiled `.a/.lib` static library           |
-| `BUILD_EXAMPLES`     | ON      | Build examples from `examples/`                                             |
-| `BUILD_TESTS`        | ON      | Build tests from `tests/`                                                  |
+All options are prefixed with `MDBXC_` to avoid clashes when used as a
+subproject.
 
+| Option                   | Default | Description                                                         |
+|--------------------------|---------|---------------------------------------------------------------------|
+| `MDBXC_DEPS_MODE`        | AUTO    | Dependency mode for libmdbx: `AUTO`, `SYSTEM` or `BUNDLED`          |
+| `MDBXC_BUILD_STATIC_LIB` | OFF     | Build `mdbx_containers` as a precompiled `.a/.lib` static library   |
+| `MDBXC_BUILD_EXAMPLES`   | ON      | Build examples from `examples/`                                     |
+| `MDBXC_BUILD_TESTS`      | ON      | Build tests from `tests/`                                           |
+| `MDBXC_USE_ASAN`         | ON      | Enable AddressSanitizer for tests/examples when supported           |
+
+
+## Testing
+
+All changes must be verified locally and in CI.
+
+- **Local (Linux)**
+  - Configure the project with CMake.
+  - Build and run tests with `ctest --output-on-failure`.
+  - Check both C++11 and C++17 by setting `-DCMAKE_CXX_STANDARD=11` and `17`.
+
+- **Continuous Integration (CI)**
+  - GitHub Actions builds and tests on Windows (MSYS2/MinGW).
+  - The matrix covers both C++11 and C++17 standards.
+  - Builds use CMake with Ninja and tests run via `ctest --output-on-failure`.
+
+Contributors must ensure that code passes in both standards locally and that
+CI is green before submitting a pull request.
 
 ## Core Classes
 
