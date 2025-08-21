@@ -175,6 +175,7 @@ Enumerations</h2></td></tr>
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a620570627bd4f65866a4b91c3dac8b8a" id="r_a620570627bd4f65866a4b91c3dac8b8a"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a620570627bd4f65866a4b91c3dac8b8a">is_explicitly_relative</a> (const std::string &amp;s) noexcept</td></tr>
+<tr class="memdesc:a620570627bd4f65866a4b91c3dac8b8a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check if path starts with explicit relative prefix.  <br /></td></tr>
 <tr class="separator:a620570627bd4f65866a4b91c3dac8b8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aba3401409b5ff32b9d06f43942ceaa10" id="r_aba3401409b5ff32b9d06f43942ceaa10"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aba3401409b5ff32b9d06f43942ceaa10">is_absolute_path</a> (const std::string &amp;path)</td></tr>
 <tr class="memdesc:aba3401409b5ff32b9d06f43942ceaa10"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks whether the given path is absolute (cross-platform).  <br /></td></tr>
@@ -192,8 +193,10 @@ Functions</h2></td></tr>
 <tr class="memdesc:ac4bdf4b7df5f28445a63d26812e696c2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Converts a UTF-8 string to an ANSI string (Windows-specific).  <br /></td></tr>
 <tr class="separator:ac4bdf4b7df5f28445a63d26812e696c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a932370a996791e192e2126bb1973cc79" id="r_a932370a996791e192e2126bb1973cc79"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a932370a996791e192e2126bb1973cc79">is_path_sep</a> (char c)</td></tr>
+<tr class="memdesc:a932370a996791e192e2126bb1973cc79"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check if character is a path separator.  <br /></td></tr>
 <tr class="separator:a932370a996791e192e2126bb1973cc79"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af52d809ac3fb1f92ee0f0a5f4659cf69" id="r_af52d809ac3fb1f92ee0f0a5f4659cf69"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af52d809ac3fb1f92ee0f0a5f4659cf69">lexically_normal_compat</a> (const std::string &amp;in)</td></tr>
+<tr class="memdesc:af52d809ac3fb1f92ee0f0a5f4659cf69"><td class="mdescLeft">&#160;</td><td class="mdescRight">Normalize path removing '.  <br /></td></tr>
 <tr class="separator:af52d809ac3fb1f92ee0f0a5f4659cf69"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5a7e8da1bc85900d5b61de3e544069a8" id="r_a5a7e8da1bc85900d5b61de3e544069a8"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structmdbxc_1_1PathComponents.html">PathComponents</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5a7e8da1bc85900d5b61de3e544069a8">split_path</a> (const std::string &amp;path)</td></tr>
 <tr class="memdesc:a5a7e8da1bc85900d5b61de3e544069a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Splits a path into its root and components.  <br /></td></tr>
@@ -439,7 +442,7 @@ Functions</h2></td></tr>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00456">456</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00464">464</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -824,7 +827,7 @@ template&lt;typename T&gt; </div>
 <p>Retrieves the directory of the executable file. </p>
 <dl class="section return"><dt>Returns</dt><dd>A string containing the directory path of the executable. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00094">94</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00096">96</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -860,7 +863,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>The extracted file name, or the full string if no directory separator is found. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00153">153</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00155">155</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -970,7 +973,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>Directory path (e.g., "data") </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00076">76</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00078">78</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -1006,7 +1009,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>True if path is absolute, false otherwise. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00057">57</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00059">59</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -1033,7 +1036,16 @@ template&lt;typename T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00049">49</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p>Check if path starts with explicit relative prefix. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">s</td><td>Path string to inspect. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true if path starts with "./", "../", ".\\", or "..\". </dd></dl>
+
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00051">51</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -1060,7 +1072,16 @@ template&lt;typename T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00247">247</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p>Check if character is a path separator. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">c</td><td>Character to check. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true if <em class="arg">c</em> is '/' or '\'. </dd></dl>
+
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00252">252</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -1087,7 +1108,16 @@ template&lt;typename T&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00251">251</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p>Normalize path removing '. </p>
+<p>' and '..' components. </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">in</td><td>Path to normalize. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Normalized path. </dd></dl>
+
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00259">259</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -1790,7 +1820,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>A <a class="el" href="structmdbxc_1_1PathComponents.html" title="Structure to hold the root and components of a path.">PathComponents</a> object containing the root and components of the path. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00413">413</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00421">421</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
@@ -1826,7 +1856,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>The converted ANSI string. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00171">171</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="path__utils_8hpp_source.html#l00173">173</a> of file <a class="el" href="path__utils_8hpp_source.html">path_utils.hpp</a>.</p>
 
 </div>
 </div>
