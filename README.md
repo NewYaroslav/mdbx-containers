@@ -4,7 +4,9 @@
 
 **mdbx-containers** is a lightweight header-only C++11/17 library that bridges [libmdbx](https://github.com/erthink/libmdbx) with familiar STL containers such as `std::map` and `std::set`. It transparently persists your in-memory data in MDBX while providing high performance and thread-safe transactions.
 
-> **Note:** `KeyTable` and `KeyMultiValueTable` are not implemented yet.
+> Note  
+> This project values technical merit over personal views of its authors.  
+> See [PHILOSOPHY.md](PHILOSOPHY.md) for details.
 
 ## Features
 
