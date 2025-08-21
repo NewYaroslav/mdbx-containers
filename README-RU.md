@@ -1,4 +1,4 @@
-# mdbx-containers
+# MDBX-Containers
 
 **mdbx-containers** — это лёгкая заголовочная библиотека на C++11/C++17, предоставляющая удобный интерфейс для работы с базой данных [libmdbx](https://github.com/erthink/libmdbx) через стандартные контейнеры STL: `std::map`, `std::set`, `std::unordered_map`, `std::vector` и др.
 
