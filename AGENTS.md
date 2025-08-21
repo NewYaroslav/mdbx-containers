@@ -231,11 +231,64 @@ type(scope): short message
 - Boolean variables should start with `is`, `has`, `use`, `enable` or with `m_is_`, `m_has_`, etc. for class fields.
 - Do not use prefixes `b_`, `n_`, `f_`.
 
-## Doxygen Comments
+## Documentation / Doxygen Style Guide
 
-- All comments and Doxygen documentation must be in English.
-- Use `/// \brief` before functions and classes.
-- Do not start descriptions with the word `The`.
+Applies to all C++11/14/17 sources in this repository.
+
+- Prefer triple-slash fences: `///`. Avoid `/** ... */` unless required.
+- Use backslash-style tags.
+- Lines should generally stay under 100–120 columns and remain concise, technical, and in English.
+- Do not start descriptions with "The".
+
+### Tag order
+
+Use the following ordering template:
+
+```text
+\brief
+\tparam (each template parameter)
+\param  (in function signature order)
+\return (exactly once for non-void)
+\throws
+\pre
+\post
+\invariant
+\complexity
+\thread_safety
+\note / \warning
+```
+
+- Every function parameter must have a matching `\param` with the same name and order.
+- Every template parameter must have a matching `\tparam`.
+- Non-void functions must document the return value with a single `\return`.
+- Use `\throws` for each exception type.
+- Add `\pre` and `\post` when meaningful, `\invariant` for class invariants.
+- Document algorithmic complexity via `\complexity`.
+- State `\thread_safety` as one of: "Thread-safe", "Not thread-safe", or "Conditionally thread-safe: …".
+- Employ `\note` and `\warning` as needed.
+- Public-facing docs should avoid unnecessary internal layout details.
+
+### Examples
+
+```cpp
+/// \brief Resize canvas to the target dimensions.
+/// \param w Width in pixels.
+/// \param h Height in pixels.
+/// \pre w >= 0 && h >= 0.
+/// \post New size equals (w, h).
+void resize(int w, int h);
+
+/// \brief Computes 64-bit hash of the input.
+/// \tparam T Input type supporting contiguous byte access.
+/// \param data Input value.
+/// \return 64-bit hash.
+/// \complexity O(n) over input size.
+/// \thread_safety Not thread-safe.
+template<class T>
+uint64_t hash(const T& data);
+```
+
+**Compliance:** If legacy comments conflict with this guide, this section overrides them for new or updated code.
 
 ## File Names
 
