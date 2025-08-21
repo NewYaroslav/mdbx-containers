@@ -44,26 +44,31 @@
 ## 🔧 Установка и сборка
 
 1. Скопируйте папку `include/` в проект или подключите репозиторий как submodule.
-2. Убедитесь, что `libmdbx` доступна системе (можно собрать автоматически при `BUILD_DEPS=ON`).
+2. Убедитесь, что `libmdbx` доступна системе (установите `MDBXC_DEPS_MODE=BUNDLED` для автоматической сборки).
 3. Проверьте поддержку стандарта C++11 и выше.
 
 ### Сборка через CMake
 
 ```bash
 cmake -S . -B build \
-    -DBUILD_DEPS=ON \
-    -DBUILD_STATIC_LIB=ON \
-    -DBUILD_TESTS=ON \
-    -DBUILD_EXAMPLES=ON
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_STATIC_LIB=ON \
+    -DMDBXC_BUILD_TESTS=ON \
+    -DMDBXC_BUILD_EXAMPLES=ON \
+    -DMDBXC_USE_ASAN=ON \
+    -DCMAKE_CXX_STANDARD=17
 cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
 
-Для Windows доступны `.bat`‑скрипты с аналогичными параметрами (`build-17-examples.bat`, `build-mingw-17-tests.bat` и др.).
+Для Windows доступны `.bat`‑скрипты с аналогичными параметрами (`build-mingw-17-examples.bat`, `build-mingw-17-tests.bat`, `build-mingw-11-tests.bat`).
 
 ---
 
-## 🚀 Пример использования
+## 🚀 Примеры использования
+
+### Базовая таблица ключ-значение
 
 ```cpp
 #include <mdbx_containers/KeyValueTable.hpp>
@@ -78,11 +83,9 @@ int main() {
     auto conn = mdbxc::Connection::create(config);
     mdbxc::KeyValueTable<int, std::string> table(conn, "my_map");
 
-    // Запись
     table.insert_or_assign(1, "Hello");
     table.insert_or_assign(2, "World");
 
-    // Чтение
     std::map<int, std::string> result;
     table.load(result);
 
@@ -91,6 +94,43 @@ int main() {
 
     return 0;
 }
+```
+
+### Ручное управление транзакцией
+
+```cpp
+mdbxc::Config config;
+config.pathname = "txn.mdbx";
+auto conn = mdbxc::Connection::create(config);
+mdbxc::KeyValueTable<int, std::string> table(conn, "demo");
+
+conn->begin(mdbxc::TransactionMode::WRITABLE);
+table.insert_or_assign(10, "ten");
+conn->commit();
+```
+
+### Пользовательская структура
+
+```cpp
+struct MyData {
+    int id;
+    double value;
+
+    std::vector<uint8_t> to_bytes() const {
+        std::vector<uint8_t> bytes(sizeof(MyData));
+        std::memcpy(bytes.data(), this, sizeof(MyData));
+        return bytes;
+    }
+
+    static MyData from_bytes(const void* data, size_t size) {
+        MyData out{};
+        std::memcpy(&out, data, sizeof(MyData));
+        return out;
+    }
+};
+
+mdbxc::KeyValueTable<int, MyData> table(conn, "my_data");
+table.insert_or_assign(42, MyData{42, 3.14});
 ```
 
 📘 Документация
