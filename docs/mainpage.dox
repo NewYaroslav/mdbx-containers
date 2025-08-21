@@ -61,7 +61,9 @@ b.insert_or_assign("a", "b");
 \section build_sec Building
 Use CMake or simply include the headers and link with libmdbx.
 ```bash
-cmake -S . -B build -DBUILD_DEPS=ON -DBUILD_STATIC_LIB=ON
+cmake -S . -B build \
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_STATIC_LIB=ON
 cmake --build build
 ```
 
