@@ -1,29 +1,100 @@
 /*! \page tables_page Persistent Containers Usage
 \tableofcontents
 
-This page describes how to work with the persistent container classes such as
+This page describes how to work with persistent container classes such as
 \ref mdbxc::KeyValueTable, \ref mdbxc::KeyTable,
 \ref mdbxc::KeyMultiValueTable, and \ref mdbxc::AnyValueTable.
-These containers expose familiar STL-like interfaces
-while storing data durably in an MDBX database.
+Containers expose STL-like interfaces while storing data durably in an MDBX
+database.
 
-## Basic Operations
+## Creating a connection
 
-`KeyValueTable` behaves similarly to `std::map`. You can insert or assign
-key-value pairs, look them up, and remove them. All modifying operations run
-inside a transaction which is automatically created when needed.
+All tables operate inside an \ref mdbxc::Connection. A minimal setup creates
+the environment and names a logical table:
 
 ```cpp
-mdbxc::Config cfg; cfg.pathname = "example.mdbx";
+mdbxc::Config cfg;            // path, flags, table settings
+cfg.pathname = "example.mdbx";
 auto conn = mdbxc::Connection::create(cfg);
 mdbxc::KeyValueTable<int, std::string> table(conn, "demo");
-
-table.insert_or_assign(1, "one");
 ```
 
-## C++ Compatibility
+## Basic operations
+
+`KeyValueTable` mirrors `std::map`. Insert or update elements with
+`insert_or_assign()`, query them with `find()`, erase with `erase()`, or use
+`operator[]` for convenient assignment. Each modifying call runs inside a
+transaction managed automatically by the table.
+
+```cpp
+table.insert_or_assign(1, "one");
+table.erase(1);
+#if __cplusplus >= 201703L
+auto v = table.find(2);            // std::optional<std::string>
+if (v) std::cout << *v;
+#else
+auto v = table.find_compat(2);     // std::pair<bool, std::string>
+if (v.first) std::cout << v.second;
+#endif
+```
+
+### Iteration and bulk synchronization
+
+Tables can be synchronized with existing containers. Assigning from
+`std::map` or `std::unordered_map` replaces database content, while calling the
+table object loads all pairs into a container:
+
+```cpp
+std::map<int, std::string> src{{1, "one"}, {2, "two"}};
+table = src;                     // reconcile with database
+auto restored = table.operator()<std::map>();
+for (auto& [k, v] : restored) {/* ... */}
+```
+
+## Key-only and multi-value tables
+
+\ref mdbxc::KeyTable acts like `std::set`, storing only keys. Use `insert()`
+to add a key, `contains()` to test for existence, and `erase()` to remove it.
+
+\ref mdbxc::KeyMultiValueTable allows duplicate keys similar to `std::multimap`.
+`insert()` adds a new value for a key, `find()` iterates over the range of
+values, and `erase(key, value)` removes individual duplicates.
+
+## Heterogeneous values
+
+\ref mdbxc::AnyValueTable stores values of arbitrary types by tagging each
+record with its C++ type. `set<T>()`, `insert<T>()`, and `get<T>()` operate on
+typed values, and `update<T>()` modifies them in place with a functor.
+
+```cpp
+mdbxc::AnyValueTable<int> any(conn);
+any.set<int>(1, 10);
+any.update<int>(1, [](int& v){ v += 5; });
+int v = any.get<int>(1);          // returns 15
+```
+
+## Transaction control
+
+Every modifying operation uses an \ref mdbxc::MDBX transaction. Tables create
+transactions automatically, but a caller may supply an external transaction to
+group multiple operations:
+
+```cpp
+auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+table.insert_or_assign(7, "seven", txn);
+table.insert_or_assign(8, "eight", txn);
+txn.commit();
+```
+
+## C++ compatibility
 
 The library supports both C++11 and C++17. When built with C++17, functions
 such as `find()` return `std::optional`. With C++11 use the `*_compat`
 variants returning `std::pair<bool, T>`.
+
+## Custom serialization
+
+Trivially copyable types are stored as raw bytes. Custom types participate by
+providing `to_bytes()` and `from_bytes()` functions, allowing complex structures
+to be persisted without manual serialization logic.
 */
