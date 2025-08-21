@@ -6,6 +6,7 @@
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <mdbx_containers/KeyTable.hpp>
 #include <iostream>
+#include <limits>
 
 int main() {
     mdbxc::Config config;
@@ -49,5 +50,7 @@ int main() {
         std::cout << "kv_table2[\"a\"]: not found" << std::endl;
 #   endif
 
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::cin.get();
     return 0;
 }

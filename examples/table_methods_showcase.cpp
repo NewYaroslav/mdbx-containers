@@ -6,6 +6,7 @@
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <iostream>
 #include <string>
+#include <limits>
 
 int main() {
     mdbxc::Config config;
@@ -37,8 +38,8 @@ int main() {
     // operator()
     std::map<int, std::string> snapshot = table();
     std::cout << "Snapshot:\n";
-    for (const auto& [k, v] : snapshot)
-        std::cout << k << ": " << v << std::endl;
+    for (std::map<int, std::string>::const_iterator it = snapshot.begin(); it != snapshot.end(); ++it)
+        std::cout << it->first << ": " << it->second << std::endl;
     
     // operator=
     std::unordered_map<int, std::string> temp_data = {
@@ -80,5 +81,7 @@ int main() {
     table.clear();
     std::cout << "After clear, size = " << table.count() << std::endl;
 
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::cin.get();
     return 0;
 }

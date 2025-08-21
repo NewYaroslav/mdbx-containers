@@ -1,39 +1,55 @@
 @echo off
 setlocal
 
-REM === Настройки ===
-set BUILD_DIR=build-cpp11-tests-deps
+REM === Settings ===
+set BUILD_DIR=build-mingw-cpp11-tests
+set GENERATOR=MinGW Makefiles
+set BUILD_TYPE=Release
 
-REM === Создание папки сборки ===
-if not exist %BUILD_DIR% (
-    mkdir %BUILD_DIR%
+REM === Create build dir ===
+if not exist "%BUILD_DIR%" (
+    mkdir "%BUILD_DIR%"
 )
 
-REM === Генерация CMake проекта ===
-cmake -S . -B %BUILD_DIR% ^
-    -G "MinGW Makefiles" ^
+REM === Configure ===
+cmake -S . -B "%BUILD_DIR%" ^
+    -G "%GENERATOR%" ^
+    -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -DCMAKE_CXX_STANDARD=11 ^
-    -DBUILD_DEPS=ON ^
-    -DBUILD_STATIC_LIB=OFF ^
-    -DBUILD_TESTS=ON ^
-    -DBUILD_EXAMPLES=OFF
+    -DMDBXC_DEPS_MODE=AUTO ^
+    -DMDBXC_BUILD_STATIC_LIB=OFF ^
+    -DMDBXC_BUILD_TESTS=ON ^
+    -DMDBXC_BUILD_EXAMPLES=OFF ^
+    -DMDBXC_USE_ASAN=ON
 
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo [ERROR] CMake generation failed.
     pause
     exit /b 1
 )
 
-REM === Сборка ===
-cmake --build %BUILD_DIR% --config Release
+REM === Build ===
+cmake --build "%BUILD_DIR%" -- -j > "build.log" 2>&1
 
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo [ERROR] Build failed.
     pause
     exit /b 1
 )
 
+REM === Run tests ===
+REM Добавим bin в PATH на случай, если зависят от DLL.
+set "PATH=%CD%\%BUILD_DIR%\bin;%PATH%"
+
+ctest --test-dir "%BUILD_DIR%" --output-on-failure
+
+if errorlevel 1 (
+    echo [ERROR] Tests failed.
+    pause
+    exit /b 1
+)
+
 echo.
-echo === Build finished successfully ===
+echo === Build and tests finished successfully ===
 pause
-endlocal
+exit /b 0

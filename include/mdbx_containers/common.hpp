@@ -7,12 +7,14 @@
 /// 
 /// Includes building blocks such as Connection, Transaction, Config, and exceptions.
 
+// --- Standard includes (self-contained header) ---
 #include <string>
 #include <vector>
 #include <deque>
 #include <list>
 #include <set>
 #include <array>
+#include <algorithm>
 #include <bitset>
 #include <unordered_set>
 #include <unordered_map>
@@ -24,8 +26,13 @@
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
+#include <cassert>
 #include <cstdlib>
 #include <mdbx.h>
+
+#if __cplusplus >= 201703L
+#	include <cstddef> // std::byte
+#endif
 
 #ifndef MDBX_CONTAINERS_SEPARATE_COMPILATION
 #define MDBX_CONTAINERS_HEADER_ONLY

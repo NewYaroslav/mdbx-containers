@@ -7,7 +7,7 @@ mdbx-containers bridges standard STL containers with high-performance [libmdbx](
 
 Key features:
 - Header-only usage or optional static library.
-- Unified API for `KeyTable`, `KeyValueTable`, and `KeyMultiValueTable`.
+- Unified API for `KeyTable`, `KeyValueTable`, `KeyMultiValueTable`, and `AnyValueTable`.
 - Automatic serialization of trivially copyable types and custom `to_bytes()`/`from_bytes()` support.
 - Multiple logical tables inside one MDBX environment.
 - Thread-safe operations with per-thread transactions.
@@ -61,14 +61,16 @@ b.insert_or_assign("a", "b");
 \section build_sec Building
 Use CMake or simply include the headers and link with libmdbx.
 ```bash
-cmake -S . -B build -DBUILD_DEPS=ON -DBUILD_STATIC_LIB=ON
+cmake -S . -B build \
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_STATIC_LIB=ON
 cmake --build build
 ```
 
-For more details on container usage and C++ version differences see \ref tables_page.
+For more details on container usage and C++ version differences see \subpage tables_page.
 
 \section config_sec Configuration Guide
-Details on tuning the MDBX environment are available on \ref config_page.
+Details on tuning the MDBX environment are available on \subpage config_page.
 
 \section repo_sec Repository
 Sources: [GitHub repository](https://github.com/NewYaroslav/mdbx-containers).

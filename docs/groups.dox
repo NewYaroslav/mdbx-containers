@@ -1,17 +1,24 @@
 /*! \defgroup mdbxc_core Core Components
- *  Classes for connection management, configuration, transaction handling,
- *  and the common base classes shared across containers.
+Classes for connection management, configuration, transaction handling,
+and the common base classes shared across containers.
  */
 
 /*! \defgroup mdbxc_tables Persistent Containers
- *  STL-like containers backed by MDBX such as \c KeyValueTable, \c KeyTable
- *  and related types providing durable storage.
+STL-like containers backed by MDBX such as \c KeyValueTable, \c KeyTable,
+\c KeyMultiValueTable, and \c AnyValueTable providing durable storage.
  */
 
 /*! \defgroup mdbxc_utils Utility Functions
- *  Helper traits and serialization routines used throughout the library.
+Helper traits and serialization routines used throughout the library.
+\section IEEE754 sortable keys
+These helpers implement order-preserving transformation of IEEE754 floats/doubles
+into unsigned integers. This allows using floating-point values as database keys
+with MDBX_INTEGERKEY.
+
+Negative numbers are bitwise inverted, positives have their sign bit flipped.
+As a result, natural numeric ordering is preserved in the unsigned integer domain.
  */
 
 /*! \defgroup mdbxc_examples Examples
- *  Example programs demonstrating how to use the mdbx-containers library.
+Example programs demonstrating how to use the mdbx-containers library.
  */

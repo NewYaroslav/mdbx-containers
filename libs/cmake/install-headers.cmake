@@ -1,12 +1,12 @@
 # install-headers.cmake
 #
-# Утилита для копирования заголовков в build-libs/include/<target_name>/
+# Utility for copying headers to ${CMAKE_BINARY_DIR}/include/<target_name>/
 
 function(install_headers_to_include target_name include_dir)
     file(GLOB_RECURSE headers
         "${include_dir}/*.h"
         "${include_dir}/*.hpp"
-		"${include_dir}/*.ipp"
+        "${include_dir}/*.ipp"
         "${include_dir}/*.inl"
     )
 

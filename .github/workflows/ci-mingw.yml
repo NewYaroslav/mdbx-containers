@@ -1,0 +1,106 @@
+name: CI MinGW (build & test)
+
+on:
+  push:
+    branches: [ main, stable ]
+  pull_request:
+    branches: [ main, stable ]
+
+jobs:
+  mingw:
+    name: msys2/mingw64 (C++${{ matrix.std }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        std: [11, 17]
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSYS2 (MINGW64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            base-devel
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkg-config
+
+      - name: "Sanity: which git"
+        env:
+          PATH: "/c/Program Files/Git/bin:$PATH"
+        run: |
+          which git
+          git --version || true
+          git -C libs/libmdbx rev-parse --show-toplevel || true
+
+      - name: "Ensure full submodule history & tags (libmdbx)"
+        env:
+          PATH: "/c/Program Files/Git/bin:$PATH"
+        run: |
+          set -euo pipefail
+          git submodule update --init --recursive
+          if [ -d "libs/libmdbx/.git" ]; then
+            git -C libs/libmdbx config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+            git -C libs/libmdbx fetch --prune --tags --force
+            if git -C libs/libmdbx rev-parse --is-shallow-repository | grep -qi true; then
+              git -C libs/libmdbx fetch --unshallow || git -C libs/libmdbx fetch --deepen=1000
+            fi
+            git -C libs/libmdbx describe --tags --abbrev=0 >/dev/null || { echo "ERROR: libmdbx has no tags"; exit 1; }
+          else
+            echo "WARN: libs/libmdbx is missing or not a submodule"
+          fi
+
+      - name: Configure (Release, Ninja)
+        env:
+          CC:  x86_64-w64-mingw32-gcc
+          CXX: x86_64-w64-mingw32-g++
+          PATH: "/c/Program Files/Git/bin:$PATH"
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          cmake -S . -B build -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=${{ matrix.std }} \
+            -DCMAKE_POLICY_DEFAULT_CMP0152=NEW \
+            -DMDBXC_DEPS_MODE=BUNDLED \
+            -DMDBXC_BUILD_STATIC_LIB=OFF \
+            -DMDBXC_BUILD_TESTS=ON \
+            -DMDBXC_BUILD_EXAMPLES=OFF \
+            -Wno-dev \
+          2>&1 | tee build/configure.log
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          cmake --build build --config Release --parallel \
+          2>&1 | tee build/build.log
+
+      - name: Run tests (ctest)
+        run: |
+          set -euo pipefail
+          export PATH="$PWD/build/bin:$PATH"
+          ctest --test-dir build --output-on-failure -C Release \
+          2>&1 | tee build/ctest.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mingw64-cxx${{ matrix.std }}-logs
+          path: |
+            build/*.log
+          if-no-files-found: error
+

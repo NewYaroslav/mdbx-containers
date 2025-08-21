@@ -34,16 +34,19 @@ namespace mdbxc {
         virtual ~BaseTable() = default;
         
         /// \brief Checks if the connection is currently active.
+        /// \return true if connected, false otherwise.
         bool is_connected() const {
             return m_connection->is_connected();
         }
-        
+
         /// \brief Connects to the MDBX environment if not already connected.
+        /// \throws MdbxException if connection fails.
         void connect() {
             m_connection->connect();
         }
-        
+
         /// \brief Disconnects the MDBX environment.
+        /// \throws MdbxException if closing the environment fails.
         void disconnect() {
             m_connection->disconnect();
         }
@@ -96,6 +99,7 @@ namespace mdbxc {
         }
         
         /// \brief Gets the raw DBI handle.
+        /// \return DBI handle for the opened table.
         MDBX_dbi handle() const { return m_dbi; }
     };
     

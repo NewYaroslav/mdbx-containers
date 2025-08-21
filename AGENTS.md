@@ -55,7 +55,7 @@ You can use **mdbx-containers** as a header-only library or build it as a static
 
 - CMake 3.18+
 - C++11 or later
-- [libmdbx](https://github.com/erthink/libmdbx) (automatically built if `BUILD_DEPS=ON`)
+- [libmdbx](https://github.com/erthink/libmdbx) (fetched automatically; control via `MDBXC_DEPS_MODE`)
 
 ### Using as a Submodule
 
@@ -75,10 +75,11 @@ Or build the static library (optional):
 
 ```bash
 cmake -S . -B build \
-    -DBUILD_DEPS=ON \
-    -DBUILD_STATIC_LIB=ON \
-    -DBUILD_TESTS=ON \
-    -DBUILD_EXAMPLES=ON
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_STATIC_LIB=ON \
+    -DMDBXC_BUILD_TESTS=ON \
+    -DMDBXC_BUILD_EXAMPLES=ON \
+    -DCMAKE_CXX_STANDARD=17
 
 cmake --build build
 ```
@@ -92,13 +93,34 @@ ctest --output-on-failure
 
 ### CMake Options
 
-| Option               | Default | Description                                                                 |
-|----------------------|---------|-----------------------------------------------------------------------------|
-| `BUILD_DEPS`         | OFF     | Build internal libmdbx (submodule in `libs/`)                               |
-| `BUILD_STATIC_LIB`   | OFF     | Build `mdbx_containers` as a precompiled `.a/.lib` static library           |
-| `BUILD_EXAMPLES`     | ON      | Build examples from `examples/`                                             |
-| `BUILD_TESTS`        | ON      | Build tests from `tests/`                                                  |
+All options are prefixed with `MDBXC_` to avoid clashes when used as a
+subproject.
 
+| Option                   | Default | Description                                                         |
+|--------------------------|---------|---------------------------------------------------------------------|
+| `MDBXC_DEPS_MODE`        | AUTO    | Dependency mode for libmdbx: `AUTO`, `SYSTEM` or `BUNDLED`          |
+| `MDBXC_BUILD_STATIC_LIB` | OFF     | Build `mdbx_containers` as a precompiled `.a/.lib` static library   |
+| `MDBXC_BUILD_EXAMPLES`   | ON      | Build examples from `examples/`                                     |
+| `MDBXC_BUILD_TESTS`      | ON      | Build tests from `tests/`                                           |
+| `MDBXC_USE_ASAN`         | ON      | Enable AddressSanitizer for tests/examples when supported           |
+
+
+## Testing
+
+All changes must be verified locally and in CI.
+
+- **Local (Linux)**
+  - Configure the project with CMake.
+  - Build and run tests with `ctest --output-on-failure`.
+  - Check both C++11 and C++17 by setting `-DCMAKE_CXX_STANDARD=11` and `17`.
+
+- **Continuous Integration (CI)**
+  - GitHub Actions builds and tests on Windows (MSYS2/MinGW).
+  - The matrix covers both C++11 and C++17 standards.
+  - Builds use CMake with Ninja and tests run via `ctest --output-on-failure`.
+
+Contributors must ensure that code passes in both standards locally and that
+CI is green before submitting a pull request.
 
 ## Core Classes
 
@@ -137,6 +159,33 @@ Types can be nested, e.g., `KeyValueTable<std::string, std::vector<MyStruct>>`.
 - `Connection` internally uses `TransactionTracker` to bind transactions to threads.  
 - Serialization is performed via `serialize_value()` / `deserialize_value()` from `detail/serialization.hpp`.  
 - Supports both custom `to_bytes()` / `from_bytes()` and fallback to `std::is_trivially_copyable`.  
+
+### Thread-local issue and SerializeScratch
+
+Originally, temporary buffers for serialization used `thread_local` STL containers
+(e.g., `std::vector<uint8_t>`). On Windows/MinGW this led to **heap corruption**
+and random crashes at thread shutdown, because:
+
+- `thread_local` destructors run when the CRT/heap may already be partially finalized
+- STL containers may free memory using a different heap arena than the one they were created in
+- destructor order across `thread_local` objects is not guaranteed
+
+To fix this, we replaced all `thread_local` STL buffers with a dedicated helper:
+
+```cpp
+struct SerializeScratch {
+    alignas(8) unsigned char small[16];
+    std::vector<uint8_t> bytes;
+    // ...
+};
+```
+
+* `small[16]` provides a stack-like inline buffer for INTEGERKEY and other small values
+* `bytes` is used for larger or variable-sized data, owned by the calling scope
+* Returned `MDBX_val` is valid only until the next serialization call on the same scratch
+
+This approach removes dependency on `thread_local` destructors, is portable across compilers,
+and avoids MinGW-specific runtime crashes.
 
 ## Named Tables
 
@@ -182,11 +231,64 @@ type(scope): short message
 - Boolean variables should start with `is`, `has`, `use`, `enable` or with `m_is_`, `m_has_`, etc. for class fields.
 - Do not use prefixes `b_`, `n_`, `f_`.
 
-## Doxygen Comments
+## Documentation / Doxygen Style Guide
 
-- All comments and Doxygen documentation must be in English.
-- Use `/// \brief` before functions and classes.
-- Do not start descriptions with the word `The`.
+Applies to all C++11/14/17 sources in this repository.
+
+- Prefer triple-slash fences: `///`. Avoid `/** ... */` unless required.
+- Use backslash-style tags.
+- Lines should generally stay under 100–120 columns and remain concise, technical, and in English.
+- Do not start descriptions with "The".
+
+### Tag order
+
+Use the following ordering template:
+
+```text
+\brief
+\tparam (each template parameter)
+\param  (in function signature order)
+\return (exactly once for non-void)
+\throws
+\pre
+\post
+\invariant
+\complexity
+\thread_safety
+\note / \warning
+```
+
+- Every function parameter must have a matching `\param` with the same name and order.
+- Every template parameter must have a matching `\tparam`.
+- Non-void functions must document the return value with a single `\return`.
+- Use `\throws` for each exception type.
+- Add `\pre` and `\post` when meaningful, `\invariant` for class invariants.
+- Document algorithmic complexity via `\complexity`.
+- State `\thread_safety` as one of: "Thread-safe", "Not thread-safe", or "Conditionally thread-safe: …".
+- Employ `\note` and `\warning` as needed.
+- Public-facing docs should avoid unnecessary internal layout details.
+
+### Examples
+
+```cpp
+/// \brief Resize canvas to the target dimensions.
+/// \param w Width in pixels.
+/// \param h Height in pixels.
+/// \pre w >= 0 && h >= 0.
+/// \post New size equals (w, h).
+void resize(int w, int h);
+
+/// \brief Computes 64-bit hash of the input.
+/// \tparam T Input type supporting contiguous byte access.
+/// \param data Input value.
+/// \return 64-bit hash.
+/// \complexity O(n) over input size.
+/// \thread_safety Not thread-safe.
+template<class T>
+uint64_t hash(const T& data);
+```
+
+**Compliance:** If legacy comments conflict with this guide, this section overrides them for new or updated code.
 
 ## File Names
 

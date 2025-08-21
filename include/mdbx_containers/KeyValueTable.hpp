@@ -84,6 +84,7 @@ namespace mdbxc {
         /// \return Filled container.
         /// \throws MdbxException if a database error occurs.
         template<template<class...> class ContainerT = std::map>
+#if __cplusplus >= 201703L
         auto operator()() {
             using ReturnT = std::conditional_t<
                 std::is_same_v<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT>>>,
@@ -97,6 +98,25 @@ namespace mdbxc {
             }, TransactionMode::READ_ONLY);
             return container;
         }
+#else
+        typename std::conditional<
+            std::is_same<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT> > >::value,
+            std::vector<std::pair<KeyT, ValueT> >,
+            ContainerT<KeyT, ValueT>
+        >::type operator()() {
+            typedef typename std::conditional<
+                std::is_same<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT> > >::value,
+                std::vector<std::pair<KeyT, ValueT> >,
+                ContainerT<KeyT, ValueT>
+            >::type ReturnT;
+
+            ReturnT container;
+            with_transaction([this, &container](MDBX_txn* txn) {
+                db_load(container, txn);
+            }, TransactionMode::READ_ONLY);
+            return container;
+        }
+#endif
 
         /// \brief Helper proxy for convenient assignment via operator[].
         class AssignmentProxy {
@@ -118,8 +138,13 @@ namespace mdbxc {
             /// \brief Implicit conversion to the value type.
             /// If the key does not exist, a default-constructed value is inserted.
             operator ValueT() const {
+#if __cplusplus >= 201703L
                 auto val = m_db.find(m_key);
                 if (val) return *val;
+#else
+                std::pair<bool, ValueT> val = m_db.find(m_key);
+                if (val.first) return val.second;
+#endif
                 ValueT def{}; // default construct if missing
                 m_db.insert_or_assign(m_key, def); // persist the default value
                 return def;
@@ -185,6 +210,7 @@ namespace mdbxc {
         /// \return Filled container.
         /// \throws MdbxException if a database error occurs.
         template<template<class...> class ContainerT = std::map>
+#if __cplusplus >= 201703L
         auto retrieve_all(MDBX_txn* txn = nullptr) {
             using ReturnT = std::conditional_t<
                 std::is_same_v<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT>>>,
@@ -198,7 +224,7 @@ namespace mdbxc {
             }, TransactionMode::READ_ONLY, txn);
             return container;
         }
-        
+
         /// \brief Retrieves all key-value pairs into the specified container type.
         /// \tparam ContainerT Container type (e.g., std::map, std::unordered_map, std::vector).
         /// \param txn Transaction wrapper used for the retrieval.
@@ -208,6 +234,39 @@ namespace mdbxc {
         auto retrieve_all(const Transaction& txn) {
             return retrieve_all<ContainerT>(txn.handle());
         }
+#else
+        typename std::conditional<
+            std::is_same<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT> > >::value,
+            std::vector<std::pair<KeyT, ValueT> >,
+            ContainerT<KeyT, ValueT>
+        >::type retrieve_all(MDBX_txn* txn = nullptr) {
+            typedef typename std::conditional<
+                std::is_same<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT> > >::value,
+                std::vector<std::pair<KeyT, ValueT> >,
+                ContainerT<KeyT, ValueT>
+            >::type ReturnT;
+
+            ReturnT container;
+            with_transaction([this, &container](MDBX_txn* txn) {
+                db_load(container, txn);
+            }, TransactionMode::READ_ONLY, txn);
+            return container;
+        }
+
+        /// \brief Retrieves all key-value pairs into the specified container type.
+        /// \tparam ContainerT Container type (e.g., std::map, std::unordered_map, std::vector).
+        /// \param txn Transaction wrapper used for the retrieval.
+        /// \return Filled container.
+        /// \throws MdbxException if a database error occurs.
+        template<template<class...> class ContainerT = std::map>
+        typename std::conditional<
+            std::is_same<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT> > >::value,
+            std::vector<std::pair<KeyT, ValueT> >,
+            ContainerT<KeyT, ValueT>
+        >::type retrieve_all(const Transaction& txn) {
+            return retrieve_all<ContainerT>(txn.handle());
+        }
+#endif
 
         /// \brief Appends data to the database.
         /// \tparam ContainerT Container type (e.g., std::map or std::unordered_map).
@@ -294,7 +353,7 @@ namespace mdbxc {
         /// \param key The key to be inserted.
         /// \param value The value to be inserted.
         /// \param txn Active MDBX transaction.
-        /// \return
+        /// \return \c true if the pair was inserted, \c false when the key already exists.
         /// \throws MdbxException if a database error occurs.
         bool insert(const KeyT &key, const ValueT &value, MDBX_txn* txn = nullptr) {
             bool res;
@@ -308,7 +367,7 @@ namespace mdbxc {
         /// \param key The key to be inserted.
         /// \param value The value to be inserted.
         /// \param txn Transaction wrapper used for the insertion.
-        /// \return
+        /// \return \c true if the pair was inserted, \c false when the key already exists.
         /// \throws MdbxException if a database error occurs.
         bool insert(const KeyT &key, const ValueT &value, const Transaction& txn) {
             return insert(key, value, txn.handle());
@@ -317,7 +376,7 @@ namespace mdbxc {
         /// \brief Inserts key-value only if key is absent.
         /// \param pair The key-value pair to be inserted.
         /// \param txn Active MDBX transaction.
-        /// \return
+        /// \return \c true if the pair was inserted, \c false when the key already exists.
         /// \throws MdbxException if a database error occurs.
         bool insert(const std::pair<KeyT, ValueT> &pair, MDBX_txn* txn = nullptr) {
             bool res;
@@ -330,7 +389,7 @@ namespace mdbxc {
         /// \brief Inserts key-value only if key is absent.
         /// \param pair The key-value pair to be inserted.
         /// \param txn Transaction wrapper used for the operation.
-        /// \return
+        /// \return \c true if the pair was inserted, \c false when the key already exists.
         /// \throws MdbxException if a database error occurs.
         bool insert(const std::pair<KeyT, ValueT> &pair, const Transaction& txn) {
             return insert(pair, txn.handle());
@@ -424,7 +483,7 @@ namespace mdbxc {
             return try_get(key, out, txn.handle());
         }
 
-#if __cplusplus >= 201703L   
+#if __cplusplus >= 201703L
         /// \brief Finds value by key.
         /// \param key Key to search for.
         /// \param txn Optional active MDBX transaction.
@@ -440,13 +499,37 @@ namespace mdbxc {
             }, TransactionMode::READ_ONLY, txn);
             return result;
         }
-        
+
         /// \brief Finds value by key.
         /// \param key Key to search for.
         /// \param txn Transaction wrapper used for the lookup.
         /// \return std::optional with value if found, std::nullopt otherwise.
         /// \throws MdbxException on DB error.
         std::optional<ValueT> find(const KeyT& key, const Transaction& txn) const {
+            return find(key, txn.handle());
+        }
+#else
+        /// \brief Finds value by key.
+        /// \param key Key to search for.
+        /// \param txn Optional active MDBX transaction.
+        /// \return Pair of success flag and value.
+        /// \throws MdbxException on DB error.
+        std::pair<bool, ValueT> find(const KeyT& key, MDBX_txn* txn = nullptr) const {
+            std::pair<bool, ValueT> result(false, ValueT());
+            with_transaction([this, &key, &result](MDBX_txn* txn) {
+                if (db_get(key, result.second, txn)) {
+                    result.first = true;
+                }
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Finds value by key.
+        /// \param key Key to search for.
+        /// \param txn Transaction wrapper used for the lookup.
+        /// \return Pair of success flag and value.
+        /// \throws MdbxException on DB error.
+        std::pair<bool, ValueT> find(const KeyT& key, const Transaction& txn) const {
             return find(key, txn.handle());
         }
 #endif
@@ -654,7 +737,8 @@ namespace mdbxc {
         /// \return True if found, false otherwise.
         /// \throws MdbxException if a database error occurs.
         bool db_get(const KeyT& key, ValueT& value, MDBX_txn* txn_handle) const {
-            MDBX_val db_key = serialize_key(key);
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key(key, sc_key);
             MDBX_val db_val;
             int rc = mdbx_get(txn_handle, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
@@ -669,7 +753,8 @@ namespace mdbxc {
         /// \return True if key exists, false otherwise.
         /// \throws MdbxException if a database error occurs.
         bool db_contains(const KeyT& key, MDBX_txn* txn_handle) const {
-            MDBX_val db_key = serialize_key(key);
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key(key, sc_key);
             MDBX_val db_val; // dummy
             int rc = mdbx_get(txn_handle, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
@@ -694,9 +779,12 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void db_append(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            
             for (const auto& pair : container) {
-                MDBX_val db_key = serialize_key(pair.first);
-                MDBX_val db_val = serialize_value(pair.second);
+                MDBX_val db_key = serialize_key(pair.first, sc_key);
+                MDBX_val db_val = serialize_value(pair.second, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
@@ -709,14 +797,31 @@ namespace mdbxc {
         /// \param txn_handle Active transaction handle.
         /// \throws MdbxException if a database error occurs.
         void db_append(const std::vector<std::pair<KeyT, ValueT>>& container, MDBX_txn* txn_handle) {
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            
+#if __cplusplus >= 201703L
             for (const auto& [key, value] : container) {
-                MDBX_val db_key = serialize_key(key);
-                MDBX_val db_val = serialize_value(value);
+                MDBX_val db_key = serialize_key(key, sc_key);
+                MDBX_val db_val = serialize_value(value, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
                 );
             }
+#else
+            for (typename std::vector<std::pair<KeyT, ValueT> >::const_iterator it = container.begin();
+                 it != container.end(); ++it) {
+                const KeyT& key = it->first;
+                const ValueT& value = it->second;
+                MDBX_val db_key = serialize_key(key, sc_key);
+                MDBX_val db_val = serialize_value(value, sc_value);
+                check_mdbx(
+                    mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
+                    "Failed to write record"
+                );
+            }
+#endif
         }
 
         /// \brief Reconciles the content of the database with the container.
@@ -728,12 +833,15 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         template<template <class...> class ContainerT>
         void db_reconcile(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            
             // 1. Collect all keys from the container
             std::unordered_set<KeyT> new_keys;
             for (const auto& pair : container) {
                 new_keys.insert(pair.first);
-                MDBX_val db_key = serialize_key(pair.first);
-                MDBX_val db_val = serialize_value(pair.second);
+                MDBX_val db_key = serialize_key(pair.first, sc_key);
+                MDBX_val db_val = serialize_value(pair.second, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
@@ -761,6 +869,9 @@ namespace mdbxc {
         /// \param txn_handle Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
         void db_reconcile(const std::vector<std::pair<KeyT, ValueT>>& container, MDBX_txn* txn_handle) {
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            
             // 1. Collect keys and upsert values
             std::unordered_set<KeyT> new_keys;
             for (size_t i = 0; i < container.size(); ++i) {
@@ -769,8 +880,8 @@ namespace mdbxc {
 
                 new_keys.insert(key);
 
-                MDBX_val db_key = serialize_key(key);
-                MDBX_val db_val = serialize_value(value);
+                MDBX_val db_key = serialize_key(key, sc_key);
+                MDBX_val db_val = serialize_value(value, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
@@ -799,8 +910,10 @@ namespace mdbxc {
         /// \return true if the key-value pair was inserted, false if the key already existed.
         /// \throws MdbxException if the insert fails for reasons other than key existence.
         bool db_insert_if_absent(const KeyT& key, const ValueT& value, MDBX_txn* txn_handle) {
-            MDBX_val db_key = serialize_key(key);
-            MDBX_val db_val = serialize_value(value);
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_val = serialize_value(value, sc_value);
             int rc = mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
 
             if (rc == MDBX_SUCCESS)
@@ -818,8 +931,10 @@ namespace mdbxc {
         /// \param txn_handle The active MDBX transaction.
         /// \throws MdbxException if the operation fails.
         void db_insert_or_assign(const KeyT& key, const ValueT& value, MDBX_txn* txn_handle) {
-            MDBX_val db_key = serialize_key(key);
-            MDBX_val db_val = serialize_value(value);
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_val = serialize_value(value, sc_value);
             check_mdbx(
                 mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),  // or 0
                 "Failed to insert or assign key-value pair"
@@ -832,7 +947,8 @@ namespace mdbxc {
         /// \return True if the key was found and deleted, false if the key was not found.
         /// \throws MdbxException if deletion fails for other reasons.
         bool db_erase(const KeyT& key, MDBX_txn* txn_handle) {
-            MDBX_val db_key = serialize_key(key);
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key(key, sc_key);
             int rc = mdbx_del(txn_handle, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) return true;
             if (rc == MDBX_NOTFOUND) return false;
