@@ -156,6 +156,8 @@ namespace mdbxc {
         /// \brief Get value or default if missing.
         /// \param key Key to look up.
         /// \param default_value Value returned when key not found.
+        /// \param txn Optional transaction handle.
+        /// \return Stored value or \p default_value when the key is absent.
         template <class T>
         T get_or(const KeyT& key, T default_value, MDBX_txn* txn = nullptr) const {
             if (auto val = find<T>(key, txn)) {
@@ -165,11 +167,20 @@ namespace mdbxc {
         }
 
         /// \brief Get value or default using external transaction.
+        /// \param key Key to look up.
+        /// \param default_value Value returned when key not found.
+        /// \param txn Active transaction wrapper.
+        /// \return Stored value or \p default_value when the key is absent.
         template <class T>
         T get_or(const KeyT& key, T default_value, const Transaction& txn) const {
             return get_or<T>(key, std::move(default_value), txn.handle());
         }
 #else
+        /// \brief Find value by key returning C++11-compatible result.
+        /// \tparam T Expected value type.
+        /// \param key Key to search for.
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and retrieved value.
         template <class T>
         std::pair<bool, T> find_compat(const KeyT& key, MDBX_txn* txn = nullptr) const {
             std::pair<bool, T> result{false, T{}};
@@ -185,11 +196,22 @@ namespace mdbxc {
             return result;
         }
 
+        /// \brief Find value by key using external transaction (C++11 mode).
+        /// \tparam T Expected value type.
+        /// \param key Key to search for.
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and retrieved value.
         template <class T>
         std::pair<bool, T> find_compat(const KeyT& key, const Transaction& txn) const {
             return find_compat<T>(key, txn.handle());
         }
 
+        /// \brief Get value or default if missing (C++11 mode).
+        /// \tparam T Expected value type.
+        /// \param key Key to look up.
+        /// \param default_value Value returned when key not found.
+        /// \param txn Optional transaction handle.
+        /// \return Stored value or \p default_value when the key is absent.
         template <class T>
         T get_or(const KeyT& key, T default_value, MDBX_txn* txn = nullptr) const {
             auto res = find_compat<T>(key, txn);
@@ -199,6 +221,12 @@ namespace mdbxc {
             return default_value;
         }
 
+        /// \brief Get value or default using external transaction (C++11 mode).
+        /// \tparam T Expected value type.
+        /// \param key Key to look up.
+        /// \param default_value Value returned when key not found.
+        /// \param txn Active transaction wrapper.
+        /// \return Stored value or \p default_value when the key is absent.
         template <class T>
         T get_or(const KeyT& key, T default_value, const Transaction& txn) const {
             return get_or<T>(key, std::move(default_value), txn.handle());
@@ -208,6 +236,10 @@ namespace mdbxc {
         // --- Meta ---
 
         /// \brief Check if key exists.
+        /// \tparam KT Key type (defaults to \p KeyT).
+        /// \param key Key to check.
+        /// \param txn Optional transaction handle.
+        /// \return \c true if key is present, otherwise \c false.
         template <class KT = KeyT>
         bool contains(const KT& key, MDBX_txn* txn = nullptr) const {
             bool res = false;
@@ -216,11 +248,17 @@ namespace mdbxc {
         }
 
         /// \brief Check key existence using external transaction.
+        /// \param key Key to check.
+        /// \param txn Active transaction wrapper.
+        /// \return \c true if key is present, otherwise \c false.
         bool contains(const KeyT& key, const Transaction& txn) const {
             return contains(key, txn.handle());
         }
 
         /// \brief Erase key from table.
+        /// \param key Key to remove.
+        /// \param txn Optional transaction handle.
+        /// \return \c true if key was removed, otherwise \c false.
         bool erase(const KeyT& key, MDBX_txn* txn = nullptr) {
             bool res = false;
             with_transaction([&](MDBX_txn* t){ res = db_erase(key, t); }, TransactionMode::WRITABLE, txn);
@@ -228,11 +266,16 @@ namespace mdbxc {
         }
 
         /// \brief Erase using external transaction.
+        /// \param key Key to remove.
+        /// \param txn Active transaction wrapper.
+        /// \return \c true if key was removed, otherwise \c false.
         bool erase(const KeyT& key, const Transaction& txn) {
             return erase(key, txn.handle());
         }
 
         /// \brief List all keys stored in table.
+        /// \param txn Optional transaction handle.
+        /// \return Vector containing every key stored in the table.
         std::vector<KeyT> keys(MDBX_txn* txn = nullptr) const {
             std::vector<KeyT> out;
             with_transaction([&](MDBX_txn* t){ db_list_keys(out, t); }, TransactionMode::READ_ONLY, txn);
@@ -240,11 +283,14 @@ namespace mdbxc {
         }
 
         /// \brief List keys using external transaction.
+        /// \param txn Active transaction wrapper.
+        /// \return Vector containing every key stored in the table.
         std::vector<KeyT> keys(const Transaction& txn) const {
             return keys(txn.handle());
         }
 
         /// \brief Enable or disable type-tag checking.
+        /// \param enabled Enables check when set to true.
         void set_type_tag_check(bool enabled) noexcept { m_check_type_tag = enabled; }
 
     private:

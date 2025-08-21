@@ -353,7 +353,7 @@ namespace mdbxc {
         /// \param key The key to be inserted.
         /// \param value The value to be inserted.
         /// \param txn Active MDBX transaction.
-        /// \return
+        /// \return \c true if the pair was inserted, \c false when the key already exists.
         /// \throws MdbxException if a database error occurs.
         bool insert(const KeyT &key, const ValueT &value, MDBX_txn* txn = nullptr) {
             bool res;
@@ -367,7 +367,7 @@ namespace mdbxc {
         /// \param key The key to be inserted.
         /// \param value The value to be inserted.
         /// \param txn Transaction wrapper used for the insertion.
-        /// \return
+        /// \return \c true if the pair was inserted, \c false when the key already exists.
         /// \throws MdbxException if a database error occurs.
         bool insert(const KeyT &key, const ValueT &value, const Transaction& txn) {
             return insert(key, value, txn.handle());
@@ -376,7 +376,7 @@ namespace mdbxc {
         /// \brief Inserts key-value only if key is absent.
         /// \param pair The key-value pair to be inserted.
         /// \param txn Active MDBX transaction.
-        /// \return
+        /// \return \c true if the pair was inserted, \c false when the key already exists.
         /// \throws MdbxException if a database error occurs.
         bool insert(const std::pair<KeyT, ValueT> &pair, MDBX_txn* txn = nullptr) {
             bool res;
@@ -389,7 +389,7 @@ namespace mdbxc {
         /// \brief Inserts key-value only if key is absent.
         /// \param pair The key-value pair to be inserted.
         /// \param txn Transaction wrapper used for the operation.
-        /// \return
+        /// \return \c true if the pair was inserted, \c false when the key already exists.
         /// \throws MdbxException if a database error occurs.
         bool insert(const std::pair<KeyT, ValueT> &pair, const Transaction& txn) {
             return insert(pair, txn.handle());
