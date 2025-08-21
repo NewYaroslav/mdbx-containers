@@ -30,3 +30,4 @@ jobs:
           dir: docs/html
           branch: gh-pages
           token: ${{ secrets.ACCESS_TOKEN }}
+        continue-on-error: true
