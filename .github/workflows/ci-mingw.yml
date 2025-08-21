@@ -33,7 +33,6 @@ jobs:
           path-type: inherit
           install: >-
             base-devel
-            git
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
@@ -59,11 +58,7 @@ jobs:
             if git -C libs/libmdbx rev-parse --is-shallow-repository | grep -qi true; then
               git -C libs/libmdbx fetch --unshallow || git -C libs/libmdbx fetch --deepen=1000
             fi
-            if [ -f "libs/libmdbx/VERSION.json" ]; then
-              rm -f libs/libmdbx/VERSION.json
-              echo "Removed libs/libmdbx/VERSION.json"
-            fi
-            git -C libs/libmdbx describe --tags --abbrev=0 >/dev/null
+            git -C libs/libmdbx describe --tags --abbrev=0 >/dev/null || { echo "ERROR: libmdbx has no tags"; exit 1; }
           else
             echo "WARN: libs/libmdbx is missing or not a submodule"
           fi
@@ -85,18 +80,20 @@ jobs:
             -DMDBXC_BUILD_TESTS=ON \
             -DMDBXC_BUILD_EXAMPLES=OFF \
             -Wno-dev \
-          | tee build/configure.log
+          2>&1 | tee build/configure.log
 
       - name: Build
         run: |
           set -euo pipefail
-          cmake --build build --config Release --parallel | tee build/build.log
+          cmake --build build --config Release --parallel \
+          2>&1 | tee build/build.log
 
       - name: Run tests (ctest)
         run: |
           set -euo pipefail
           export PATH="$PWD/build/bin:$PATH"
-          ctest --test-dir build --output-on-failure -C Release | tee build/ctest.log
+          ctest --test-dir build --output-on-failure -C Release \
+          2>&1 | tee build/ctest.log
 
       - name: Upload logs
         if: always()
