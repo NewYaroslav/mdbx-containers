@@ -31,8 +31,9 @@ var searchData=
   ['mdbxc_5fnodiscard_28',['MDBXC_NODISCARD',['../group__mdbxc__utils.html#ga92e5abfa4a9ac5cbbbdc24df6b075a8e',1,'utils.hpp']]],
   ['mdbxexception_29',['MdbxException',['../classmdbxc_1_1MdbxException.html',1,'mdbxc::MdbxException'],['../classmdbxc_1_1MdbxException.html#a3c316734d7efa5bb6923abc389365249',1,'mdbxc::MdbxException::MdbxException()']]],
   ['mdbxexception_2ehpp_30',['MdbxException.hpp',['../MdbxException_8hpp.html',1,'']]],
-  ['multi_5ftable_5fdemo_2ecpp_31',['multi_table_demo.cpp',['../multi__table__demo_8cpp.html',1,'']]],
-  ['multiple_20tables_32',['Multiple tables',['../index.html#ex_multitable',1,'']]],
-  ['mydata_33',['MyData',['../structMyData.html',1,'']]],
-  ['mystruct_34',['MyStruct',['../structMyStruct.html',1,'']]]
+  ['multi_20value_20tables_31',['Key-only and multi-value tables',['../tables_page.html#autotoc_md3',1,'']]],
+  ['multi_5ftable_5fdemo_2ecpp_32',['multi_table_demo.cpp',['../multi__table__demo_8cpp.html',1,'']]],
+  ['multiple_20tables_33',['Multiple tables',['../index.html#ex_multitable',1,'']]],
+  ['mydata_34',['MyData',['../structMyData.html',1,'']]],
+  ['mystruct_35',['MyStruct',['../structMyStruct.html',1,'']]]
 ];

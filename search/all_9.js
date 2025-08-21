@@ -8,5 +8,6 @@ var searchData=
   ['is_5fabsolute_5fpath_5',['is_absolute_path',['../namespacemdbxc.html#aba3401409b5ff32b9d06f43942ceaa10',1,'mdbxc']]],
   ['is_5fconnected_6',['is_connected',['../classmdbxc_1_1Connection.html#a26547632506969c269096ddee13126f0',1,'mdbxc::Connection::is_connected()'],['../classmdbxc_1_1BaseTable.html#aefac340e96690a15139daab0dc3064d2',1,'mdbxc::BaseTable::is_connected()']]],
   ['is_5fexplicitly_5frelative_7',['is_explicitly_relative',['../namespacemdbxc.html#a620570627bd4f65866a4b91c3dac8b8a',1,'mdbxc']]],
-  ['is_5fpath_5fsep_8',['is_path_sep',['../namespacemdbxc.html#a932370a996791e192e2126bb1973cc79',1,'mdbxc']]]
+  ['is_5fpath_5fsep_8',['is_path_sep',['../namespacemdbxc.html#a932370a996791e192e2126bb1973cc79',1,'mdbxc']]],
+  ['iteration_20and_20bulk_20synchronization_9',['Iteration and bulk synchronization',['../tables_page.html#autotoc_md2',1,'']]]
 ];
