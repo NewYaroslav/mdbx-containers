@@ -33,6 +33,7 @@
 - Header-only usage.
 - Depends only on [libmdbx](https://github.com/erthink/libmdbx).
 - Requires C++11 or later.
+- **Windows (MSVC)**: not supported yet. Use MinGW-w64 (GCC) or Clang on Windows.
 
 ## Installation
 
