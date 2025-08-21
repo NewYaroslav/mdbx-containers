@@ -295,7 +295,7 @@ Protected Attributes</h2></td></tr>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00054">54</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00057">57</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -330,7 +330,7 @@ Protected Attributes</h2></td></tr>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00060">60</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00063">63</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -358,8 +358,14 @@ Protected Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Connects to the MDBX environment if not already connected. </p>
+<dl class="exception"><dt>Exceptions</dt><dd>
+  <table class="exception">
+    <tr><td class="paramname"><a class="el" href="classmdbxc_1_1MdbxException.html" title="Represents a specific exception for MDBX-related errors.">MdbxException</a></td><td>if connection fails. </td></tr>
+  </table>
+  </dd>
+</dl>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00042">42</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00044">44</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -387,8 +393,14 @@ Protected Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Disconnects the MDBX environment. </p>
+<dl class="exception"><dt>Exceptions</dt><dd>
+  <table class="exception">
+    <tr><td class="paramname"><a class="el" href="classmdbxc_1_1MdbxException.html" title="Represents a specific exception for MDBX-related errors.">MdbxException</a></td><td>if closing the environment fails. </td></tr>
+  </table>
+  </dd>
+</dl>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00047">47</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00050">50</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -436,7 +448,7 @@ template&lt;typename Func&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00075">75</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00078">78</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -464,8 +476,9 @@ template&lt;typename Func&gt; </div>
 </div><div class="memdoc">
 
 <p>Gets the raw DBI handle. </p>
+<dl class="section return"><dt>Returns</dt><dd>DBI handle for the opened table. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00099">99</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00103">103</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -493,8 +506,9 @@ template&lt;typename Func&gt; </div>
 </div><div class="memdoc">
 
 <p>Checks if the connection is currently active. </p>
+<dl class="section return"><dt>Returns</dt><dd>true if connected, false otherwise. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00037">37</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00038">38</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -529,7 +543,7 @@ template&lt;typename Func&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00066">66</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00069">69</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -559,7 +573,7 @@ template&lt;typename Func&gt; </div>
 <p>Returns the transaction bound to the current thread, if any. </p>
 <dl class="section return"><dt>Returns</dt><dd>Pointer to the MDBX transaction or nullptr. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00094">94</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00097">97</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -586,7 +600,7 @@ template&lt;typename Func&gt; </div>
 
 <p>Shared connection to MDBX environment. </p>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00089">89</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00092">92</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
@@ -612,7 +626,7 @@ template&lt;typename Func&gt; </div>
 
 <p>DBI handle for the opened table. </p>
 
-<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00090">90</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="BaseTable_8hpp_source.html#l00093">93</a> of file <a class="el" href="BaseTable_8hpp_source.html">BaseTable.hpp</a>.</p>
 
 </div>
 </div>
