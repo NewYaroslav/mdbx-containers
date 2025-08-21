@@ -171,7 +171,9 @@ Multiple tables</h2>
 <div class="ttc" id="aclassmdbxc_1_1Config_html_af844e68cfb47cf3828fdee8905e18d3a"><div class="ttname"><a href="classmdbxc_1_1Config.html#af844e68cfb47cf3828fdee8905e18d3a">mdbxc::Config::max_dbs</a></div><div class="ttdeci">int64_t max_dbs</div><div class="ttdoc">Maximum number of named databases (DBI) in the environment.</div><div class="ttdef"><b>Definition</b> <a href="Config_8hpp_source.html#l00027">Config.hpp:27</a></div></div>
 </div><!-- fragment --><h1><a class="anchor" id="build_sec"></a>
 Building</h1>
-<p>Use CMake or simply include the headers and link with libmdbx. </p><div class="fragment"><div class="line">cmake -S . -B build -DBUILD_DEPS=ON -DBUILD_STATIC_LIB=ON</div>
+<p>Use CMake or simply include the headers and link with libmdbx. </p><div class="fragment"><div class="line">cmake -S . -B build \</div>
+<div class="line">    -DMDBXC_DEPS_MODE=BUNDLED \</div>
+<div class="line">    -DMDBXC_BUILD_STATIC_LIB=ON</div>
 <div class="line">cmake --build build</div>
 </div><!-- fragment --><p>For more details on container usage and C++ version differences see <a class="el" href="tables_page.html">Persistent Containers Usage</a>.</p>
 <h1><a class="anchor" id="config_sec"></a>
