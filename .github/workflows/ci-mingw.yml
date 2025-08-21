@@ -17,7 +17,7 @@ jobs:
 
     defaults:
       run:
-        shell: msys2 {0}   # все команды — в MSYS2 MINGW64 шелле
+        shell: msys2 {0}
 
     steps:
       - uses: actions/checkout@v4
@@ -39,15 +39,15 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-pkg-config
 
-      # Git в Windows PATH — чтобы корректно работать с сабмодулем libmdbx (теги/не-shallow)
-      - name: Sanity: which git
+      - name: "Sanity: which git"
         env:
           PATH: "/c/Program Files/Git/bin:$PATH"
         run: |
           which git
           git --version || true
+          git -C libs/libmdbx rev-parse --show-toplevel || true
 
-      - name: Ensure full submodule history & tags (libmdbx)
+      - name: "Ensure full submodule history & tags (libmdbx)"
         env:
           PATH: "/c/Program Files/Git/bin:$PATH"
         run: |
@@ -59,12 +59,10 @@ jobs:
             if git -C libs/libmdbx rev-parse --is-shallow-repository | grep -qi true; then
               git -C libs/libmdbx fetch --unshallow || git -C libs/libmdbx fetch --deepen=1000
             fi
-            # Иногда мешает VERSION.json — удаляем, чтобы версия бралась из git
             if [ -f "libs/libmdbx/VERSION.json" ]; then
               rm -f libs/libmdbx/VERSION.json
               echo "Removed libs/libmdbx/VERSION.json"
             fi
-            # Жёстко проверим наличие хотя бы одного тега
             git -C libs/libmdbx describe --tags --abbrev=0 >/dev/null
           else
             echo "WARN: libs/libmdbx is missing or not a submodule"
@@ -76,7 +74,7 @@ jobs:
           CXX: x86_64-w64-mingw32-g++
           PATH: "/c/Program Files/Git/bin:$PATH"
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p build
           cmake -S . -B build -G "Ninja" \
             -DCMAKE_BUILD_TYPE=Release \
@@ -87,21 +85,18 @@ jobs:
             -DMDBXC_BUILD_TESTS=ON \
             -DMDBXC_BUILD_EXAMPLES=OFF \
             -Wno-dev \
-          2>&1 | tee build/configure.log
+          | tee build/configure.log
 
       - name: Build
         run: |
-          set -e
-          cmake --build build --config Release --parallel \
-          2>&1 | tee build/build.log
+          set -euo pipefail
+          cmake --build build --config Release --parallel | tee build/build.log
 
       - name: Run tests (ctest)
         run: |
-          set -e
-          # Добавим bin в PATH на случай, если кому-то нужны DLL (хотя у нас статик)
+          set -euo pipefail
           export PATH="$PWD/build/bin:$PATH"
-          ctest --test-dir build --output-on-failure -C Release \
-          2>&1 | tee build/ctest.log
+          ctest --test-dir build --output-on-failure -C Release | tee build/ctest.log
 
       - name: Upload logs
         if: always()
@@ -111,3 +106,4 @@ jobs:
           path: |
             build/*.log
           if-no-files-found: error
+
