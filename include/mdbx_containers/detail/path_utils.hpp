@@ -45,7 +45,9 @@ namespace mdbxc {
     }
 #endif
 
-    /// \brief
+    /// \brief Check if path starts with explicit relative prefix.
+    /// \param s Path string to inspect.
+    /// \return true if path starts with "./", "../", ".\\", or "..\\".
     inline bool is_explicitly_relative(const std::string& s) noexcept {
         auto sw = [&](const char* p){ return s.rfind(p, 0) == 0; };
         return sw("./") || sw("../") || sw(".\\") || sw("..\\");
@@ -244,10 +246,16 @@ namespace mdbxc {
 #else
     // С++11/14
 
-    inline bool is_path_sep(char c) { 
-        return c == '/' || c == '\\'; 
+    /// \brief Check if character is a path separator.
+    /// \param c Character to check.
+    /// \return true if \a c is '/' or '\\'.
+    inline bool is_path_sep(char c) {
+        return c == '/' || c == '\\';
     }
 
+    /// \brief Normalize path removing '.' and '..' components.
+    /// \param in Path to normalize.
+    /// \return Normalized path.
     inline std::string lexically_normal_compat(const std::string& in) {
 #       ifdef _WIN32
         const char SEP = '\\';
