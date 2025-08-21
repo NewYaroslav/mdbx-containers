@@ -32,15 +32,15 @@ message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
 set(MDBXC_HAS_ASAN OFF CACHE BOOL "Compiler+linker support -fsanitize=address")
 
 if (MDBXC_USE_ASAN AND (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang") AND NOT MSVC)
-    # Проверяем, понимает ли компилятор флаг
+    # Check whether the compiler supports the flag
     check_cxx_compiler_flag("-fsanitize=address" MDBXC_ASAN_CFLAG_OK)
-    # И умеет ли линкер
+    # Check whether the linker supports the flag
     check_linker_flag(CXX "-fsanitize=address" MDBXC_ASAN_LDFLAG_OK)
 
     if (MDBXC_ASAN_CFLAG_OK AND MDBXC_ASAN_LDFLAG_OK)
         set(MDBXC_HAS_ASAN ON CACHE BOOL "" FORCE)
     else()
-        message(WARNING "ASan недоступен у текущего toolchain (compiler: ${MDBXC_ASAN_CFLAG_OK}, linker: ${MDBXC_ASAN_LDFLAG_OK}). Отключаю MDBXC_USE_ASAN.")
+        message(WARNING "ASan is unavailable for the current toolchain (compiler: ${MDBXC_ASAN_CFLAG_OK}, linker: ${MDBXC_ASAN_LDFLAG_OK}). Disabling MDBXC_USE_ASAN.")
         set(MDBXC_HAS_ASAN OFF CACHE BOOL "" FORCE)
     endif()
 endif()
