@@ -67,6 +67,10 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+> **Предупреждение**
+> Собирайте все translation unit'ы, использующие mdbx-containers, с одинаковым стандартом языка C++, настройками выравнивания/
+> упаковки структур и набором макросов. Смешивание C++11 и C++17 или изменение ABI-чувствительных `#define` между файлами может
+> привести к ODR-конфликтам и неопределённому поведению.
 
 Для Windows доступны `.bat`‑скрипты с аналогичными параметрами (`build-mingw-17-examples.bat`, `build-mingw-17-tests.bat`, `build-mingw-11-tests.bat`).
 
