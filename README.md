@@ -58,6 +58,10 @@ cmake -S . -B build \
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+> **Warning**
+> Ensure every translation unit that uses mdbx-containers is compiled with the same language standard, structure packing,
+> and feature macro configuration. Mixing C++11 and C++17 builds, or changing ABI-impacting defines between files, can lead
+> to ODR violations and undefined behaviour.
 
 Windows users can run the provided `.bat` scripts such as `build-mingw-17-examples.bat`, `build-mingw-17-tests.bat`, or `build-mingw-11-tests.bat`.
 
