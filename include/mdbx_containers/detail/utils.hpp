@@ -20,7 +20,7 @@ namespace mdbxc {
     /// \brief Throws an MdbxException if MDBX return code indicates an error.
     /// \param rc      Return code from an MDBX function.
     /// \param context Description of the calling context.
-    void check_mdbx(int rc, const std::string& context) {
+    inline void check_mdbx(int rc, const std::string& context) {
         if (rc != MDBX_SUCCESS) {
             throw MdbxException(context + ": (" + std::to_string(rc) + ") " + std::string(mdbx_strerror(rc)), rc);
         }
