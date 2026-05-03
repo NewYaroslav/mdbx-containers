@@ -20,30 +20,35 @@ All project options use the `MDBXC_` prefix.
 
 ## Baseline Commands
 
+Use `tmp/` inside the repository for local verification builds, installs,
+consumer projects, and other scratch outputs. Keep these directories untracked
+and disposable. Do not scatter verification directories beside the repository
+unless the user explicitly asks for an out-of-worktree location.
+
 Configure, build, and test C++17:
 
 ```bash
-cmake -S . -B build-cpp17 \
+cmake -S . -B tmp/build-cpp17 \
     -DMDBXC_DEPS_MODE=BUNDLED \
     -DMDBXC_BUILD_TESTS=ON \
     -DMDBXC_BUILD_EXAMPLES=ON \
     -DCMAKE_CXX_STANDARD=17
 
-cmake --build build-cpp17
-ctest --test-dir build-cpp17 --output-on-failure
+cmake --build tmp/build-cpp17
+ctest --test-dir tmp/build-cpp17 --output-on-failure
 ```
 
 Repeat with C++11 for shared header or template changes:
 
 ```bash
-cmake -S . -B build-cpp11 \
+cmake -S . -B tmp/build-cpp11 \
     -DMDBXC_DEPS_MODE=BUNDLED \
     -DMDBXC_BUILD_TESTS=ON \
     -DMDBXC_BUILD_EXAMPLES=ON \
     -DCMAKE_CXX_STANDARD=11
 
-cmake --build build-cpp11
-ctest --test-dir build-cpp11 --output-on-failure
+cmake --build tmp/build-cpp11
+ctest --test-dir tmp/build-cpp11 --output-on-failure
 ```
 
 On Windows, the repository includes helper scripts such as
@@ -58,6 +63,9 @@ On Windows, the repository includes helper scripts such as
 
 ## Generated Outputs
 
-- Build directories such as `build-*` are generated outputs.
+- `tmp/` is the preferred scratch area for agent-created local builds and
+  package-consumer checks.
+- Build directories such as `tmp/build-*` or legacy `build-*` are generated
+  outputs.
 - `docs/html/` and `docs/latex/` are generated Doxygen outputs.
 - Do not use generated copies under build directories as source when editing.

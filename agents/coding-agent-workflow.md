@@ -25,6 +25,10 @@ behavior. Small, well-verified edits matter more than broad rewrites.
 
 - Treat `include/` as the primary source of truth. Generated copies under build
   directories are not source files.
+- Put agent-created verification builds, install prefixes, temporary consumers,
+  and scratch files under repository-local `tmp/`. Keep `tmp/` disposable and
+  untracked; do not create ad hoc verification directories next to the checkout
+  unless the user explicitly asks for that layout.
 - Avoid editing generated Doxygen output under `docs/html/` or `docs/latex/`.
   Update `.dox`, headers, examples, or Doxygen config instead.
 - Keep public headers valid in both C++11 and C++17. If C++17 utilities are
