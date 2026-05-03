@@ -1,7 +1,7 @@
 # cmake/deps/mdbx.cmake
 # Provides libmdbx targets with minimal, robust logic:
 #   1) SYSTEM/AUTO: try find_package (CONFIG/MODULE, various names)
-#   2) BUNDLED/AUTO: try submodule at libs/libmdbx (with Windows/MSYS quirks)
+#   2) BUNDLED/AUTO: try submodule at external/libmdbx (with Windows/MSYS quirks)
 #   3) fallback: FetchContent from upstream
 #
 # Canonical aliases produced:
@@ -120,7 +120,7 @@ function(_mdbx_try_submodule out_ok)
     set(${out_ok} FALSE PARENT_SCOPE)
 
     # Expected location of submodule
-    set(_MDBX_SRC "${PROJECT_SOURCE_DIR}/libs/libmdbx")
+    set(_MDBX_SRC "${PROJECT_SOURCE_DIR}/external/libmdbx")
     if(EXISTS "${_MDBX_SRC}/CMakeLists.txt")
         # --- Windows/MSYS quirk: normalize to REALPATH to avoid mixed path issues
         if(WIN32)

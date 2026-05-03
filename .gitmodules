@@ -1,5 +1,5 @@
-[submodule "libs/libmdbx"]
-	path = libs/libmdbx
+[submodule "external/libmdbx"]
+	path = external/libmdbx
 	url = https://github.com/erthink/libmdbx.git
 [submodule ".github/doxygen-awesome-css"]
 	path = .github/doxygen-awesome-css

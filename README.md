@@ -1,8 +1,8 @@
 # MDBX-Containers
 
-[Русская версия](README-RU.md)
+[Russian version](README-RU.md)
 
-**mdbx-containers** is a lightweight header-only C++11/17 library that bridges [libmdbx](https://github.com/erthink/libmdbx) with familiar STL containers such as `std::map` and `std::set`. It transparently persists your in-memory data in MDBX while providing high performance and thread-safe transactions.
+**mdbx-containers** is a lightweight header-only C++11/17 library that bridges [libmdbx](https://github.com/erthink/libmdbx) with familiar STL-style APIs. It persists key-value data in MDBX while providing high performance and transaction helpers.
 
 > Note  
 > This project values technical merit over personal views of its authors.  
@@ -10,13 +10,11 @@
 
 ## Features
 
-### Unified API
-- Identical interface for all table types: `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]` and more.
-- Four container flavours:
-  - `KeyTable<K>` – keys only (not implemented yet);
-  - `KeyValueTable<K, V>` – one value per key;
-  - `KeyMultiValueTable<K, V>` – multiple values per key (`std::multimap`) (not implemented yet);
-  - `AnyValueTable<K>` – heterogeneous values with runtime type checks.
+### Table APIs
+- `KeyValueTable<K, V>` is the main implemented table: one value per key with `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]`, and related helpers.
+- `AnyValueTable<K>` stores heterogeneous values by caller-selected type and supports typed `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, and `keys`.
+- `KeyTable<K>` and `KeyMultiValueTable<K, V>` are placeholder headers and are not implemented yet.
+- `AnyValueTable` type-tag prefix verification is not fully implemented yet, so do not rely on it for complete runtime type safety.
 
 ### Serialization
 - Automatic serialization of trivially copyable types.
@@ -42,7 +40,7 @@
 ## Installation
 
 1. Copy the `include/` directory into your project or add this repository as a submodule.
-2. Ensure `libmdbx` is available to your build system (set `MDBXC_DEPS_MODE=BUNDLED` to build it automatically).
+2. Ensure `libmdbx` is available to your build system. Set `MDBXC_DEPS_MODE=BUNDLED` to use the bundled submodule at `external/libmdbx`, or use `SYSTEM`/`AUTO` for an installed package.
 3. Use a C++11 (or later) compiler.
 
 ### Build with CMake
@@ -50,7 +48,6 @@
 ```bash
 cmake -S . -B build \
     -DMDBXC_DEPS_MODE=BUNDLED \
-    -DMDBXC_BUILD_STATIC_LIB=ON \
     -DMDBXC_BUILD_TESTS=ON \
     -DMDBXC_BUILD_EXAMPLES=ON \
     -DMDBXC_USE_ASAN=ON \
@@ -58,6 +55,12 @@ cmake -S . -B build \
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+> **Warning**
+> Compile every translation unit that uses mdbx-containers with the same C++
+> language standard, structure packing, and feature macro configuration. Mixing
+> C++11 and C++17 builds, or changing ABI-impacting defines between files, can
+> lead to ODR violations and undefined behavior.
 
 Windows users can run the provided `.bat` scripts such as `build-mingw-17-examples.bat`, `build-mingw-17-tests.bat`, or `build-mingw-11-tests.bat`.
 
@@ -131,11 +134,11 @@ table.insert_or_assign(42, MyData{42, 3.14});
 ## Documentation
 
 - See the `examples/` directory for more examples.
-- API and architecture information can be found in the wiki (if available).
-- Documentation can be generated with Doxygen.
+- API and architecture information lives in the Doxygen source pages under `docs/*.dox`.
+- Documentation can be generated with Doxygen; generated `docs/html/` and `docs/latex/` output should not be edited manually.
 
 ## License
 
 This project is licensed under the MIT License.
 
-It bundles [libmdbx](https://github.com/erthink/libmdbx) released under the Apache License 2.0. See `docs/libmdbx.LICENSE` for details.
+It can bundle [libmdbx](https://github.com/erthink/libmdbx) from `external/libmdbx`, released under the Apache License 2.0. See `docs/libmdbx.LICENSE` for details.

@@ -1,0 +1,51 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [v1.0.2] - 2026-05-02
+- Added this changelog to track release history in a compact, release-oriented format.
+- Moved bundled dependency infrastructure from `libs/` to `external/`, including the `external/libmdbx` submodule path and related CMake references.
+- Removed the unused `MDBXC_BUILD_STATIC_LIB` option and made `mdbx_containers` always build as a header-only CMake `INTERFACE` target.
+- Kept examples, tests, and installed consumers linking through `mdbx_containers`, with MDBX propagated through the target interface.
+- Updated bundled MDBX dependency documentation to describe `MDBXC_DEPS_MODE=BUNDLED`, `SYSTEM`, and `AUTO` behavior around `external/libmdbx`.
+- Added ODR/ABI warnings to `README.md` and `README-RU.md` for projects that mix C++ standards, structure packing, or feature macro configurations across translation units.
+- Hardened header-only ODR behavior by keeping `check_mdbx()` inline in the public utility header.
+- Fixed string-container deserialization overload selection for `std::set<std::string>` and `std::unordered_set<std::string>`.
+- Expanded key-value container tests for string sequence containers, string set containers, and set-like trivially copyable containers in both Debug and Release builds.
+- Fixed ASan test wiring so sanitizer flags and test environment are enabled only when the toolchain actually supports ASan.
+- Refreshed README, README-RU, Doxygen pages, and agent guidance to match the current public API surface.
+- Clarified that `KeyValueTable` and `AnyValueTable` are implemented APIs, while `KeyTable` and `KeyMultiValueTable` remain placeholder headers.
+- Clarified that `AnyValueTable` type-tag prefix verification is not fully implemented yet and should not be treated as complete runtime type safety.
+- Made project philosophy documentation English-only and kept the Russian project overview in `README-RU.md`.
+- Added and updated English agent guidance under `agents/`, including codebase orientation, build/test notes, implementation notes, coding style, and commit conventions.
+- Bumped the project version to `v1.0.2`.
+
+## [v1.0.1] - 2025-08-21
+- Added C++11 compatibility coverage across public headers, tests, and examples.
+- Added C++11 fallback APIs for `AnyValueTable` and expanded tests for storing multiple value types.
+- Added support for trivially copyable `std::set` values and `std::bitset<N>` key serialization examples.
+- Reworked serialization scratch storage to avoid `thread_local` STL buffers and MinGW/Windows thread-shutdown crashes.
+- Added `SerializeScratch` for MDBX value backing storage and documented its lifetime constraints for agents.
+- Refactored CMake dependency handling with unified `MDBXC_DEPS_MODE` behavior and feature flags.
+- Added path resolution tests for `relative_to_exe` and `no_subdir`.
+- Improved CI coverage for MinGW/MSYS2 builds, CTest execution, full libmdbx history/tag availability, and documentation publishing.
+- Fixed bundled libmdbx handling when git tags are missing and `VERSION.json` must be kept as a fallback.
+- Fixed concurrency race coverage in `kv_container_all_types_test`.
+- Documented `AnyValueTable`, configuration behavior, table usage, and C++ version differences in README and Doxygen pages.
+- Clarified that `KeyTable` and `KeyMultiValueTable` were not implemented yet.
+- Expanded Doxygen comments for core, table, path, transaction, and BaseTable APIs.
+- Added repository coding style, naming, Doxygen, and build/test guidance for agents.
+- Clarified Windows/MSVC support status and refreshed build instructions.
+- Bumped the project version to `v1.0.1`.
+
+## [v1.0.0] - 2025-07-30
+- Initial public release of the header-only MDBX Containers library.
+- Added `KeyValueTable` for map-like persistent key-value storage over libmdbx.
+- Added connection, configuration, transaction, and base-table infrastructure.
+- Added serialization helpers for primitive, trivially copyable, string, byte-vector, STL-container, and custom `to_bytes()`/`from_bytes()` data shapes.
+- Added automatic and manual transaction workflows around MDBX operations.
+- Added examples for key-value usage, manual transactions, multiple tables, custom structs, and configuration initialization.
+- Added tests for raw MDBX integration, key-value containers, path utilities, and utility serialization behavior.
+- Added Doxygen configuration, groups, custom documentation styling, and generated documentation support.
+- Added English and Russian README files, MIT license metadata, NOTICE, and bundled libmdbx license attribution.
+- Fixed libmdbx compatibility by ensuring MDBX stat calls use the stable-branch-compatible argument count.

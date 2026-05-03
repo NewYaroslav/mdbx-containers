@@ -44,7 +44,7 @@ jobs:
         run: |
           which git
           git --version || true
-          git -C libs/libmdbx rev-parse --show-toplevel || true
+          git -C external/libmdbx rev-parse --show-toplevel || true
 
       - name: "Ensure full submodule history & tags (libmdbx)"
         env:
@@ -52,15 +52,15 @@ jobs:
         run: |
           set -euo pipefail
           git submodule update --init --recursive
-          if [ -d "libs/libmdbx/.git" ]; then
-            git -C libs/libmdbx config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-            git -C libs/libmdbx fetch --prune --tags --force
-            if git -C libs/libmdbx rev-parse --is-shallow-repository | grep -qi true; then
-              git -C libs/libmdbx fetch --unshallow || git -C libs/libmdbx fetch --deepen=1000
+          if [ -d "external/libmdbx/.git" ]; then
+            git -C external/libmdbx config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+            git -C external/libmdbx fetch --prune --tags --force
+            if git -C external/libmdbx rev-parse --is-shallow-repository | grep -qi true; then
+              git -C external/libmdbx fetch --unshallow || git -C external/libmdbx fetch --deepen=1000
             fi
-            git -C libs/libmdbx describe --tags --abbrev=0 >/dev/null || { echo "ERROR: libmdbx has no tags"; exit 1; }
+            git -C external/libmdbx describe --tags --abbrev=0 >/dev/null || { echo "ERROR: libmdbx has no tags"; exit 1; }
           else
-            echo "WARN: libs/libmdbx is missing or not a submodule"
+            echo "WARN: external/libmdbx is missing or not a submodule"
           fi
 
       - name: Configure (Release, Ninja)
@@ -76,7 +76,6 @@ jobs:
             -DCMAKE_CXX_STANDARD=${{ matrix.std }} \
             -DCMAKE_POLICY_DEFAULT_CMP0152=NEW \
             -DMDBXC_DEPS_MODE=BUNDLED \
-            -DMDBXC_BUILD_STATIC_LIB=OFF \
             -DMDBXC_BUILD_TESTS=ON \
             -DMDBXC_BUILD_EXAMPLES=OFF \
             -Wno-dev \

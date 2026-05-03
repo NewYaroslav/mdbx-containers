@@ -16,6 +16,8 @@ namespace mdbxc {
     /// \brief Template class for managing key-value pairs in an MDBX database.
     /// \tparam KeyT Type of the keys.
     /// \tparam ValueT Type of the values.
+    /// \tparam Options Compile-time table policy. Does not change the database
+    ///         storage format.
     /// \details This class provides functionality to store, retrieve, and manipulate key-value pairs in an MDBX database.
     /// It supports various container types, such as `std::map`, `std::unordered_map`, `std::vector`, and `std::list`.
     /// Key-value pairs can be inserted, reconciled, retrieved, and removed with transaction support. The class includes
@@ -23,7 +25,7 @@ namespace mdbxc {
     /// in a database environment. Additionally, temporary tables are used during reconciliation to ensure consistent data
     /// synchronization. This class also provides methods for checking the count and emptiness of the database, and efficiently
     /// handles database errors with detailed exception handling.
-    template<class KeyT, class ValueT>
+    template<class KeyT, class ValueT, class Options = DefaultTableOptions>
     class KeyValueTable final : public BaseTable {
     public:
 
@@ -738,7 +740,7 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         bool db_get(const KeyT& key, ValueT& value, MDBX_txn* txn_handle) const {
             SerializeScratch sc_key;
-            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             MDBX_val db_val;
             int rc = mdbx_get(txn_handle, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
@@ -754,7 +756,7 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         bool db_contains(const KeyT& key, MDBX_txn* txn_handle) const {
             SerializeScratch sc_key;
-            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             MDBX_val db_val; // dummy
             int rc = mdbx_get(txn_handle, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
@@ -783,7 +785,7 @@ namespace mdbxc {
             SerializeScratch sc_value;
             
             for (const auto& pair : container) {
-                MDBX_val db_key = serialize_key(pair.first, sc_key);
+                MDBX_val db_key = serialize_key<Options::safe_integer_key>(pair.first, sc_key);
                 MDBX_val db_val = serialize_value(pair.second, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
@@ -802,7 +804,7 @@ namespace mdbxc {
             
 #if __cplusplus >= 201703L
             for (const auto& [key, value] : container) {
-                MDBX_val db_key = serialize_key(key, sc_key);
+                MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
                 MDBX_val db_val = serialize_value(value, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
@@ -814,7 +816,7 @@ namespace mdbxc {
                  it != container.end(); ++it) {
                 const KeyT& key = it->first;
                 const ValueT& value = it->second;
-                MDBX_val db_key = serialize_key(key, sc_key);
+                MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
                 MDBX_val db_val = serialize_value(value, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
@@ -840,7 +842,7 @@ namespace mdbxc {
             std::unordered_set<KeyT> new_keys;
             for (const auto& pair : container) {
                 new_keys.insert(pair.first);
-                MDBX_val db_key = serialize_key(pair.first, sc_key);
+                MDBX_val db_key = serialize_key<Options::safe_integer_key>(pair.first, sc_key);
                 MDBX_val db_val = serialize_value(pair.second, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
@@ -880,7 +882,7 @@ namespace mdbxc {
 
                 new_keys.insert(key);
 
-                MDBX_val db_key = serialize_key(key, sc_key);
+                MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
                 MDBX_val db_val = serialize_value(value, sc_value);
                 check_mdbx(
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
@@ -912,7 +914,7 @@ namespace mdbxc {
         bool db_insert_if_absent(const KeyT& key, const ValueT& value, MDBX_txn* txn_handle) {
             SerializeScratch sc_key;
             SerializeScratch sc_value;
-            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             MDBX_val db_val = serialize_value(value, sc_value);
             int rc = mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
 
@@ -933,7 +935,7 @@ namespace mdbxc {
         void db_insert_or_assign(const KeyT& key, const ValueT& value, MDBX_txn* txn_handle) {
             SerializeScratch sc_key;
             SerializeScratch sc_value;
-            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             MDBX_val db_val = serialize_value(value, sc_value);
             check_mdbx(
                 mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),  // or 0
@@ -948,7 +950,7 @@ namespace mdbxc {
         /// \throws MdbxException if deletion fails for other reasons.
         bool db_erase(const KeyT& key, MDBX_txn* txn_handle) {
             SerializeScratch sc_key;
-            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             int rc = mdbx_del(txn_handle, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) return true;
             if (rc == MDBX_NOTFOUND) return false;

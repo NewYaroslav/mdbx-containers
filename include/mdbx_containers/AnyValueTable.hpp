@@ -13,7 +13,9 @@ namespace mdbxc {
     /// \ingroup mdbxc_tables
     /// \brief Table storing values of arbitrary type associated with a key.
     /// \tparam KeyT Type of the key used to access values.
-    template <class KeyT>
+    /// \tparam Options Compile-time table policy. Does not change the database
+    ///         storage format.
+    template <class KeyT, class Options = DefaultTableOptions>
     class AnyValueTable final : public BaseTable {
     public:
         /// \brief Constructs table using existing connection.
@@ -321,7 +323,7 @@ namespace mdbxc {
         bool put_typed(const KeyT& key, const T& value, bool upsert, MDBX_txn* txn) {
             SerializeScratch sc_key;
             SerializeScratch sc_value;
-            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             MDBX_val raw_val = serialize_value(value, sc_value);
             MDBX_val db_val = wrap_with_type_tag<T>(raw_val);
             MDBX_put_flags_t flags = upsert ? MDBX_UPSERT : MDBX_NOOVERWRITE;
@@ -336,7 +338,7 @@ namespace mdbxc {
         template <class T>
         bool get_typed(const KeyT& key, T& out, MDBX_txn* txn) const {
             SerializeScratch sc_key;
-            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             MDBX_val db_val{};
             int rc = mdbx_get(txn, m_dbi, &db_key, &db_val);
             if (rc == MDBX_NOTFOUND) return false;
@@ -348,7 +350,7 @@ namespace mdbxc {
 
         bool db_contains(const KeyT& key, MDBX_txn* txn) const {
             SerializeScratch sc_key;
-            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             int rc = mdbx_get(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) return true;
             if (rc == MDBX_NOTFOUND) return false;
@@ -358,7 +360,7 @@ namespace mdbxc {
 
         bool db_erase(const KeyT& key, MDBX_txn* txn) {
             SerializeScratch sc_key;
-            MDBX_val db_key = serialize_key(key, sc_key);
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) return true;
             if (rc == MDBX_NOTFOUND) return false;

@@ -20,7 +20,7 @@ namespace mdbxc {
     /// \brief Throws an MdbxException if MDBX return code indicates an error.
     /// \param rc      Return code from an MDBX function.
     /// \param context Description of the calling context.
-    void check_mdbx(int rc, const std::string& context) {
+    inline void check_mdbx(int rc, const std::string& context) {
         if (rc != MDBX_SUCCESS) {
             throw MdbxException(context + ": (" + std::to_string(rc) + ") " + std::string(mdbx_strerror(rc)), rc);
         }
@@ -84,6 +84,38 @@ namespace mdbxc {
     public:
         static const bool value = decltype(check<T>(0))::value;
     };
+
+    template <typename T>
+    struct is_string_sequence_container {
+        static const bool value =
+            std::is_same<T, std::vector<std::string>>::value ||
+            std::is_same<T, std::deque<std::string>>::value ||
+            std::is_same<T, std::list<std::string>>::value;
+    };
+
+    template <typename T>
+    struct is_string_set_container {
+        static const bool value =
+            std::is_same<T, std::set<std::string>>::value ||
+            std::is_same<T, std::unordered_set<std::string>>::value;
+    };
+
+    /// \brief Compile-time policy options for table behavior.
+    /// \tparam SafeIntegerKey Copy 32/64-bit integer keys into aligned scratch
+    ///         storage before MDBX calls when true.
+    template<bool SafeIntegerKey = true>
+    struct TableOptions {
+        static const bool safe_integer_key = SafeIntegerKey;
+    };
+
+    /// \brief Default table policy using safe integer key serialization.
+    typedef TableOptions<true> DefaultTableOptions;
+
+    /// \brief Table policy using direct views for 32/64-bit integer keys.
+    ///
+    /// \warning This mode is a lifetime/alignment tradeoff and does not change
+    ///          the database storage format.
+    typedef TableOptions<false> FastIntegerKeyOptions;
 
 //-----------------------------------------------------------------------------
     
@@ -225,9 +257,10 @@ namespace mdbxc {
     /// \tparam T Key type.
     /// \param key The key to convert.
     /// \return MDBX_val representing the key.
-    template <typename T>
+    template <bool SafeIntegerKey = true, typename T>
     typename std::enable_if<!has_to_bytes<T>::value && !std::is_same<T, std::string>::value && !std::is_trivially_copyable<T>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
         (void)key; 
         (void)sc;
         static_assert(sizeof(T) == 0, "Unsupported type for serialize_key");
@@ -239,16 +272,17 @@ namespace mdbxc {
 
     /// \brief Serializes a key of type std::string.
     /// \tparam T Must be std::string.
-    template<typename T>
+    template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<std::is_same<T, std::string>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
         (void)sc;
         return SerializeScratch::view(static_cast<const void*>(key.data()), key.size());
     }
 
     /// \brief Serializes a key stored in a byte vector.
     /// \tparam T Vector type containing bytes.
-    template<typename T>
+    template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
 #       if __cplusplus >= 201703L
         std::is_same<T, std::vector<std::byte>>::value ||
@@ -257,17 +291,19 @@ namespace mdbxc {
         std::is_same<T, std::vector<char>>::value ||
         std::is_same<T, std::vector<unsigned char>>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
         (void)sc;
         return SerializeScratch::view(static_cast<const void*>(key.data()), key.size());
     }
     
     /// \brief Serializes a small integral key (<=16 bits).
     /// \tparam T Integral type.
-    template<typename T>
+    template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
         std::is_integral<T>::value &&
         (sizeof(T) <= 2), MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
         static_assert(sizeof(uint32_t) == 4, "Expected 4-byte wrapper");
         uint32_t temp = static_cast<uint32_t>(key);
         return sc.view_small_copy(&temp, sizeof(uint32_t));
@@ -275,26 +311,24 @@ namespace mdbxc {
 
     /// \brief Serializes a 32-bit integral key.
     /// \tparam T Supported 32-bit type.
-    template<typename T>
+    template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
         std::is_same<T, int32_t>::value ||
         std::is_same<T, uint32_t>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
         static_assert(sizeof(uint32_t) == 4, "Expected 4-byte integer");
-#       if MDBXC_SAFE_INTEGERKEY
-        return sc.view_small_copy(&key, sizeof(uint32_t));
-#       else
-        (void)sc;
-        return SerializeScratch::view(static_cast<const void*>(&key), sizeof(uint32_t));
-#       endif
+        return SafeIntegerKey
+            ? sc.view_small_copy(&key, sizeof(uint32_t))
+            : SerializeScratch::view(static_cast<const void*>(&key), sizeof(uint32_t));
     }
     
     /// \brief Serializes a 32-bit float key.
     /// \tparam T Supported 32-bit type.
-    template<typename T>
+    template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
         std::is_same<T, float>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
         static_assert(sizeof(uint32_t) == 4, "Expected 4-byte integer");
         uint32_t temp = sortable_key_from_float(key);
         return sc.view_small_copy(&temp, sizeof(uint32_t));
@@ -302,26 +336,24 @@ namespace mdbxc {
 
     /// \brief Serializes a 64-bit integral key.
     /// \tparam T Supported 64-bit type.
-    template<typename T>
+    template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
         std::is_same<T, int64_t>::value ||
         std::is_same<T, uint64_t>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
         static_assert(sizeof(uint64_t) == 8, "Expected 8-byte integer");
-#       if MDBXC_SAFE_INTEGERKEY
-        return sc.view_small_copy(&key, sizeof(uint64_t));
-#       else
-        (void)sc;
-        return SerializeScratch::view(static_cast<const void*>(&key), sizeof(uint64_t));
-#       endif
+        return SafeIntegerKey
+            ? sc.view_small_copy(&key, sizeof(uint64_t))
+            : SerializeScratch::view(static_cast<const void*>(&key), sizeof(uint64_t));
     }
     
     /// \brief Serializes a 64-bit double key.
     /// \tparam T Supported 64-bit type.
-    template<typename T>
+    template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
         std::is_same<T, double>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
         static_assert(sizeof(uint64_t) == 8, "Expected 8-byte integer");
         uint64_t temp = sortable_key_from_double(key);
         return sc.view_small_copy(&temp, sizeof(uint64_t));
@@ -329,7 +361,7 @@ namespace mdbxc {
 
     /// \brief Serializes any other trivially copyable key type.
     /// \tparam T Trivially copyable type.
-    template<typename T>
+    template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
         std::is_trivially_copyable<T>::value &&
         !std::is_same<T, std::string>::value &&
@@ -341,6 +373,7 @@ namespace mdbxc {
         !std::is_same<T, uint64_t>::value &&
         !std::is_same<T, double>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
         (void)sc;
         return SerializeScratch::view(static_cast<const void*>(&key), sizeof(T));
     }
@@ -348,8 +381,9 @@ namespace mdbxc {
     /// \brief Serializes a std::bitset as a key.
     /// \tparam N Number of bits in the bitset.
     /// \param data Bitset value to serialize.
-    template <size_t N>
+    template <bool SafeIntegerKey = true, size_t N>
     inline MDBX_val serialize_key(const std::bitset<N>& data, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
         const size_t num_bytes = (N + 7) / 8;
         std::array<uint8_t, (N + 7) / 8> buffer;
         buffer.fill(0);
@@ -452,13 +486,26 @@ namespace mdbxc {
         return SerializeScratch::view(static_cast<const void*>(&value), sizeof(T));
     }
 
-    /// \brief Serializes a container of strings.
-    /// \tparam T Container type with `std::string` elements.
+    /// \brief Serializes a sequence container of strings.
+    /// \tparam T `std::vector`, `std::deque`, or `std::list` of `std::string`.
     template<typename T>
-    typename std::enable_if<
-            has_value_type<T>::value &&
-            std::is_same<typename T::value_type, std::string>::value,
-            MDBX_val>::type
+    typename std::enable_if<is_string_sequence_container<T>::value, MDBX_val>::type
+    serialize_value(const T& container, SerializeScratch& sc) {
+        sc.bytes.clear();
+        for (const auto& str : container) {
+            uint32_t len = static_cast<uint32_t>(str.size());
+            sc.bytes.insert(sc.bytes.end(),
+                          reinterpret_cast<const uint8_t*>(&len),
+                          reinterpret_cast<const uint8_t*>(&len) + sizeof(uint32_t));
+            sc.bytes.insert(sc.bytes.end(), str.begin(), str.end());
+        }
+        return sc.view_bytes();
+    }
+
+    /// \brief Serializes a set-like container of strings.
+    /// \tparam T `std::set<std::string>` or `std::unordered_set<std::string>`.
+    template<typename T>
+    typename std::enable_if<is_string_set_container<T>::value, MDBX_val>::type
     serialize_value(const T& container, SerializeScratch& sc) {
         sc.bytes.clear();
         for (const auto& str : container) {
@@ -623,13 +670,10 @@ namespace mdbxc {
         return T::from_bytes(val.iov_base, val.iov_len);
     }
 
-    /// \brief Deserializes a container of strings.
-    /// \tparam T Container type with `std::string` elements.
+    /// \brief Deserializes a sequence container of strings.
+    /// \tparam T `std::vector`, `std::deque`, or `std::list` of `std::string`.
     template<typename T>
-    typename std::enable_if<
-            has_value_type<T>::value &&
-            std::is_same<typename T::value_type, std::string>::value,
-            T>::type
+    typename std::enable_if<is_string_sequence_container<T>::value, T>::type
     deserialize_value(const MDBX_val& val) {
         const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
         const uint8_t* end = ptr + val.iov_len;
@@ -653,13 +697,10 @@ namespace mdbxc {
         return result;
     }
     
-    /// \brief Deserializes a set of strings.
+    /// \brief Deserializes a set-like container of strings.
     /// \tparam T Either `std::set<std::string>` or `std::unordered_set<std::string>`.
     template<typename T>
-    typename std::enable_if<
-            std::is_same<T, std::set<std::string>>::value ||
-            std::is_same<T, std::unordered_set<std::string>>::value,
-            T>::type
+    typename std::enable_if<is_string_set_container<T>::value, T>::type
     deserialize_value(const MDBX_val& val) {
         const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
         const uint8_t* end = ptr + val.iov_len;

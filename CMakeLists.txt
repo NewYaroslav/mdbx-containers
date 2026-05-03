@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(mdbx_containers VERSION 1.0.1 LANGUAGES CXX)
+project(mdbx_containers VERSION 1.0.2 LANGUAGES CXX)
 
 include(CheckCXXCompilerFlag)
 include(CheckLinkerFlag)
@@ -16,7 +16,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE PATH "")
 # ---------------------------------------
 option(MDBXC_BUILD_EXAMPLES     "Build examples"                                  ON)
 option(MDBXC_BUILD_TESTS        "Build tests with CTest"                           ON)
-option(MDBXC_BUILD_STATIC_LIB   "Build static library from src/*.cpp (optional)"   OFF)
 option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmdbx)" ON)
 
 # Three-mode dependency policy for MDBX: AUTO | SYSTEM | BUNDLED
@@ -24,7 +23,6 @@ set(MDBXC_DEPS_MODE "AUTO" CACHE STRING "Dependency mode for MDBX: AUTO|SYSTEM|B
 set_property(CACHE MDBXC_DEPS_MODE PROPERTY STRINGS AUTO SYSTEM BUNDLED)
 
 message(STATUS "MDBXC_DEPS_MODE         = ${MDBXC_DEPS_MODE}")
-message(STATUS "MDBXC_BUILD_STATIC_LIB  = ${MDBXC_BUILD_STATIC_LIB}")
 message(STATUS "MDBXC_BUILD_EXAMPLES    = ${MDBXC_BUILD_EXAMPLES}")
 message(STATUS "MDBXC_BUILD_TESTS       = ${MDBXC_BUILD_TESTS}")
 message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
@@ -46,7 +44,7 @@ if (MDBXC_USE_ASAN AND (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang") AND NOT MSVC)
 endif()
 
 function(mdbxc_enable_asan tgt)
-    if(MDBXC_USE_ASAN AND (CMAKE_BUILD_TYPE MATCHES "Debug|RelWithDebInfo")
+    if(MDBXC_HAS_ASAN AND (CMAKE_BUILD_TYPE MATCHES "Debug|RelWithDebInfo")
        AND (MINGW OR CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang"))
         target_compile_options(${tgt} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(${tgt} PRIVATE -fsanitize=address)
@@ -82,47 +80,44 @@ if(NOT TARGET mdbx::mdbx AND NOT TARGET mdbx::mdbx-static)
 endif()
 
 # ---------------------------------------
-# Library target (either STATIC or INTERFACE)
-# - Header-only by default via INTERFACE target
-# - Optional compiled STATIC library when MDBXC_BUILD_STATIC_LIB=ON
+# Header-only library target
 # ---------------------------------------
 set(_PKG_TARGET mdbx_containers)
+set(_PKG_EXPORT_TARGET mdbx_containers_export)
 
-if(MDBXC_BUILD_STATIC_LIB)
-    file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS src/*.cpp)
-    if(LIB_SOURCES)
-        add_library(${_PKG_TARGET} STATIC ${LIB_SOURCES})
-    else()
-        # Allow empty src/: create an empty static lib for ABI/testing scenarios
-        add_library(${_PKG_TARGET} STATIC EXCLUDE_FROM_ALL)
-        # Optional placeholder header if you want to ensure at least one source
-        # target_sources(${_PKG_TARGET} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/mdbx_containers/placeholder.hpp)
-    endif()
+add_library(${_PKG_TARGET} INTERFACE)
+target_include_directories(${_PKG_TARGET} INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(${_PKG_TARGET} INTERFACE cxx_std_11)
 
-    target_include_directories(${_PKG_TARGET} PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    )
-    if(TARGET mdbx::mdbx-static)
-        target_link_libraries(${_PKG_TARGET} PRIVATE mdbx::mdbx-static)
-    else()
-        target_link_libraries(${_PKG_TARGET} PRIVATE mdbx::mdbx)
-    endif()
-    target_compile_features(${_PKG_TARGET} PUBLIC cxx_std_11)
-    target_compile_definitions(${_PKG_TARGET} PRIVATE MDBX_CONTAINERS_SEPARATE_COMPILATION)
+if(TARGET mdbx::mdbx-static)
+    set(_MDBXC_BUILD_MDBX_TARGET mdbx::mdbx-static)
 else()
-    add_library(${_PKG_TARGET} INTERFACE)
-    target_include_directories(${_PKG_TARGET} INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    )
-    target_compile_features(${_PKG_TARGET} INTERFACE cxx_std_11)
+    set(_MDBXC_BUILD_MDBX_TARGET mdbx::mdbx)
 endif()
-
-set_property(TARGET ${_PKG_TARGET} PROPERTY INTERFACE_LINK_LIBRARIES "")
+target_link_libraries(${_PKG_TARGET} INTERFACE
+    $<BUILD_INTERFACE:${_MDBXC_BUILD_MDBX_TARGET}>
+    $<INSTALL_INTERFACE:mdbx::mdbx>
+)
 
 # Namespace alias for consumers
 add_library(mdbx_containers::mdbx_containers ALIAS ${_PKG_TARGET})
+
+# Install a separate export-only target so the build tree can link the bundled
+# MDBX target directly, while installed packages depend on find_dependency(MDBX).
+add_library(${_PKG_EXPORT_TARGET} INTERFACE)
+target_include_directories(${_PKG_EXPORT_TARGET} INTERFACE
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(${_PKG_EXPORT_TARGET} INTERFACE cxx_std_11)
+target_link_libraries(${_PKG_EXPORT_TARGET} INTERFACE
+    $<INSTALL_INTERFACE:$<1:mdbx::mdbx>>
+)
+set_target_properties(${_PKG_EXPORT_TARGET} PROPERTIES
+    EXPORT_NAME mdbx_containers
+)
 
 # ---------------------------------------
 # Examples (allow interactive-only locally if needed)
@@ -137,17 +132,8 @@ if(MDBXC_BUILD_EXAMPLES)
         )
         target_compile_features(${example_name} PRIVATE cxx_std_11)
 
-        if(MDBXC_BUILD_STATIC_LIB)
-            target_link_libraries(${example_name} PRIVATE ${_PKG_TARGET})
-            message(STATUS "Example ${example_name} -> ${_PKG_TARGET}")
-        else()
-            if(TARGET mdbx::mdbx-static)
-                target_link_libraries(${example_name} PRIVATE mdbx::mdbx-static)
-            else()
-                target_link_libraries(${example_name} PRIVATE mdbx::mdbx)
-            endif()
-            message(STATUS "Example ${example_name} -> MDBX targets")
-        endif()
+        target_link_libraries(${example_name} PRIVATE ${_PKG_TARGET})
+        message(STATUS "Example ${example_name} -> ${_PKG_TARGET}")
 
         # To enable pause-on-Enter in examples only (not in tests), uncomment:
         # target_compile_definitions(${example_name} PRIVATE INTERACTIVE_TEST)
@@ -171,22 +157,13 @@ if(MDBXC_BUILD_TESTS)
         
         mdbxc_enable_asan(${test_name})
 
-        if(MDBXC_BUILD_STATIC_LIB)
-            target_link_libraries(${test_name} PRIVATE ${_PKG_TARGET})
-            message(STATUS "Test ${test_name} -> ${_PKG_TARGET}")
-        else()
-            if(TARGET mdbx::mdbx-static)
-                target_link_libraries(${test_name} PRIVATE mdbx::mdbx-static)
-            else()
-                target_link_libraries(${test_name} PRIVATE mdbx::mdbx)
-            endif()
-            message(STATUS "Test ${test_name} -> MDBX targets")
-        endif()
+        target_link_libraries(${test_name} PRIVATE ${_PKG_TARGET})
+        message(STATUS "Test ${test_name} -> ${_PKG_TARGET}")
 
         # IMPORTANT: we do NOT define INTERACTIVE_TEST for tests.
         add_test(NAME ${test_name} COMMAND ${test_name})
         
-        if(MDBXC_USE_ASAN)
+        if(MDBXC_HAS_ASAN)
             set_tests_properties(${test_name} PROPERTIES
                 ENVIRONMENT "ASAN_OPTIONS=abort_on_error=1,detect_leaks=0,allocator_may_return_null=1"
             )
@@ -200,7 +177,7 @@ endif()
 # ---------------------------------------
 install(DIRECTORY include/ DESTINATION include)
 
-install(TARGETS ${_PKG_TARGET}
+install(TARGETS ${_PKG_EXPORT_TARGET}
     EXPORT mdbx_containersTargets
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib

@@ -58,6 +58,13 @@ int main() {
     auto ks = table.keys();
     assert(ks.size() == 3);
 
+    mdbxc::AnyValueTable<int> safe_int_table(conn, "test_any_int_options");
+    mdbxc::AnyValueTable<int, mdbxc::FastIntegerKeyOptions> fast_int_table(conn, "test_any_int_options");
+    safe_int_table.set<std::string>(11, "safe");
+    fast_int_table.set<int>(12, 99);
+    assert(fast_int_table.get<std::string>(11) == "safe");
+    assert(safe_int_table.get<int>(12) == 99);
+
     std::cout << "AnyValueTable test passed.\n";
     return 0;
 }

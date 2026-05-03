@@ -1,6 +1,6 @@
 # MDBX-Containers
 
-**mdbx-containers** — это лёгкая заголовочная библиотека на C++11/C++17, предоставляющая удобный интерфейс для работы с базой данных [libmdbx](https://github.com/erthink/libmdbx) через стандартные контейнеры STL: `std::map`, `std::set`, `std::unordered_map`, `std::vector` и др.
+**mdbx-containers** — это лёгкая заголовочная библиотека на C++11/C++17, предоставляющая удобный STL‑подобный интерфейс для работы с базой данных [libmdbx](https://github.com/erthink/libmdbx).
 
 Библиотека позволяет прозрачно синхронизировать in-memory контейнеры с данными в MDBX, обеспечивая высокую производительность, надежную транзакционность и поддержку конкурентного доступа.
 
@@ -13,13 +13,12 @@
 
 ## ✨ Особенности
 
-### 🧩 Унифицированный API
-- Одинаковый интерфейс для всех таблиц: `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]` и др.
-- Четыре типа таблиц:
-  - `KeyTable<K>` — только ключи (ещё не реализовано);
-  - `KeyValueTable<K, V>` — один `V` на ключ;
-  - `KeyMultiValueTable<K, V>` — несколько `V` на ключ (`std::multimap`) (ещё не реализовано);
-  - `AnyValueTable<K>` — хранение значений произвольного типа с проверкой типов во время выполнения.
+### 🧩 API таблиц
+- `KeyValueTable<K, V>` — основная реализованная таблица: один `V` на ключ, методы `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]` и др.
+- `AnyValueTable<K>` — реализованная таблица для значений разных типов с типизированными методами `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, `keys`.
+- `KeyTable<K>` — только ключи, placeholder header, ещё не реализовано.
+- `KeyMultiValueTable<K, V>` — несколько `V` на ключ (`std::multimap`), placeholder header, ещё не реализовано.
+- Проверка type-tag prefix в `AnyValueTable` пока реализована не полностью, поэтому не полагайтесь на неё как на полноценную runtime type safety.
 
 ### 🔄 Сериализация и типы
 - Автоматическая сериализация:
@@ -50,7 +49,7 @@
 ## 🔧 Установка и сборка
 
 1. Скопируйте папку `include/` в проект или подключите репозиторий как submodule.
-2. Убедитесь, что `libmdbx` доступна системе (установите `MDBXC_DEPS_MODE=BUNDLED` для автоматической сборки).
+2. Убедитесь, что `libmdbx` доступна системе. Установите `MDBXC_DEPS_MODE=BUNDLED`, чтобы использовать bundled submodule в `external/libmdbx`, или `SYSTEM`/`AUTO` для установленного пакета.
 3. Проверьте поддержку стандарта C++11 и выше.
 
 ### Сборка через CMake
@@ -58,7 +57,6 @@
 ```bash
 cmake -S . -B build \
     -DMDBXC_DEPS_MODE=BUNDLED \
-    -DMDBXC_BUILD_STATIC_LIB=ON \
     -DMDBXC_BUILD_TESTS=ON \
     -DMDBXC_BUILD_EXAMPLES=ON \
     -DMDBXC_USE_ASAN=ON \
@@ -67,6 +65,11 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+> **Предупреждение**
+> Собирайте все translation unit'ы, использующие mdbx-containers, с одинаковым
+> стандартом C++, настройками выравнивания/упаковки структур и набором feature
+> macros. Смешивание C++11 и C++17 или изменение ABI-чувствительных `#define`
+> между файлами может привести к ODR-конфликтам и неопределённому поведению.
 
 Для Windows доступны `.bat`‑скрипты с аналогичными параметрами (`build-mingw-17-examples.bat`, `build-mingw-17-tests.bat`, `build-mingw-11-tests.bat`).
 
@@ -141,10 +144,10 @@ table.insert_or_assign(42, MyData{42, 3.14});
 
 📘 Документация
 - Подробные примеры см. в папке examples/.
-- API и архитектура описаны в Wiki (если есть).
-- Автоматическая генерация документации возможна с Doxygen.
+- API и архитектура описаны в Doxygen-источниках `docs/*.dox`.
+- Автоматическая генерация документации возможна с Doxygen; сгенерированные `docs/html/` и `docs/latex/` не редактируются вручную.
 
 🪪 Лицензия
 Проект распространяется под лицензией MIT.
 
-В состав репозитория включена библиотека [libmdbx](https://github.com/erthink/libmdbx), распространяемая по лицензии Apache License 2.0. Файл лицензии расположен в `docs/libmdbx.LICENSE`.
+Проект может использовать bundled [libmdbx](https://github.com/erthink/libmdbx) из `external/libmdbx`; библиотека распространяется по лицензии Apache License 2.0. Файл лицензии расположен в `docs/libmdbx.LICENSE`.

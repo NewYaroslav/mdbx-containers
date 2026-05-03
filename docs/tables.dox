@@ -1,11 +1,11 @@
 /*! \page tables_page Persistent Containers Usage
 \tableofcontents
 
-This page describes how to work with persistent container classes such as
-\ref mdbxc::KeyValueTable, \ref mdbxc::KeyTable,
-\ref mdbxc::KeyMultiValueTable, and \ref mdbxc::AnyValueTable.
-Containers expose STL-like interfaces while storing data durably in an MDBX
-database.
+This page describes how to work with persistent container classes. The
+implemented table APIs are \ref mdbxc::KeyValueTable and
+\ref mdbxc::AnyValueTable. \ref mdbxc::KeyTable and
+\ref mdbxc::KeyMultiValueTable are placeholder headers reserved for future
+set-like and multimap-like APIs.
 
 ## Creating a connection
 
@@ -51,20 +51,21 @@ auto restored = table.operator()<std::map>();
 for (auto& [k, v] : restored) {/* ... */}
 ```
 
-## Key-only and multi-value tables
+## Key-only and multi-value placeholders
 
-\ref mdbxc::KeyTable acts like `std::set`, storing only keys. Use `insert()`
-to add a key, `contains()` to test for existence, and `erase()` to remove it.
+\ref mdbxc::KeyTable is currently a placeholder for a future `std::set`-like
+table. It should not be used as an implemented API.
 
-\ref mdbxc::KeyMultiValueTable allows duplicate keys similar to `std::multimap`.
-`insert()` adds a new value for a key, `find()` iterates over the range of
-values, and `erase(key, value)` removes individual duplicates.
+\ref mdbxc::KeyMultiValueTable is currently a placeholder for a future
+`std::multimap`-like table. It should not be used as an implemented API.
 
 ## Heterogeneous values
 
-\ref mdbxc::AnyValueTable stores values of arbitrary types by tagging each
-record with its C++ type. `set<T>()`, `insert<T>()`, and `get<T>()` operate on
-typed values, and `update<T>()` modifies them in place with a functor.
+\ref mdbxc::AnyValueTable stores values of arbitrary caller-selected types.
+`set<T>()`, `insert<T>()`, and `get<T>()` operate on typed values, and
+`update<T>()` modifies them in place with a functor. Type-tag prefix
+verification is not fully implemented yet, so callers should not treat it as
+complete runtime type safety.
 
 ```cpp
 mdbxc::AnyValueTable<int> any(conn);

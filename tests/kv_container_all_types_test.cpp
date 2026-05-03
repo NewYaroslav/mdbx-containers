@@ -7,19 +7,32 @@
 #include <cassert>
 #include <chrono>
 #include <vector>
+#include <deque>
+#include <list>
+#include <set>
+#include <unordered_set>
 #include <cstring>
 #include <bitset>
 #include <utility>
+#include <stdexcept>
 
 #include <mdbx_containers/KeyValueTable.hpp>
 
 #if __cplusplus >= 201703L
-#define ASSERT_FOUND(table, key, expected) assert((table).find(key).value() == (expected))
+#define ASSERT_FOUND(table, key, expected)                                                \
+    do {                                                                                  \
+        auto res = (table).find(key);                                                     \
+        if (!res.has_value() || !(res.value() == (expected))) {                           \
+            throw std::runtime_error("ASSERT_FOUND failed");                             \
+        }                                                                                 \
+    } while (0)
 #else
 #define ASSERT_FOUND(table, key, expected)                                                 \
     do {                                                                                  \
         auto res = (table).find_compat(key);                                              \
-        assert(res.first && res.second == (expected));                                    \
+        if (!res.first || !(res.second == (expected))) {                                  \
+            throw std::runtime_error("ASSERT_FOUND failed");                             \
+        }                                                                                 \
     } while (0)
 #endif
 
@@ -131,7 +144,7 @@ struct ConcurrentStruct {
 int main() {
     mdbxc::Config cfg;
     cfg.pathname       = "data/kv_container_all_types";
-    cfg.max_dbs        = 14;
+    cfg.max_dbs        = 40;
     cfg.no_subdir      = false;
     cfg.relative_to_exe= true;
 
@@ -159,6 +172,26 @@ int main() {
         ASSERT_FOUND(kv, 3, std::string("hello"));
     }
 
+    std::cout << "[case] safe/fast int32 key options compatibility\n";
+    {
+        mdbxc::KeyValueTable<int32_t, std::string> safe_kv(conn, "i32_options");
+        mdbxc::KeyValueTable<int32_t, std::string, mdbxc::FastIntegerKeyOptions> fast_kv(conn, "i32_options");
+        safe_kv.insert_or_assign(31, "safe");
+        ASSERT_FOUND(fast_kv, 31, std::string("safe"));
+        fast_kv.insert_or_assign(32, "fast");
+        ASSERT_FOUND(safe_kv, 32, std::string("fast"));
+    }
+
+    std::cout << "[case] safe/fast uint64 key options compatibility\n";
+    {
+        mdbxc::KeyValueTable<uint64_t, std::string> safe_kv(conn, "u64_options");
+        mdbxc::KeyValueTable<uint64_t, std::string, mdbxc::FastIntegerKeyOptions> fast_kv(conn, "u64_options");
+        safe_kv.insert_or_assign(6401u, "safe");
+        ASSERT_FOUND(fast_kv, 6401u, std::string("safe"));
+        fast_kv.insert_or_assign(6402u, "fast");
+        ASSERT_FOUND(safe_kv, 6402u, std::string("fast"));
+    }
+
     std::cout << "[case] string -> string\n";
     {
         mdbxc::KeyValueTable<std::string, std::string> kv(conn, "str_str");
@@ -182,7 +215,30 @@ int main() {
         ASSERT_FOUND(kv, std::string("digits"), s);
     }
 
-#if __cplusplus >= 201703L
+    std::cout << "[case] string -> unordered_set<int>\n";
+    {
+        mdbxc::KeyValueTable<std::string, std::unordered_set<int>> kv(conn, "str_unordered_set_int");
+        std::unordered_set<int> s{1, 2, 3};
+        kv.insert_or_assign("digits", s);
+        ASSERT_FOUND(kv, std::string("digits"), s);
+    }
+
+    std::cout << "[case] string -> deque<int>\n";
+    {
+        mdbxc::KeyValueTable<std::string, std::deque<int>> kv(conn, "str_deque_int");
+        std::deque<int> values{1, 2, 3};
+        kv.insert_or_assign("digits", values);
+        ASSERT_FOUND(kv, std::string("digits"), values);
+    }
+
+    std::cout << "[case] string -> list<int>\n";
+    {
+        mdbxc::KeyValueTable<std::string, std::list<int>> kv(conn, "str_list_int");
+        std::list<int> values{1, 2, 3};
+        kv.insert_or_assign("digits", values);
+        ASSERT_FOUND(kv, std::string("digits"), values);
+    }
+
     std::cout << "[case] int64 -> vector<uint8_t>\n";
     {
         mdbxc::KeyValueTable<int64_t, std::vector<uint8_t>> kv(conn, "i64_vec");
@@ -207,6 +263,14 @@ int main() {
         ASSERT_FOUND(kv, std::string("letters"), lst);
     }
 
+    std::cout << "[case] string -> deque<string>\n";
+    {
+        mdbxc::KeyValueTable<std::string, std::deque<std::string>> kv(conn, "str_deque_str");
+        std::deque<std::string> values{"a", "b", "c"};
+        kv.insert_or_assign("letters", values);
+        ASSERT_FOUND(kv, std::string("letters"), values);
+    }
+
     std::cout << "[case] string -> vector<string>\n";
     {
         mdbxc::KeyValueTable<std::string, std::vector<std::string>> kv(conn, "str_vector_str");
@@ -222,7 +286,14 @@ int main() {
         kv.insert_or_assign("letters", s);
         ASSERT_FOUND(kv, std::string("letters"), s);
     }
-#endif
+
+    std::cout << "[case] string -> unordered_set<string>\n";
+    {
+        mdbxc::KeyValueTable<std::string, std::unordered_set<std::string>> kv(conn, "str_unordered_set_str");
+        std::unordered_set<std::string> s{"a", "b", "c"};
+        kv.insert_or_assign("letters", s);
+        ASSERT_FOUND(kv, std::string("letters"), s);
+    }
 
     std::cout << "[case] string -> self-serializable struct\n";
     {

@@ -6,8 +6,10 @@ Version: VERSION_PLACEHOLDER
 mdbx-containers bridges standard STL containers with high-performance [libmdbx](https://github.com/erthink/libmdbx) storage. It transparently persists data in a transactional database while exposing familiar container-like interfaces.
 
 Key features:
-- Header-only usage or optional static library.
-- Unified API for `KeyTable`, `KeyValueTable`, `KeyMultiValueTable`, and `AnyValueTable`.
+- Header-only usage through an exported CMake `INTERFACE` target.
+- Implemented `KeyValueTable` API for map-like key-value storage.
+- Implemented `AnyValueTable` API for heterogeneous values by caller-selected type.
+- Placeholder headers for future `KeyTable` and `KeyMultiValueTable` APIs.
 - Automatic serialization of trivially copyable types and custom `to_bytes()`/`from_bytes()` support.
 - Multiple logical tables inside one MDBX environment.
 - Thread-safe operations with per-thread transactions.
@@ -62,12 +64,15 @@ b.insert_or_assign("a", "b");
 Use CMake or simply include the headers and link with libmdbx.
 ```bash
 cmake -S . -B build \
-    -DMDBXC_DEPS_MODE=BUNDLED \
-    -DMDBXC_BUILD_STATIC_LIB=ON
+    -DMDBXC_DEPS_MODE=BUNDLED
 cmake --build build
 ```
 
 For more details on container usage and C++ version differences see \subpage tables_page.
+
+\warning `KeyTable` and `KeyMultiValueTable` are placeholder headers at this
+time. `AnyValueTable` type-tag prefix verification is not fully implemented
+yet and should not be treated as complete runtime type safety.
 
 \section config_sec Configuration Guide
 Details on tuning the MDBX environment are available on \subpage config_page.
