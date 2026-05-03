@@ -16,8 +16,8 @@
 ### 🧩 API таблиц
 - `KeyValueTable<K, V>` — основная реализованная таблица: один `V` на ключ, методы `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]` и др.
 - `AnyValueTable<K>` — реализованная таблица для значений разных типов с типизированными методами `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, `keys`.
-- `KeyTable<K>` — только ключи, placeholder header, ещё не реализовано.
-- `KeyMultiValueTable<K, V>` — несколько `V` на ключ (`std::multimap`), placeholder header, ещё не реализовано.
+- `KeyTable<K>` — реализованная таблица только для уникальных ключей со `std::set`-подобным API.
+- `KeyMultiValueTable<K, V>` — реализованная таблица для нескольких `V` на ключ (`std::multimap`), включая повторяющиеся одинаковые пары `(key, value)`.
 - Проверка type-tag prefix в `AnyValueTable` пока реализована не полностью, поэтому не полагайтесь на неё как на полноценную runtime type safety.
 
 ### 🔄 Сериализация и типы

@@ -8,6 +8,9 @@
 /// Provides integration between MDBX and STL-style containers with support
 /// for transactions, persistence, and thread-safe operations.
 
+#include "mdbx_containers/AnyValueTable.hpp"
+#include "mdbx_containers/KeyMultiValueTable.hpp"
+#include "mdbx_containers/KeyTable.hpp"
 #include "mdbx_containers/KeyValueTable.hpp"
 
 #endif // _MDBX_CONTAINERS_HPP_INCLUDED

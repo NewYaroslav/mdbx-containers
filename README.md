@@ -13,7 +13,8 @@
 ### Table APIs
 - `KeyValueTable<K, V>` is the main implemented table: one value per key with `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]`, and related helpers.
 - `AnyValueTable<K>` stores heterogeneous values by caller-selected type and supports typed `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, and `keys`.
-- `KeyTable<K>` and `KeyMultiValueTable<K, V>` are placeholder headers and are not implemented yet.
+- `KeyTable<K>` stores unique keys with a `std::set`-like API: `insert`, `contains`, `erase`, `clear`, `load`, `reconcile`, and related helpers.
+- `KeyMultiValueTable<K, V>` stores multiple values per key with a `std::multimap`-like API and preserves repeated identical `(key, value)` pairs.
 - `AnyValueTable` type-tag prefix verification is not fully implemented yet, so do not rely on it for complete runtime type safety.
 
 ### Serialization
@@ -92,6 +93,32 @@ int main() {
 
     return 0;
 }
+```
+
+### Key-only table
+
+```cpp
+#include <mdbx_containers/KeyTable.hpp>
+#include <set>
+
+mdbxc::KeyTable<std::string> keys(conn, "tags");
+keys.insert("active");
+keys.insert("archived");
+
+std::set<std::string> restored = keys.retrieve_all();
+```
+
+### Multi-value table
+
+```cpp
+#include <mdbx_containers/KeyMultiValueTable.hpp>
+
+mdbxc::KeyMultiValueTable<int, std::string> events(conn, "events");
+events.insert(7, "created");
+events.insert(7, "created"); // exact repeats are preserved
+events.insert(7, "sent");
+
+std::vector<std::string> values = events.find(7);
 ```
 
 ### Manual transaction

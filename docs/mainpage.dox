@@ -9,7 +9,9 @@ Key features:
 - Header-only usage through an exported CMake `INTERFACE` target.
 - Implemented `KeyValueTable` API for map-like key-value storage.
 - Implemented `AnyValueTable` API for heterogeneous values by caller-selected type.
-- Placeholder headers for future `KeyTable` and `KeyMultiValueTable` APIs.
+- Implemented `KeyTable` API for set-like key storage.
+- Implemented `KeyMultiValueTable` API for multimap-like storage with repeated
+  identical pairs preserved.
 - Automatic serialization of trivially copyable types and custom `to_bytes()`/`from_bytes()` support.
 - Multiple logical tables inside one MDBX environment.
 - Thread-safe operations with per-thread transactions.
@@ -70,8 +72,7 @@ cmake --build build
 
 For more details on container usage and C++ version differences see \subpage tables_page.
 
-\warning `KeyTable` and `KeyMultiValueTable` are placeholder headers at this
-time. `AnyValueTable` type-tag prefix verification is not fully implemented
+\warning `AnyValueTable` type-tag prefix verification is not fully implemented
 yet and should not be treated as complete runtime type safety.
 
 \section config_sec Configuration Guide

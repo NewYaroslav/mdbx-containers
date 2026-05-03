@@ -4,9 +4,8 @@ and the common base classes shared across containers.
  */
 
 /*! \defgroup mdbxc_tables Persistent Containers
-STL-like containers backed by MDBX. \c KeyValueTable and \c AnyValueTable are
-implemented; \c KeyTable and \c KeyMultiValueTable are placeholder headers for
-future APIs.
+STL-like containers backed by MDBX: \c KeyValueTable, \c AnyValueTable,
+\c KeyTable, and \c KeyMultiValueTable.
  */
 
 /*! \defgroup mdbxc_utils Utility Functions

@@ -2,10 +2,8 @@
 \tableofcontents
 
 This page describes how to work with persistent container classes. The
-implemented table APIs are \ref mdbxc::KeyValueTable and
-\ref mdbxc::AnyValueTable. \ref mdbxc::KeyTable and
-\ref mdbxc::KeyMultiValueTable are placeholder headers reserved for future
-set-like and multimap-like APIs.
+implemented table APIs are \ref mdbxc::KeyValueTable, \ref mdbxc::AnyValueTable,
+\ref mdbxc::KeyTable, and \ref mdbxc::KeyMultiValueTable.
 
 ## Creating a connection
 
@@ -51,13 +49,32 @@ auto restored = table.operator()<std::map>();
 for (auto& [k, v] : restored) {/* ... */}
 ```
 
-## Key-only and multi-value placeholders
+## Key-only tables
 
-\ref mdbxc::KeyTable is currently a placeholder for a future `std::set`-like
-table. It should not be used as an implemented API.
+\ref mdbxc::KeyTable stores unique keys without user values. It mirrors the
+core `std::set` workflow with `insert()`, `contains()`, `erase()`, `clear()`,
+`load()`, and `reconcile()`.
 
-\ref mdbxc::KeyMultiValueTable is currently a placeholder for a future
-`std::multimap`-like table. It should not be used as an implemented API.
+```cpp
+mdbxc::KeyTable<std::string> tags(conn, "tags");
+tags.insert("active");
+tags.insert("archived");
+std::set<std::string> all_tags = tags.retrieve_all();
+```
+
+## Multi-value tables
+
+\ref mdbxc::KeyMultiValueTable stores multiple values for the same key. Repeated
+identical `(key, value)` pairs are preserved, and `find(key)` returns all values
+for a key in insertion order.
+
+```cpp
+mdbxc::KeyMultiValueTable<int, std::string> events(conn, "events");
+events.insert(7, "created");
+events.insert(7, "created");
+events.insert(7, "sent");
+std::vector<std::string> values = events.find(7);
+```
 
 ## Heterogeneous values
 

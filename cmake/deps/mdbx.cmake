@@ -20,7 +20,7 @@
 
 include(FetchContent)
 
-set(MDBX_GIT_TAG "v0.13.7" CACHE STRING "libmdbx release tag")
+set(MDBX_GIT_TAG "v0.13.12" CACHE STRING "libmdbx release tag")
 
 # -------- internals ----------------------------------------------------------
 
@@ -162,28 +162,8 @@ function(_mdbx_try_submodule out_ok)
             set(MDBX_INSTALL_STATIC ON CACHE BOOL "" FORCE)
         endif()
 
-        # Remove VERSION.json only if tags are available; otherwise keep it as fallback
-        set(_have_tags FALSE)
-        if(_GIT AND _is_repo STREQUAL "true")
-            execute_process(
-                COMMAND "${_GIT}" tag -l
-                WORKING_DIRECTORY "${_MDBX_SRC_REAL}"
-                OUTPUT_VARIABLE _tags_out
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_QUIET
-            )
-            if(NOT "${_tags_out}" STREQUAL "")
-                set(_have_tags TRUE)
-            endif()
-        endif()
-        if(_have_tags)
-            if(EXISTS "${_MDBX_SRC_REAL}/VERSION.json")
-                file(REMOVE "${_MDBX_SRC_REAL}/VERSION.json")
-                message(STATUS "libmdbx: tags present -> removed VERSION.json to use git metadata")
-            endif()
-        else()
-            message(STATUS "libmdbx: no git tags detected -> keeping VERSION.json if present")
-        endif()
+        # Keep upstream release metadata intact.  Newer libmdbx releases validate
+        # the amalgamated source package and require VERSION.json to be present.
 
         # Unique binary dir to avoid clobbering
         add_subdirectory("${_MDBX_SRC_REAL}" "${CMAKE_BINARY_DIR}/_deps/mdbx-build")
@@ -219,7 +199,7 @@ function(_mdbx_try_fetchcontent out_ok)
     FetchContent_Declare(
         libmdbx
         GIT_REPOSITORY https://github.com/erthink/libmdbx.git
-        GIT_TAG        stable
+        GIT_TAG        ${MDBX_GIT_TAG}
         GIT_SHALLOW    FALSE
         FIND_PACKAGE_ARGS
     )
