@@ -8,37 +8,37 @@
 > This project values technical merit over personal views of its authors.  
 > See [PHILOSOPHY.md](PHILOSOPHY.md) for details.
 
-## Features
+## ⚙️ Features
 
-### Table APIs
+### 🧱 Table APIs
 - `KeyValueTable<K, V>` is the main implemented table: one value per key with `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]`, and related helpers.
 - `AnyValueTable<K>` stores heterogeneous values by caller-selected type and supports typed `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, and `keys`.
 - `KeyTable<K>` stores unique keys with a `std::set`-like API: `insert`, `contains`, `erase`, `clear`, `load`, `reconcile`, and related helpers.
 - `KeyMultiValueTable<K, V>` stores multiple values per key with a `std::multimap`-like API and preserves repeated identical `(key, value)` pairs.
 - `AnyValueTable` type-tag prefix verification is not fully implemented yet, so do not rely on it for complete runtime type safety.
 
-### Serialization
+### 🔁 Serialization
 - Automatic serialization of trivially copyable types.
 - Custom types via `to_bytes()` / `from_bytes()`.
 - Supports nested STL containers like `std::vector` or `std::list`.
 
-### Transactions and Threads
+### 🔒 Transactions and Threads
 - RAII transactions (`Transaction`).
 - Thread-local transaction binding.
 - Safe concurrent access through `TransactionTracker` and mutexes.
 
-### Structure & Configuration
+### 🗄️ Structure & Configuration
 - Multiple logical tables inside one MDBX file.
 - Flexible configuration: `read_only`, `writemap_mode`, `readahead`, `no_subdir`, `sync_durable`, `max_readers`, `max_dbs`, `relative_to_exe`.
 - See `docs/configuration.dox` for details.
 
-### Compatibility
+### 🧰 Compatibility
 - Header-only usage.
 - Depends only on [libmdbx](https://github.com/erthink/libmdbx).
 - Requires C++11 or later.
 - **Windows (MSVC)**: not supported yet. Use MinGW-w64 (GCC) or Clang on Windows.
 
-## Installation
+## 🛠️ Installation
 
 1. Copy the `include/` directory into your project or add this repository as a submodule.
 2. Ensure `libmdbx` is available to your build system. Set `MDBXC_DEPS_MODE=BUNDLED` to use the bundled submodule at `external/libmdbx`, or use `SYSTEM`/`AUTO` for an installed package.
@@ -65,7 +65,7 @@ ctest --test-dir build --output-on-failure
 
 Windows users can run the provided `.bat` scripts such as `build-mingw-17-examples.bat`, `build-mingw-17-tests.bat`, or `build-mingw-11-tests.bat`.
 
-## Usage Examples
+## 🧪 Usage Examples
 
 ### Basic key-value table
 
@@ -158,13 +158,13 @@ mdbxc::KeyValueTable<int, MyData> table(conn, "my_data");
 table.insert_or_assign(42, MyData{42, 3.14});
 ```
 
-## Documentation
+## 📚 Documentation
 
 - See the `examples/` directory for more examples.
 - API and architecture information lives in the Doxygen source pages under `docs/*.dox`.
 - Documentation can be generated with Doxygen; generated `docs/html/` and `docs/latex/` output should not be edited manually.
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License.
 

@@ -11,34 +11,34 @@
 
 ---
 
-## ✨ Особенности
+## ⚙️ Особенности
 
-### 🧩 API таблиц
+### 🧱 API таблиц
 - `KeyValueTable<K, V>` — основная реализованная таблица: один `V` на ключ, методы `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]` и др.
 - `AnyValueTable<K>` — реализованная таблица для значений разных типов с типизированными методами `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, `keys`.
 - `KeyTable<K>` — реализованная таблица только для уникальных ключей со `std::set`-подобным API.
 - `KeyMultiValueTable<K, V>` — реализованная таблица для нескольких `V` на ключ (`std::multimap`), включая повторяющиеся одинаковые пары `(key, value)`.
 - Проверка type-tag prefix в `AnyValueTable` пока реализована не полностью, поэтому не полагайтесь на неё как на полноценную runtime type safety.
 
-### 🔄 Сериализация и типы
+### 🔁 Сериализация и типы
 - Автоматическая сериализация:
   - trivially copyable типы — по памяти;
   - пользовательские — через `to_bytes()` / `from_bytes()`;
 - Поддержка STL-контейнеров: `std::string`, `std::vector`, `std::list`, `std::set`, `std::vector<std::pair<K, V>>` и др.
 
-### 🧵 Транзакции и многопоточность
+### 🔒 Транзакции и многопоточность
 - RAII-обёртка транзакций (`Transaction`);
 - Привязка транзакции к потоку (`std::thread`);
 - Потокобезопасность при работе с таблицами (через `TransactionTracker`, `std::mutex`).
 
-### 🗃️ Структура и конфигурация
+### 🗄️ Структура и конфигурация
 - Поддержка множества таблиц в одном MDBX-файле (через `MDBX_dbi`);
 - Гибкая конфигурация:
   - `read_only`, `writemap_mode`, `readahead`, `no_subdir`, `sync_durable`,
     `max_readers`, `max_dbs`, `relative_to_exe`.
   - Подробности см. в файле `docs/configuration.dox`.
 
-### ⚙️ Совместимость и подключение
+### 🧰 Совместимость и подключение
 - Заголовочная библиотека (header-only);
 - Требуется только [libmdbx](https://github.com/erthink/libmdbx);
 - Совместимость: C++11 и выше.
@@ -46,7 +46,7 @@
 
 ---
 
-## 🔧 Установка и сборка
+## 🛠️ Установка и сборка
 
 1. Скопируйте папку `include/` в проект или подключите репозиторий как submodule.
 2. Убедитесь, что `libmdbx` доступна системе. Установите `MDBXC_DEPS_MODE=BUNDLED`, чтобы использовать bundled submodule в `external/libmdbx`, или `SYSTEM`/`AUTO` для установленного пакета.
@@ -75,7 +75,7 @@ ctest --test-dir build --output-on-failure
 
 ---
 
-## 🚀 Примеры использования
+## 🧪 Примеры использования
 
 ### Базовая таблица ключ-значение
 
@@ -142,12 +142,12 @@ mdbxc::KeyValueTable<int, MyData> table(conn, "my_data");
 table.insert_or_assign(42, MyData{42, 3.14});
 ```
 
-📘 Документация
+## 📚 Документация
 - Подробные примеры см. в папке examples/.
 - API и архитектура описаны в Doxygen-источниках `docs/*.dox`.
 - Автоматическая генерация документации возможна с Doxygen; сгенерированные `docs/html/` и `docs/latex/` не редактируются вручную.
 
-🪪 Лицензия
+## 📄 Лицензия
 Проект распространяется под лицензией MIT.
 
 Проект может использовать bundled [libmdbx](https://github.com/erthink/libmdbx) из `external/libmdbx`; библиотека распространяется по лицензии Apache License 2.0. Файл лицензии расположен в `docs/libmdbx.LICENSE`.
