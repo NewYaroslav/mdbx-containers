@@ -59,6 +59,10 @@ mdbxc::KeyValueTable<std::string, int> orders(conn, "orders");
 Set `Config::max_dbs` high enough for tests and examples that open several
 tables in one environment.
 
+For choosing between `KeyValueTable`, `KeyTable`, `KeyMultiValueTable`, and
+`AnyValueTable`, and for their bulk-operation semantics, see
+`agents/table-api-guide.md`.
+
 ## Configuration
 
 Use `Config::pathname` for the database file or directory. Path resolution is

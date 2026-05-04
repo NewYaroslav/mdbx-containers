@@ -17,12 +17,17 @@ auto conn = mdbxc::Connection::create(cfg);
 mdbxc::KeyValueTable<int, std::string> table(conn, "demo");
 ```
 
-## Basic operations
+## Key-value tables
 
-`KeyValueTable` mirrors `std::map`. Insert or update elements with
-`insert_or_assign()`, query them with `find()`, erase with `erase()`, or use
-`operator[]` for convenient assignment. Each modifying call runs inside a
-transaction managed automatically by the table.
+\ref mdbxc::KeyValueTable mirrors the core \c std::map model: one value per key.
+Use \c insert() when an existing key must remain unchanged, and
+\c insert_or_assign() when the source value should replace any current value.
+\c append() upserts source keys without deleting unrelated database records.
+\c reconcile() upserts all source keys and removes database keys that are not
+present in the source.
+
+\warning Reading a missing key through \c operator[] inserts and persists a
+         default-constructed value, just like \c std::map::operator[].
 
 ```cpp
 table.insert_or_assign(1, "one");
@@ -36,24 +41,32 @@ if (v.first) std::cout << v.second;
 #endif
 ```
 
-### Iteration and bulk synchronization
+### Loading and synchronization
 
-Tables can be synchronized with existing containers. Assigning from
-`std::map` or `std::unordered_map` replaces database content, while calling the
-table object loads all pairs into a container:
+Loading into an existing container appends/inserts records into that container;
+it does not clear caller-owned content first. \c retrieve_all() and
+\c operator() return a fresh container. For vector input with duplicate keys,
+bulk upsert/reconcile leaves the last written value for that key.
 
 ```cpp
 std::map<int, std::string> src{{1, "one"}, {2, "two"}};
-table = src;                     // reconcile with database
+table = src;                     // reconcile with database keys
 auto restored = table.operator()<std::map>();
-for (auto& [k, v] : restored) {/* ... */}
+for (std::map<int, std::string>::const_iterator it = restored.begin();
+     it != restored.end(); ++it) {/* ... */}
 ```
 
 ## Key-only tables
 
 \ref mdbxc::KeyTable stores unique keys without user values. It mirrors the
-core `std::set` workflow with `insert()`, `contains()`, `erase()`, `clear()`,
-`load()`, and `reconcile()`.
+core \c std::set workflow with \c insert(), \c contains(), \c erase(),
+\c clear(), \c load(), and \c reconcile(). Records store the serialized key as
+the MDBX key and an empty MDBX value. Duplicate inserts use MDBX no-overwrite
+semantics and return \c false.
+
+\note \c append() inserts only missing keys. \c reconcile() currently clears the
+      table and appends source keys, so it is replacement-oriented rather than
+      an incremental set diff.
 
 ```cpp
 mdbxc::KeyTable<std::string> tags(conn, "tags");
@@ -66,7 +79,16 @@ std::set<std::string> all_tags = tags.retrieve_all();
 
 \ref mdbxc::KeyMultiValueTable stores multiple values for the same key. Repeated
 identical `(key, value)` pairs are preserved, and `find(key)` returns all values
-for a key in insertion order.
+for a key in insertion order. The table uses MDBX duplicate records internally
+and adds a hidden sequence prefix to duplicate values so exact repeated pairs can
+coexist.
+
+The default \c retrieve_all() container is \c std::multimap. Use
+\c retrieve_all_vector() when every physical pair must remain visible as a
+separate element, including repeated identical pairs. Reconciliation compares
+pair multiplicity, keeps matching records, deletes surplus records, and inserts
+missing records; it does not reorder already matching records to match source
+iteration order.
 
 ```cpp
 mdbxc::KeyMultiValueTable<int, std::string> events(conn, "events");
@@ -79,10 +101,15 @@ std::vector<std::string> values = events.find(7);
 ## Heterogeneous values
 
 \ref mdbxc::AnyValueTable stores values of arbitrary caller-selected types.
-`set<T>()`, `insert<T>()`, and `get<T>()` operate on typed values, and
-`update<T>()` modifies them in place with a functor. Type-tag prefix
-verification is not fully implemented yet, so callers should not treat it as
-complete runtime type safety.
+\c set<T>(), \c insert<T>(), and \c get<T>() operate on typed values, and
+\c update<T>() modifies them in place with a functor. Each key stores at most one
+value: \c set<T>() replaces any existing value, while \c insert<T>() succeeds
+only when the key is absent. \c keys() lists stored keys, but the class does not
+provide type-erased enumeration of all values.
+
+\warning Type-tag prefix verification is currently a reserved switch and should
+         not be treated as complete runtime type safety. Read values with the
+         same type and serialization contract used to store them.
 
 ```cpp
 mdbxc::AnyValueTable<int> any(conn);
@@ -106,9 +133,10 @@ txn.commit();
 
 ## C++ compatibility
 
-The library supports both C++11 and C++17. When built with C++17, functions
-such as `find()` return `std::optional`. With C++11 use the `*_compat`
-variants returning `std::pair<bool, T>`.
+The library supports both C++11 and C++17. C++17 lookup APIs can return
+\c std::optional where appropriate. C++11 builds use pair-based lookup results,
+and compatibility helpers such as \c find_compat() return
+\c std::pair<bool,T>.
 
 ## Custom serialization
 

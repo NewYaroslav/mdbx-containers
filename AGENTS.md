@@ -9,6 +9,8 @@ This file is intentionally small. It is an index for AI coding agents working in
   all file-editing tasks.
 - [Project overview](agents/project-overview.md) - domain model, public API
   surface, supported table types, and data model.
+- [Table API guide](agents/table-api-guide.md) - decision guide for choosing
+  table classes, methods, bulk semantics, and table-specific constraints.
 - [Codebase orientation](agents/codebase-orientation.md) - practical map for
   finding code, reusing patterns, and extending the library safely.
 - [Build and test](agents/build-and-test.md) - CMake options, local checks, CI

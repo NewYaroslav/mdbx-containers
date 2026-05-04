@@ -3,7 +3,10 @@
 #define _MDBX_CONTAINERS_KEY_VALUE_TABLE_HPP_INCLUDED
 
 /// \file KeyValueTable.hpp
-/// \brief Declaration of the KeyValueTable class for managing key-value pairs in an MDBX database.
+/// \brief Map-like table storing one value per key in an MDBX database.
+/// \details
+/// Provides persistent \c std::map -like storage with explicit transaction
+/// overloads and bulk synchronization helpers.
 
 #include "common.hpp"
 #include <map>
@@ -13,18 +16,26 @@ namespace mdbxc {
 
     /// \class KeyValueTable
     /// \ingroup mdbxc_tables
-    /// \brief Template class for managing key-value pairs in an MDBX database.
+    /// \brief Map-like table persisted in MDBX.
     /// \tparam KeyT Type of the keys.
     /// \tparam ValueT Type of the values.
     /// \tparam Options Compile-time table policy. Does not change the database
     ///         storage format.
-    /// \details This class provides functionality to store, retrieve, and manipulate key-value pairs in an MDBX database.
-    /// It supports various container types, such as `std::map`, `std::unordered_map`, `std::vector`, and `std::list`.
-    /// Key-value pairs can be inserted, reconciled, retrieved, and removed with transaction support. The class includes
-    /// methods for bulk loading and appending data with transactional integrity, ensuring that operations are safely executed
-    /// in a database environment. Additionally, temporary tables are used during reconciliation to ensure consistent data
-    /// synchronization. This class also provides methods for checking the count and emptiness of the database, and efficiently
-    /// handles database errors with detailed exception handling.
+    /// \details
+    /// Provides one stored value per key, similar to \c std::map. \c insert()
+    /// succeeds only when the key is absent, while \c insert_or_assign() and
+    /// \c append() upsert values for source keys. Lookup helpers expose
+    /// \c std::optional in C++17 and \c std::pair<bool,ValueT> compatibility
+    /// forms for C++11.
+    ///
+    /// Bulk loading writes database content into caller-provided containers
+    /// using that container's own insertion rules. Bulk reconciliation upserts
+    /// every source key and removes keys that are no longer present in the
+    /// source; for vector input with duplicate keys, the last written value wins.
+    ///
+    /// \warning Reading through \c operator[] inserts and persists a
+    ///          default-constructed value when the key is missing, matching the
+    ///          mutating behavior of \c std::map::operator[].
     template<class KeyT, class ValueT, class Options = DefaultTableOptions>
     class KeyValueTable final : public BaseTable {
     public:
@@ -60,7 +71,8 @@ namespace mdbxc {
         /// \param container The container with key-value pairs.
         /// \return Reference to this KeyValueTable.
         /// \throws MdbxException if a database error occurs.
-        /// \note The transaction mode is taken from the database configuration.
+        /// \note Equivalent to \c reconcile(container): source keys are upserted
+        ///       and stale database keys are removed.
         template<template <class...> class ContainerT>
         KeyValueTable& operator=(const ContainerT<KeyT, ValueT>& container) {
             with_transaction([this, &container](MDBX_txn* txn) {
@@ -73,7 +85,8 @@ namespace mdbxc {
         /// \param container The vector with key-value pairs.
         /// \return Reference to this KeyValueTable.
         /// \throws MdbxException if a database error occurs.
-        /// \note The transaction mode is taken from the database configuration.
+        /// \note Equivalent to \c reconcile(container). If the vector contains
+        ///       duplicate keys, later elements overwrite earlier ones.
         KeyValueTable& operator=(const std::vector<std::pair<KeyT, ValueT>>& container) {
             with_transaction([this, &container](MDBX_txn* txn) {
                 db_reconcile(container, txn);
@@ -85,6 +98,8 @@ namespace mdbxc {
         /// \tparam ContainerT Container type (e.g., std::map, std::unordered_map, std::vector).
         /// \return Filled container.
         /// \throws MdbxException if a database error occurs.
+        /// \note The returned container is fresh; database records are inserted
+        ///       according to the requested container's insertion rules.
         template<template<class...> class ContainerT = std::map>
 #if __cplusplus >= 201703L
         auto operator()() {
@@ -139,6 +154,8 @@ namespace mdbxc {
 
             /// \brief Implicit conversion to the value type.
             /// If the key does not exist, a default-constructed value is inserted.
+            /// \warning Reading a missing key through this conversion mutates
+            ///          the table by persisting a default-constructed value.
             operator ValueT() const {
 #if __cplusplus >= 201703L
                 auto val = m_db.find(m_key);
@@ -160,6 +177,8 @@ namespace mdbxc {
         /// \brief Provides convenient access to insert or read a value by key.
         /// \param key Key to access.
         /// \return Proxy object used for assignment or implicit read.
+        /// \warning Reading a missing key through the returned proxy inserts a
+        ///          default-constructed value.
         AssignmentProxy operator[](const KeyT& key) {
             return AssignmentProxy(*this, key);
         }
@@ -171,6 +190,8 @@ namespace mdbxc {
         /// \param container Container to be synchronized with database content.
         /// \param txn Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
+        /// \note Adds records to \p container; it does not clear existing
+        ///       container contents first.
         template<template <class...> class ContainerT>
         void load(ContainerT<KeyT, ValueT>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
@@ -192,6 +213,8 @@ namespace mdbxc {
         /// \param container Container to be synchronized with database content.
         /// \param txn Transaction wrapper used for the operation.
         /// \throws MdbxException if a database error occurs.
+        /// \note Adds records to \p container; it does not clear existing
+        ///       container contents first.
         void load(std::vector<std::pair<KeyT, ValueT>>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
                 db_load(container, txn);
@@ -211,6 +234,7 @@ namespace mdbxc {
         /// \param txn Optional transaction handle.
         /// \return Filled container.
         /// \throws MdbxException if a database error occurs.
+        /// \note Returns a fresh container populated from the table.
         template<template<class...> class ContainerT = std::map>
 #if __cplusplus >= 201703L
         auto retrieve_all(MDBX_txn* txn = nullptr) {
@@ -275,6 +299,8 @@ namespace mdbxc {
         /// \param container Container with content to be synchronized.
         /// \param txn Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
+        /// \note Upserts source pairs. Existing keys not present in
+        ///       \p container are left unchanged.
         template<template <class...> class ContainerT>
         void append(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
@@ -297,6 +323,8 @@ namespace mdbxc {
         /// \param container Vector with content to be synchronized.
         /// \param txn Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
+        /// \note Upserts source pairs. If the vector contains duplicate keys,
+        ///       later elements overwrite earlier ones.
         void append(const std::vector<std::pair<KeyT, ValueT>>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
                 db_append(container, txn);
@@ -316,6 +344,9 @@ namespace mdbxc {
         /// \param container Container to be reconciled with the database.
         /// \param txn Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
+        /// \note Upserts every source key and removes database keys absent from
+        ///       \p container. Matching source keys are written even when their
+        ///       value is unchanged.
         template<template <class...> class ContainerT>
         void reconcile(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
@@ -337,6 +368,9 @@ namespace mdbxc {
         /// \param container Vector to be reconciled with the database.
         /// \param txn Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
+        /// \note Upserts every source element and removes database keys absent
+        ///       from \p container. If the vector contains duplicate keys, later
+        ///       elements overwrite earlier ones.
         void reconcile(const std::vector<std::pair<KeyT, ValueT>>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* txn) {
                 db_reconcile(container, txn);
@@ -491,6 +525,7 @@ namespace mdbxc {
         /// \param txn Optional active MDBX transaction.
         /// \return std::optional with value if found, std::nullopt otherwise.
         /// \throws MdbxException on DB error.
+        /// \note Available when compiling as C++17 or newer.
         std::optional<ValueT> find(const KeyT& key, MDBX_txn* txn = nullptr) const {
             std::optional<ValueT> result;
             with_transaction([this, &key, &result](MDBX_txn* txn) {
@@ -541,6 +576,7 @@ namespace mdbxc {
         /// \param txn Optional active MDBX transaction.
         /// \return Pair of success flag and value.
         /// \throws MdbxException on DB error.
+        /// \note C++11-compatible lookup form.
         std::pair<bool, ValueT> find_compat(const KeyT& key, MDBX_txn* txn = nullptr) const {
             std::pair<bool, ValueT> result{false, ValueT{}};
             with_transaction([this, &key, &result](MDBX_txn* txn) {

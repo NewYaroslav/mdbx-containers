@@ -4,6 +4,9 @@
 
 /// \file KeyTable.hpp
 /// \brief Set-like table storing keys without user values.
+/// \details
+/// Persists unique serialized keys with empty MDBX values, providing a compact
+/// \c std::set -like workflow over an MDBX table.
 
 #include "common.hpp"
 
@@ -15,6 +18,16 @@ namespace mdbxc {
     /// \tparam KeyT Type of the keys.
     /// \tparam Options Compile-time table policy. Does not change the database
     ///         storage format.
+    /// \details
+    /// Provides persistent \c std::set -like semantics: every key is stored at
+    /// most once, duplicate inserts are ignored, and reads return keys ordered by
+    /// the underlying MDBX key comparator. Stored records use the serialized key
+    /// as the MDBX key and an empty MDBX value.
+    ///
+    /// \note \c append() inserts missing keys and leaves existing keys
+    ///       unchanged. \c reconcile() currently clears the table and appends the
+    ///       source keys, so it should be treated as replacement rather than an
+    ///       incremental set diff.
     template<class KeyT, class Options = DefaultTableOptions>
     class KeyTable final : public BaseTable {
     public:
@@ -47,6 +60,8 @@ namespace mdbxc {
         /// \tparam ContainerT Container type storing keys.
         /// \param container Source keys.
         /// \return Reference to this table.
+        /// \note Equivalent to \c reconcile(container): current table content is
+        ///       replaced by the source key set.
         template<template<class...> class ContainerT>
         KeyTable& operator=(const ContainerT<KeyT>& container) {
             reconcile(container);
@@ -56,6 +71,9 @@ namespace mdbxc {
         /// \brief Loads all keys into a container.
         /// \tparam ContainerT Container type storing keys.
         /// \return Filled container.
+        /// \note The default \c std::set preserves unique-key table semantics.
+        ///       Other containers receive keys according to their insertion
+        ///       rules.
         template<template<class...> class ContainerT = std::set>
         ContainerT<KeyT> operator()() const {
             return retrieve_all<ContainerT>();
@@ -65,6 +83,8 @@ namespace mdbxc {
         /// \tparam ContainerT Container type storing keys.
         /// \param container Output container.
         /// \param txn Optional transaction handle.
+        /// \note Appends/inserts into \p container; it does not clear existing
+        ///       container contents first.
         template<template<class...> class ContainerT>
         void load(ContainerT<KeyT>& container, MDBX_txn* txn = nullptr) const {
             with_transaction([this, &container](MDBX_txn* t) {
@@ -85,6 +105,7 @@ namespace mdbxc {
         /// \tparam ContainerT Container type storing keys.
         /// \param txn Optional transaction handle.
         /// \return Filled container.
+        /// \note Returns a fresh container populated from the table.
         template<template<class...> class ContainerT = std::set>
         ContainerT<KeyT> retrieve_all(MDBX_txn* txn = nullptr) const {
             ContainerT<KeyT> container;
@@ -105,6 +126,8 @@ namespace mdbxc {
         /// \tparam ContainerT Container type storing keys.
         /// \param container Source keys.
         /// \param txn Optional transaction handle.
+        /// \note Duplicate source keys and keys already present in the table are
+        ///       ignored by set semantics.
         template<template<class...> class ContainerT>
         void append(const ContainerT<KeyT>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* t) {
@@ -125,6 +148,8 @@ namespace mdbxc {
         /// \tparam ContainerT Container type storing keys.
         /// \param container Source keys.
         /// \param txn Optional transaction handle.
+        /// \note Clears existing table content before appending \p container.
+        ///       This operation does not preserve existing records incrementally.
         template<template<class...> class ContainerT>
         void reconcile(const ContainerT<KeyT>& container, MDBX_txn* txn = nullptr) {
             with_transaction([this, &container](MDBX_txn* t) {
@@ -146,6 +171,8 @@ namespace mdbxc {
         /// \param key Key to insert.
         /// \param txn Optional transaction handle.
         /// \return \c true if inserted, \c false if the key already exists.
+        /// \note Uses MDBX no-overwrite semantics; existing keys are never
+        ///       replaced.
         bool insert(const KeyT& key, MDBX_txn* txn = nullptr) {
             bool res = false;
             with_transaction([this, &key, &res](MDBX_txn* t) {

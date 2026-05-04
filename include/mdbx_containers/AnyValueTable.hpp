@@ -4,6 +4,9 @@
 
 /// \file AnyValueTable.hpp
 /// \brief Table storing values of arbitrary type indexed by key.
+/// \details
+/// Provides a typed, heterogeneous key-value API where each key stores one
+/// serialized value chosen by the caller at the access site.
 
 #include "common.hpp"
 
@@ -15,6 +18,22 @@ namespace mdbxc {
     /// \tparam KeyT Type of the key used to access values.
     /// \tparam Options Compile-time table policy. Does not change the database
     ///         storage format.
+    /// \details
+    /// Provides a key-value table for heterogeneous payloads. The table itself
+    /// is templated only on the key type; each read or write names the expected
+    /// value type through methods such as \c set<T>(), \c insert<T>(),
+    /// \c get<T>(), \c find<T>(), and \c update<T>().
+    ///
+    /// Each key can hold at most one value. \c set<T>() replaces any existing
+    /// value for the key, while \c insert<T>() stores the value only when the key
+    /// is absent. \c update<T>() reads a value as \c T, passes it to a functor,
+    /// and stores the modified value back under the same key.
+    ///
+    /// \note \c keys() lists stored keys only; this table does not expose a
+    ///       type-erased value enumeration API.
+    /// \warning Type-tag prefix verification is currently a reserved switch, not
+    ///          complete runtime type safety. Callers must request values with
+    ///          the same type and serialization contract used to store them.
     template <class KeyT, class Options = DefaultTableOptions>
     class AnyValueTable final : public BaseTable {
     public:
@@ -46,6 +65,8 @@ namespace mdbxc {
         /// \param key Key to update.
         /// \param value Value to store.
         /// \param txn Optional transaction handle.
+        /// \note Replaces the existing value for \p key even if it was written
+        ///       through another \c T at the call site.
         template <class T>
         void set(const KeyT& key, const T& value, MDBX_txn* txn = nullptr) {
             with_transaction([&](MDBX_txn* t){
@@ -60,7 +81,13 @@ namespace mdbxc {
         }
 
         /// \brief Insert value if key does not exist.
-        /// \return true if inserted, false if key already exists.
+        /// \tparam T Type of value.
+        /// \param key Key to insert.
+        /// \param value Value to store.
+        /// \param txn Optional transaction handle.
+        /// \return \c true if inserted, \c false if key already exists.
+        /// \note Existence is checked by key only; stored value type is not part
+        ///       of uniqueness.
         template <class T>
         bool insert(const KeyT& key, const T& value, MDBX_txn* txn = nullptr) {
             bool res = false;
@@ -83,6 +110,8 @@ namespace mdbxc {
         /// \param fn Function applied to the value.
         /// \param create_if_missing Create default value if key is absent.
         /// \param txn Optional transaction handle.
+        /// \note When \p create_if_missing is true, a default-constructed \c T
+        ///       is passed to \p fn and then stored.
         template <class T, class Fn>
         void update(const KeyT& key, Fn&& fn, bool create_if_missing = false, MDBX_txn* txn = nullptr) {
             with_transaction([&](MDBX_txn* t){
@@ -131,7 +160,14 @@ namespace mdbxc {
         }
 
         /// \brief Find value by key.
+        /// \tparam T Expected value type.
+        /// \param key Key to search for.
+        /// \param txn Optional transaction handle.
         /// \return Optional with value or std::nullopt.
+        /// \note If type-tag verification reports a mismatch, the value is
+        ///       treated as missing. The current type-tag implementation does
+        ///       not provide full runtime type safety; use the same \c T that
+        ///       was used to store the value.
 #if __cplusplus >= 201703L
         template <class T>
         std::optional<T> find(const KeyT& key, MDBX_txn* txn = nullptr) const {
@@ -183,6 +219,10 @@ namespace mdbxc {
         /// \param key Key to search for.
         /// \param txn Optional transaction handle.
         /// \return Pair of success flag and retrieved value.
+        /// \note If type-tag verification reports a mismatch, the value is
+        ///       treated as missing. The current type-tag implementation does
+        ///       not provide full runtime type safety; use the same \c T that
+        ///       was used to store the value.
         template <class T>
         std::pair<bool, T> find_compat(const KeyT& key, MDBX_txn* txn = nullptr) const {
             std::pair<bool, T> result{false, T{}};
@@ -278,6 +318,7 @@ namespace mdbxc {
         /// \brief List all keys stored in table.
         /// \param txn Optional transaction handle.
         /// \return Vector containing every key stored in the table.
+        /// \note Key order follows MDBX key ordering, not insertion order.
         std::vector<KeyT> keys(MDBX_txn* txn = nullptr) const {
             std::vector<KeyT> out;
             with_transaction([&](MDBX_txn* t){ db_list_keys(out, t); }, TransactionMode::READ_ONLY, txn);
@@ -293,6 +334,8 @@ namespace mdbxc {
 
         /// \brief Enable or disable type-tag checking.
         /// \param enabled Enables check when set to true.
+        /// \warning Reserved for future type-tag prefix verification; currently
+        ///          toggling this flag does not add or validate type metadata.
         void set_type_tag_check(bool enabled) noexcept { m_check_type_tag = enabled; }
 
     private:

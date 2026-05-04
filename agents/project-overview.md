@@ -24,8 +24,11 @@ and compiles in the consumer's translation units.
 | --- | --- | --- |
 | `KeyValueTable<K, V>` | Active | One value per key, similar to `std::map`. |
 | `AnyValueTable<K>` | Active | Heterogeneous values by caller-specified type; type-tag prefix checks are not fully implemented yet. |
-| `KeyTable<K>` | Placeholder | Intended key-only table, similar to `std::set`. |
-| `KeyMultiValueTable<K, V>` | Placeholder | Intended multimap-like table with multiple values per key. |
+| `KeyTable<K>` | Active | Key-only table with `std::set`-like membership semantics. |
+| `KeyMultiValueTable<K, V>` | Active | Multimap-like table with multiple values per key, including repeated identical pairs. |
+
+For method selection, bulk operation semantics, and table-specific constraints,
+see [Table API guide](table-api-guide.md).
 
 Core support classes:
 

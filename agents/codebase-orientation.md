@@ -14,8 +14,8 @@ of truth.
 
 | Path | Purpose | Edit when |
 | --- | --- | --- |
-| `include/mdbx_containers.hpp` | Top-level public include. Currently includes `KeyValueTable.hpp`. | Changing the umbrella API. |
-| `include/mdbx_containers/*.hpp` | Public table headers: active `KeyValueTable`, active `AnyValueTable`, placeholder `KeyTable`, placeholder `KeyMultiValueTable`. | Changing table user APIs. |
+| `include/mdbx_containers.hpp` | Top-level public include for all table headers. | Changing the umbrella API. |
+| `include/mdbx_containers/*.hpp` | Public table headers: `KeyValueTable`, `AnyValueTable`, `KeyTable`, `KeyMultiValueTable`. | Changing table user APIs. |
 | `include/mdbx_containers/common/` | Core infrastructure: `Config`, `Connection`, `Transaction`, `MdbxException`. | Changing env/config/transaction/error behavior. |
 | `include/mdbx_containers/detail/` | Internal building blocks: `BaseTable`, `TransactionTracker`, serialization and path utilities. | Changing shared mechanisms. |
 | `tests/` | Standalone CTest executables. | Adding behavior, regressions, serialization, path, or transaction checks. |
@@ -30,12 +30,15 @@ Primary entry points:
 
 - User API: `include/mdbx_containers.hpp`,
   `include/mdbx_containers/KeyValueTable.hpp`,
-  `include/mdbx_containers/AnyValueTable.hpp`.
+  `include/mdbx_containers/AnyValueTable.hpp`,
+  `include/mdbx_containers/KeyTable.hpp`,
+  `include/mdbx_containers/KeyMultiValueTable.hpp`.
 - Shared public components: `include/mdbx_containers/common.hpp`.
 - Transactions/config: `common/Connection.hpp`, `common/Transaction.hpp`,
   `common/Config.hpp`.
 - Serialization: `detail/utils.hpp`.
 - Path policy: `detail/path_utils.hpp` and `tests/path_resolution_test.cpp`.
+- Table choice and method semantics: `agents/table-api-guide.md`.
 
 ## Architecture
 
@@ -46,7 +49,7 @@ library over libmdbx.
 Real subdomains:
 
 - **Persistent tables**: active `KeyValueTable`, active `AnyValueTable`,
-  placeholder `KeyTable`, placeholder `KeyMultiValueTable`.
+  active `KeyTable`, active `KeyMultiValueTable`.
 - **MDBX environment and transactions**: `Connection`, `Transaction`,
   `TransactionTracker`, `BaseTable`.
 - **Serialization**: `serialize_key`, `serialize_value`,
@@ -118,14 +121,16 @@ Prefer for new table code:
 - Use `SerializeScratch` near each MDBX call that needs an `MDBX_val`.
 - Split public methods from private `db_*` implementations, following
   `KeyValueTable`.
+- Use `agents/table-api-guide.md` to choose the correct existing table class or
+  to keep new table behavior consistent with current method semantics.
 
 Do not copy without review:
 
-- `KeyTable.hpp` and `KeyMultiValueTable.hpp` are placeholders, not working
-  implementation templates.
 - `AnyValueTable::wrap_with_type_tag()` and
   `unwrap_and_check_type_tag()` still contain TODOs and do not implement the
   type-tag prefix yet.
+- `KeyMultiValueTable` hidden duplicate sequence-prefix storage; do not change
+  it without migration notes and compatibility tests.
 - `tests/mdbx_test.cpp` is a raw MDBX smoke test, not the library API style.
 - `docs/html/`, `docs/latex/`, and `build-*/include` are generated output.
 
