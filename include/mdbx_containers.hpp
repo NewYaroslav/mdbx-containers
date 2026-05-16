@@ -9,6 +9,8 @@
 /// for transactions, persistence, and thread-safe operations.
 
 #include "mdbx_containers/AnyValueTable.hpp"
+#include "mdbx_containers/Hash.hpp"
+#include "mdbx_containers/HashedKeyValueStore.hpp"
 #include "mdbx_containers/KeyMultiValueTable.hpp"
 #include "mdbx_containers/KeyTable.hpp"
 #include "mdbx_containers/KeyValueTable.hpp"

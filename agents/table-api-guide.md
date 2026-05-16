@@ -15,6 +15,7 @@ source of truth.
 | Need | Use | STL analogue | Notes |
 | --- | --- | --- | --- |
 | One value per key | `KeyValueTable<K, V>` | `std::map` | Default choice for durable key-value storage. |
+| One value per string/byte key with hash lookup | `HashedKeyValueStore<K, V, H>` | `std::map` | Uses a hash bucket index and verifies original key bytes. |
 | Unique keys only | `KeyTable<K>` | `std::set` | Stores serialized keys with empty values. |
 | Multiple values per key | `KeyMultiValueTable<K, V>` | `std::multimap` | Preserves repeated identical `(key, value)` pairs. |
 | Different value types by key | `AnyValueTable<K>` | Heterogeneous key-value store | Caller names value type on each access. |
@@ -24,6 +25,8 @@ Choose the narrowest table that represents the data:
 - Use `KeyTable` for membership, tags, IDs, indexes, and "seen" sets.
 - Use `KeyValueTable` for configuration, object snapshots, latest state, and
   any model where a key has one current value.
+- Use `HashedKeyValueStore` when keys are strings or byte vectors and a compact
+  hash-index lookup path is preferable to ordering by full original key bytes.
 - Use `KeyMultiValueTable` for event lists, secondary indexes, histories, and
   any model where repeated values for the same key must remain visible.
 - Use `AnyValueTable` only when values under one key domain genuinely need
@@ -38,6 +41,8 @@ All public table classes follow the same broad shape:
 - They provide constructors from `std::shared_ptr<Connection>` and `Config`.
 - Constructor `name` opens a named MDBX DBI; increase `Config::max_dbs` when
   tests/examples open several named tables in one environment.
+- `HashedKeyValueStore` consumes two DBIs per logical store: records plus
+  `name + "__hash_index"`.
 - Public methods accept an optional `MDBX_txn*` where relevant.
 - `const Transaction&` overloads delegate to `.handle()`.
 - Automatic operations create a transaction, reuse a thread-bound transaction,
@@ -66,6 +71,8 @@ Important differences:
 
 - `KeyValueTable::append()` upserts source keys and leaves stale keys intact.
 - `KeyValueTable::reconcile()` upserts source keys and deletes stale keys.
+- `HashedKeyValueStore::append()` and `reconcile()` follow `KeyValueTable`
+  one-value-per-key semantics while maintaining the hash index.
 - `KeyTable::append()` inserts missing keys and ignores duplicates.
 - `KeyTable::reconcile()` currently clears the table and appends source keys.
 - `KeyMultiValueTable::append()` inserts every source pair as a stored pair.
@@ -117,6 +124,35 @@ Avoid it when:
 
 - Repeated values for a key are meaningful. Use `KeyMultiValueTable`.
 - Only membership matters. Use `KeyTable`.
+
+## HashedKeyValueStore
+
+`HashedKeyValueStore<K, V, H>` is a map-like table for `std::string` and
+byte-vector keys. It stores one value per original key and keeps a separate
+hash index for lookup. Hash collisions do not affect correctness because reads,
+updates, and deletes compare the stored original key bytes after selecting the
+hash bucket.
+
+Write/read methods mirror `KeyValueTable`: `insert()`, `insert_or_assign()`,
+`append()`, `reconcile()`, `at()`, `try_get()`, `find()`/`find_compat()`,
+`contains()`, `erase()`, `count()`, `empty()`, `clear()`, `load()`, and
+`retrieve_all()`.
+
+Restrictions and common mistakes:
+
+- The default `XXH3Hasher` is non-cryptographic and only accelerates lookup.
+- Use `SipHashHasher` or another stable keyed hasher when external users can
+  choose many keys.
+- Reuse the same hasher and key material for existing data; changing them makes
+  existing records unreachable through normal key lookup until rebuilt.
+- Increase `Config::max_dbs` by two per logical hashed store.
+
+Use it for:
+
+- URL, path, token, string ID, ticker, or byte-key domains where full-key MDBX
+  ordering is not the desired lookup shape.
+- Key domains with potentially long keys where a hash bucket narrows lookup
+  before original-key verification.
 
 ## KeyTable
 

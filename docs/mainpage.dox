@@ -8,6 +8,8 @@ mdbx-containers bridges standard STL containers with high-performance [libmdbx](
 Key features:
 - Header-only usage through an exported CMake `INTERFACE` target.
 - Implemented `KeyValueTable` API for map-like key-value storage.
+- Implemented `HashedKeyValueStore` API for string and byte-vector keys with a
+  hash lookup index.
 - Implemented `AnyValueTable` API for heterogeneous values by caller-selected type.
 - Implemented `KeyTable` API for set-like key storage.
 - Implemented `KeyMultiValueTable` API for multimap-like storage with repeated
@@ -50,6 +52,14 @@ conn->begin(mdbxc::TransactionMode::WRITABLE);
 mdbxc::KeyValueTable<int, std::string> tbl(conn, "data");
 tbl.insert_or_assign(10, "ten");
 conn->commit();
+```
+
+\subsection ex_hashed Hashed key-value store
+```cpp
+mdbxc::Config cfg; cfg.pathname = "hashed.mdbx"; cfg.max_dbs = 2;
+auto conn = mdbxc::Connection::create(cfg);
+mdbxc::HashedKeyValueStore<std::string, std::string> store(conn, "tokens");
+store.insert_or_assign("user:42", "active");
 ```
 
 \subsection ex_multitable Multiple tables

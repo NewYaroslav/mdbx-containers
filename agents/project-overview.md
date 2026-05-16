@@ -23,6 +23,7 @@ and compiles in the consumer's translation units.
 | Type | Status | Purpose |
 | --- | --- | --- |
 | `KeyValueTable<K, V>` | Active | One value per key, similar to `std::map`. |
+| `HashedKeyValueStore<K, V, H>` | Active | One value per string/byte key with a hash lookup index. |
 | `AnyValueTable<K>` | Active | Heterogeneous values by caller-specified type; type-tag prefix checks are not fully implemented yet. |
 | `KeyTable<K>` | Active | Key-only table with `std::set`-like membership semantics. |
 | `KeyMultiValueTable<K, V>` | Active | Multimap-like table with multiple values per key, including repeated identical pairs. |
@@ -65,6 +66,12 @@ auto value = table.find(1);
 Table names are passed to table constructors and become named MDBX sub-databases
 inside the same environment. Increase `Config::max_dbs` when a test or example
 opens multiple named tables.
+
+`HashedKeyValueStore` opens two named MDBX sub-databases per logical store: the
+records table named by the constructor argument and a `__hash_index` companion
+table. Its default `XXH3Hasher` is non-cryptographic and only accelerates
+lookup; stored original key bytes are always compared for correctness. Use a
+stable keyed hasher such as `SipHashHasher` for untrusted keys.
 
 ## Error Model
 

@@ -15,9 +15,9 @@ of truth.
 | Path | Purpose | Edit when |
 | --- | --- | --- |
 | `include/mdbx_containers.hpp` | Top-level public include for all table headers. | Changing the umbrella API. |
-| `include/mdbx_containers/*.hpp` | Public table headers: `KeyValueTable`, `AnyValueTable`, `KeyTable`, `KeyMultiValueTable`. | Changing table user APIs. |
+| `include/mdbx_containers/*.hpp` | Public headers: table APIs plus small supported helpers such as `Hash.hpp`. | Changing table user APIs or reusable user-facing helpers. |
 | `include/mdbx_containers/common/` | Core infrastructure: `Config`, `Connection`, `Transaction`, `MdbxException`. | Changing env/config/transaction/error behavior. |
-| `include/mdbx_containers/detail/` | Internal building blocks: `BaseTable`, `TransactionTracker`, serialization and path utilities. | Changing shared mechanisms. |
+| `include/mdbx_containers/detail/` | Internal building blocks: `BaseTable`, `TransactionTracker`, serialization, path utilities, vendored/private helpers. Not public API. | Changing shared mechanisms. |
 | `tests/` | Standalone CTest executables. | Adding behavior, regressions, serialization, path, or transaction checks. |
 | `examples/` | User-facing API examples. | Public usage scenarios change. |
 | `docs/*.dox` | Doxygen page sources. | Public API or user-facing behavior changes. |
@@ -30,6 +30,8 @@ Primary entry points:
 
 - User API: `include/mdbx_containers.hpp`,
   `include/mdbx_containers/KeyValueTable.hpp`,
+  `include/mdbx_containers/HashedKeyValueStore.hpp`,
+  `include/mdbx_containers/Hash.hpp`,
   `include/mdbx_containers/AnyValueTable.hpp`,
   `include/mdbx_containers/KeyTable.hpp`,
   `include/mdbx_containers/KeyMultiValueTable.hpp`.
@@ -48,8 +50,9 @@ library over libmdbx.
 
 Real subdomains:
 
-- **Persistent tables**: active `KeyValueTable`, active `AnyValueTable`,
-  active `KeyTable`, active `KeyMultiValueTable`.
+- **Persistent tables**: active `KeyValueTable`, active
+  `HashedKeyValueStore`, active `AnyValueTable`, active `KeyTable`, active
+  `KeyMultiValueTable`.
 - **MDBX environment and transactions**: `Connection`, `Transaction`,
   `TransactionTracker`, `BaseTable`.
 - **Serialization**: `serialize_key`, `serialize_value`,
@@ -70,8 +73,10 @@ Where to find types:
 Namespace:
 
 - Library code lives in `namespace mdbxc`.
-- There are no separate namespaces for `domain`, `infra`, or `detail`;
-  `detail/` is a directory boundary, not a namespace.
+- There are no separate namespaces for `domain` or `infra`.
+- Some implementation-only traits live in `namespace mdbxc::detail`; callers
+  must treat both `mdbxc::detail` and `include/mdbx_containers/detail/` as
+  private, unstable implementation space.
 - `namespace fs = std::filesystem` is used inside `path_utils.hpp` and
   `Connection.ipp` under C++17 guards.
 
@@ -79,10 +84,14 @@ Dependency rules:
 
 - Public table headers may depend on `common.hpp` and through it on
   `Connection`, `BaseTable`, and serialization helpers.
+- Public top-level helper headers such as `Hash.hpp` may be included directly
+  by users. Keep them C++11-compatible unless guarded.
 - `common/Connection.*` may depend on `detail/path_utils.hpp`, `Transaction`,
   `Config`, and `check_mdbx`.
 - `detail/utils.hpp` should remain low-level: serialization, MDBX error
   checking, key flags. Do not add table-specific logic there.
+- Headers under `include/mdbx_containers/detail/` may be included by public
+  headers, but they are not a supported direct user include surface.
 - `tests/` and `examples/` may depend on public headers, but library headers
   must not depend on tests, examples, or docs.
 
@@ -379,6 +388,8 @@ Do not add an HTTP/WebSocket framework to persistence-library headers.
 - Check C++11 and C++17 branches when public templates change.
 - Use `Config::pathname`, constructor table names, and `Config::max_dbs` for
   multiple DBIs.
+- Remember `HashedKeyValueStore` uses two DBIs per logical store: records plus
+  `name + "__hash_index"`.
 - Reuse `SerializeScratch` and serialization helpers.
 - Wrap MDBX errors through `check_mdbx`.
 - Add tests near existing tests for the same mechanism.

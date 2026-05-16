@@ -2,7 +2,8 @@
 \tableofcontents
 
 This page describes how to work with persistent container classes. The
-implemented table APIs are \ref mdbxc::KeyValueTable, \ref mdbxc::AnyValueTable,
+implemented table APIs are \ref mdbxc::KeyValueTable,
+\ref mdbxc::HashedKeyValueStore, \ref mdbxc::AnyValueTable,
 \ref mdbxc::KeyTable, and \ref mdbxc::KeyMultiValueTable.
 
 ## Creating a connection
@@ -54,6 +55,39 @@ table = src;                     // reconcile with database keys
 auto restored = table.operator()<std::map>();
 for (std::map<int, std::string>::const_iterator it = restored.begin();
      it != restored.end(); ++it) {/* ... */}
+```
+
+## Hashed key-value stores
+
+\ref mdbxc::HashedKeyValueStore stores one value per original string or
+byte-vector key, but uses a 64-bit hash as a lookup accelerator. It verifies the
+stored original key bytes after locating a hash bucket, so container correctness
+does not rely on hash uniqueness.
+
+The default \ref mdbxc::XXH3Hasher is non-cryptographic. It is suitable for
+local keys such as paths, URLs, names, IDs, and tickers. For externally
+controlled or adversarial keys, use a stable keyed hasher such as
+\ref mdbxc::SipHashHasher. Reuse the same hasher and key material when reopening
+an existing store; changing the hash domain makes existing records unreachable
+through normal key lookup until the store is rebuilt.
+
+\note Each hashed store consumes two named MDBX DBIs: the records table named by
+      the constructor argument and a `__hash_index` table. Increase
+      \ref mdbxc::Config::max_dbs accordingly.
+
+```cpp
+mdbxc::Config cfg;
+cfg.pathname = "hashed.mdbx";
+cfg.max_dbs = 2;
+auto conn = mdbxc::Connection::create(cfg);
+
+mdbxc::HashedKeyValueStore<std::string, std::string> local(conn, "local");
+local.insert_or_assign("user:42", "active");
+
+mdbxc::SipHashHasher sip(0x0706050403020100ULL, 0x0f0e0d0c0b0a0908ULL);
+mdbxc::HashedKeyValueStore<std::string, std::string, mdbxc::SipHashHasher>
+    untrusted(conn, "untrusted", sip);
+untrusted.insert_or_assign("external-token", "accepted");
 ```
 
 ## Key-only tables

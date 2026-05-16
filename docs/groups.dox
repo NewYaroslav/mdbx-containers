@@ -4,12 +4,18 @@ and the common base classes shared across containers.
  */
 
 /*! \defgroup mdbxc_tables Persistent Containers
-STL-like containers backed by MDBX: \c KeyValueTable, \c AnyValueTable,
-\c KeyTable, and \c KeyMultiValueTable.
+STL-like containers backed by MDBX: \c KeyValueTable, \c HashedKeyValueStore,
+\c AnyValueTable, \c KeyTable, and \c KeyMultiValueTable.
  */
 
 /*! \defgroup mdbxc_utils Utility Functions
 Helper traits and serialization routines used throughout the library.
+
+Public utility headers such as \c Hash.hpp live in the top-level public include
+area and may be included directly by users. Headers under
+\c include/mdbx_containers/detail are private implementation details, including
+vendored dependencies and internal traits used by public table headers.
+
 \section IEEE754 sortable keys
 These helpers implement order-preserving transformation of IEEE754 floats/doubles
 into unsigned integers. This allows using floating-point values as database keys
