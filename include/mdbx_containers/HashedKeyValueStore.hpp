@@ -9,7 +9,6 @@
 #include "detail/ResultContainers.hpp"
 #include "Hash.hpp"
 
-#include <limits>
 #include <map>
 #include <set>
 #include <utility>
@@ -32,13 +31,15 @@ namespace mdbxc {
     /// bytes are always compared before a record is accepted, so correctness does
     /// not rely on hash uniqueness.
     ///
+    /// The store uses one MDBX DBI opened with \c MDBX_INTEGERKEY and
+    /// \c MDBX_DUPSORT. The MDBX key is a 64-bit hash of the original key bytes,
+    /// and each duplicate value stores the original key bytes followed by the
+    /// serialized value.
+    ///
     /// The default \ref XXH3Hasher is non-cryptographic and intended only as a
     /// lookup accelerator. For externally controlled keys use a stable keyed
     /// hasher such as \ref SipHashHasher. Changing the hasher or keyed hasher
     /// material for an existing store changes the lookup domain.
-    ///
-    /// \note One logical store opens two MDBX DBIs: the records table named by
-    ///       \p name and a hash index named \c name + "__hash_index".
     template<class KeyT, class ValueT, class Hasher = XXH3Hasher>
     class HashedKeyValueStore final : public BaseTable {
         static_assert(is_hashed_key_type<KeyT>::value,
@@ -56,11 +57,8 @@ namespace mdbxc {
                                      std::string name = "hashed_kv_store",
                                      Hasher hasher = Hasher(),
                                      MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE)
-            : BaseTable(std::move(connection), name, flags),
-              m_index_dbi(),
-              m_hasher(std::move(hasher)) {
-            open_index(index_name_for(name), flags);
-        }
+            : BaseTable(std::move(connection), name, store_flags(flags)),
+              m_hasher(std::move(hasher)) {}
 
         /// \brief Constructs a store using a database configuration.
         /// \param config Configuration settings for the database.
@@ -71,11 +69,8 @@ namespace mdbxc {
                                      std::string name = "hashed_kv_store",
                                      Hasher hasher = Hasher(),
                                      MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE)
-            : BaseTable(Connection::create(config), name, flags),
-              m_index_dbi(),
-              m_hasher(std::move(hasher)) {
-            open_index(index_name_for(name), flags);
-        }
+            : BaseTable(Connection::create(config), name, store_flags(flags)),
+              m_hasher(std::move(hasher)) {}
 
         /// \brief Destructor.
         ~HashedKeyValueStore() override = default;
@@ -532,7 +527,7 @@ namespace mdbxc {
             return erase(key, txn.handle());
         }
 
-        /// \brief Removes all records and hash index entries.
+        /// \brief Removes all records.
         /// \param txn Optional transaction handle.
         void clear(MDBX_txn* txn = nullptr) {
             with_transaction([this](MDBX_txn* t) {
@@ -540,14 +535,13 @@ namespace mdbxc {
             }, TransactionMode::WRITABLE, txn);
         }
 
-        /// \brief Removes all records and hash index entries.
+        /// \brief Removes all records.
         /// \param txn Active transaction wrapper.
         void clear(const Transaction& txn) {
             clear(txn.handle());
         }
 
     private:
-        MDBX_dbi m_index_dbi;
         Hasher m_hasher;
 
         struct PackedRecordView {
@@ -555,12 +549,6 @@ namespace mdbxc {
             std::size_t key_size;
             const uint8_t* value_data;
             std::size_t value_size;
-        };
-
-        struct LocatedRecord {
-            std::uint64_t hash;
-            std::uint64_t ordinal;
-            std::vector<uint8_t> record_key;
         };
 
         template<typename F>
@@ -585,25 +573,8 @@ namespace mdbxc {
             }
         }
 
-        static std::string index_name_for(const std::string& name) {
-            return name + "__hash_index";
-        }
-
-        void open_index(const std::string& index_name, MDBX_db_flags_t flags) {
-            auto txn = m_connection->transaction();
-            try {
-                check_mdbx(
-                    mdbx_dbi_open(txn.handle(),
-                                  index_name.c_str(),
-                                  flags | MDBX_DUPSORT | MDBX_INTEGERKEY,
-                                  &m_index_dbi),
-                    "Failed to open hashed key-value index"
-                );
-                txn.commit();
-            } catch (...) {
-                try { txn.rollback(); } catch (...) {}
-                throw;
-            }
+        static MDBX_db_flags_t store_flags(MDBX_db_flags_t flags) noexcept {
+            return flags | MDBX_INTEGERKEY | MDBX_DUPSORT;
         }
 
         static void write_u64_le(std::uint64_t value, uint8_t* out) noexcept {
@@ -638,44 +609,8 @@ namespace mdbxc {
             return static_cast<std::uint64_t>(m_hasher(view));
         }
 
-        static std::vector<uint8_t> make_record_key(std::uint64_t hash, std::uint64_t ordinal) {
-            std::vector<uint8_t> out(16);
-            write_u64_le(hash, out.data());
-            write_u64_le(ordinal, out.data() + 8);
-            return out;
-        }
-
-        static bool decode_record_key(const MDBX_val& db_key,
-                                      std::uint64_t& hash,
-                                      std::uint64_t& ordinal) {
-            if (db_key.iov_len != 16 || !db_key.iov_base) {
-                return false;
-            }
-            const uint8_t* data = static_cast<const uint8_t*>(db_key.iov_base);
-            hash = read_u64_le(data);
-            ordinal = read_u64_le(data + 8);
-            return true;
-        }
-
-        static MDBX_val record_key_view(const std::vector<uint8_t>& record_key) noexcept {
-            return SerializeScratch::view(record_key.empty() ? nullptr : record_key.data(), record_key.size());
-        }
-
         MDBX_val hash_key_view(std::uint64_t hash, SerializeScratch& sc_hash) const {
             return serialize_key<true>(hash, sc_hash);
-        }
-
-        static MDBX_val ordinal_view(std::uint64_t ordinal, SerializeScratch& sc_ordinal) {
-            sc_ordinal.bytes.resize(8);
-            write_u64_le(ordinal, sc_ordinal.bytes.data());
-            return sc_ordinal.view_bytes();
-        }
-
-        static std::uint64_t read_ordinal(const MDBX_val& db_ordinal) {
-            if (db_ordinal.iov_len != 8 || !db_ordinal.iov_base) {
-                throw std::runtime_error("Corrupted hashed key-value index entry");
-            }
-            return read_u64_le(static_cast<const uint8_t*>(db_ordinal.iov_base));
         }
 
         static PackedRecordView parse_record(const MDBX_val& db_val) {
@@ -755,17 +690,32 @@ namespace mdbxc {
             return payload;
         }
 
+        void put_record(std::uint64_t hash,
+                        const std::vector<uint8_t>& original_key,
+                        const ValueT& value,
+                        MDBX_txn* txn) {
+            std::vector<uint8_t> payload = make_record_payload(original_key, value);
+            SerializeScratch sc_hash;
+            MDBX_val db_hash = hash_key_view(hash, sc_hash);
+            MDBX_val db_val = SerializeScratch::view(payload.empty() ? nullptr : payload.data(), payload.size());
+            int rc = mdbx_put(txn, m_dbi, &db_hash, &db_val, MDBX_NODUPDATA);
+            if (rc == MDBX_KEYEXIST) {
+                throw std::runtime_error("Hashed key-value duplicate record already exists");
+            }
+            check_mdbx(rc, "Failed to write hashed key-value record");
+        }
+
         bool db_find_record_bytes(const std::vector<uint8_t>& key,
                                   std::uint64_t hash,
-                                  LocatedRecord& out,
+                                  MDBX_val* out_value,
                                   MDBX_txn* txn) const {
             MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_index_dbi, &cursor), "Failed to open hashed key-value index cursor");
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
             try {
                 SerializeScratch sc_hash;
                 MDBX_val db_hash = hash_key_view(hash, sc_hash);
-                MDBX_val db_ordinal;
-                int rc = mdbx_cursor_get(cursor, &db_hash, &db_ordinal, MDBX_SET_KEY);
+                MDBX_val db_val;
+                int rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_SET_KEY);
                 if (rc == MDBX_NOTFOUND) {
                     mdbx_cursor_close(cursor);
                     return false;
@@ -773,26 +723,15 @@ namespace mdbxc {
                 check_mdbx(rc, "Failed to seek hashed key-value bucket");
 
                 while (rc == MDBX_SUCCESS) {
-                    std::uint64_t ordinal = read_ordinal(db_ordinal);
-                    std::vector<uint8_t> candidate_key = make_record_key(hash, ordinal);
-                    MDBX_val candidate_key_val = record_key_view(candidate_key);
-                    MDBX_val candidate_payload;
-                    int get_rc = mdbx_get(txn, m_dbi, &candidate_key_val, &candidate_payload);
-                    if (get_rc == MDBX_NOTFOUND) {
-                        throw std::runtime_error("Hashed key-value index references a missing record");
-                    }
-                    check_mdbx(get_rc, "Failed to read hashed key-value record");
-
-                    PackedRecordView record = parse_record(candidate_payload);
+                    PackedRecordView record = parse_record(db_val);
                     if (key_matches(record, key)) {
-                        out.hash = hash;
-                        out.ordinal = ordinal;
-                        out.record_key = std::move(candidate_key);
+                        if (out_value) {
+                            *out_value = db_val;
+                        }
                         mdbx_cursor_close(cursor);
                         return true;
                     }
-
-                    rc = mdbx_cursor_get(cursor, &db_hash, &db_ordinal, MDBX_NEXT_DUP);
+                    rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_NEXT_DUP);
                 }
 
                 if (rc != MDBX_NOTFOUND) {
@@ -806,104 +745,50 @@ namespace mdbxc {
             }
         }
 
-        std::uint64_t next_ordinal(std::uint64_t hash, MDBX_txn* txn) const {
+        bool delete_record_bytes(const std::vector<uint8_t>& key,
+                                 std::uint64_t hash,
+                                 MDBX_txn* txn) {
             MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_index_dbi, &cursor), "Failed to open hashed key-value index cursor");
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
             try {
                 SerializeScratch sc_hash;
                 MDBX_val db_hash = hash_key_view(hash, sc_hash);
-                MDBX_val db_ordinal;
-                int rc = mdbx_cursor_get(cursor, &db_hash, &db_ordinal, MDBX_SET_KEY);
+                MDBX_val db_val;
+                int rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_SET_KEY);
                 if (rc == MDBX_NOTFOUND) {
                     mdbx_cursor_close(cursor);
-                    return 0;
+                    return false;
                 }
                 check_mdbx(rc, "Failed to seek hashed key-value bucket");
 
-                std::uint64_t max_ordinal = 0;
-                bool has_ordinal = false;
                 while (rc == MDBX_SUCCESS) {
-                    std::uint64_t ordinal = read_ordinal(db_ordinal);
-                    if (!has_ordinal || ordinal > max_ordinal) {
-                        max_ordinal = ordinal;
-                        has_ordinal = true;
+                    PackedRecordView record = parse_record(db_val);
+                    if (key_matches(record, key)) {
+                        check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete hashed key-value record");
+                        mdbx_cursor_close(cursor);
+                        return true;
                     }
-                    rc = mdbx_cursor_get(cursor, &db_hash, &db_ordinal, MDBX_NEXT_DUP);
+                    rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_NEXT_DUP);
                 }
+
                 if (rc != MDBX_NOTFOUND) {
                     check_mdbx(rc, "Failed to scan hashed key-value bucket");
                 }
-                if (max_ordinal == std::numeric_limits<std::uint64_t>::max()) {
-                    throw std::overflow_error("Hashed key-value bucket ordinal exhausted");
-                }
                 mdbx_cursor_close(cursor);
-                return has_ordinal ? max_ordinal + 1 : 0;
+                return false;
             } catch (...) {
                 mdbx_cursor_close(cursor);
                 throw;
             }
-        }
-
-        void put_record(const std::vector<uint8_t>& record_key,
-                        const std::vector<uint8_t>& original_key,
-                        const ValueT& value,
-                        MDBX_put_flags_t flags,
-                        MDBX_txn* txn) {
-            std::vector<uint8_t> payload = make_record_payload(original_key, value);
-            MDBX_val db_key = record_key_view(record_key);
-            MDBX_val db_val = SerializeScratch::view(payload.empty() ? nullptr : payload.data(), payload.size());
-            check_mdbx(mdbx_put(txn, m_dbi, &db_key, &db_val, flags), "Failed to write hashed key-value record");
-        }
-
-        void put_index_entry(std::uint64_t hash, std::uint64_t ordinal, MDBX_txn* txn) {
-            SerializeScratch sc_hash;
-            SerializeScratch sc_ordinal;
-            MDBX_val db_hash = hash_key_view(hash, sc_hash);
-            MDBX_val db_ordinal = ordinal_view(ordinal, sc_ordinal);
-            int rc = mdbx_put(txn, m_index_dbi, &db_hash, &db_ordinal, MDBX_NODUPDATA);
-            if (rc == MDBX_KEYEXIST) {
-                throw std::runtime_error("Hashed key-value index ordinal already exists");
-            }
-            check_mdbx(rc, "Failed to write hashed key-value index entry");
-        }
-
-        void delete_index_entry(std::uint64_t hash, std::uint64_t ordinal, MDBX_txn* txn) {
-            SerializeScratch sc_hash;
-            SerializeScratch sc_ordinal;
-            MDBX_val db_hash = hash_key_view(hash, sc_hash);
-            MDBX_val db_ordinal = ordinal_view(ordinal, sc_ordinal);
-            int rc = mdbx_del(txn, m_index_dbi, &db_hash, &db_ordinal);
-            if (rc == MDBX_NOTFOUND) {
-                throw std::runtime_error("Hashed key-value index entry is missing");
-            }
-            check_mdbx(rc, "Failed to delete hashed key-value index entry");
-        }
-
-        void put_new_record(const std::vector<uint8_t>& original_key,
-                            std::uint64_t hash,
-                            const ValueT& value,
-                            MDBX_txn* txn) {
-            const std::uint64_t ordinal = next_ordinal(hash, txn);
-            std::vector<uint8_t> record_key = make_record_key(hash, ordinal);
-            put_record(record_key, original_key, value, MDBX_NOOVERWRITE, txn);
-            put_index_entry(hash, ordinal, txn);
         }
 
         bool db_get(const KeyT& key, ValueT& value, MDBX_txn* txn) const {
             std::vector<uint8_t> original_key = key_bytes(key);
             const std::uint64_t hash = hash_key_bytes(original_key);
-            LocatedRecord located;
-            if (!db_find_record_bytes(original_key, hash, located, txn)) {
+            MDBX_val db_val;
+            if (!db_find_record_bytes(original_key, hash, &db_val, txn)) {
                 return false;
             }
-
-            MDBX_val db_key = record_key_view(located.record_key);
-            MDBX_val db_val;
-            int rc = mdbx_get(txn, m_dbi, &db_key, &db_val);
-            if (rc == MDBX_NOTFOUND) {
-                throw std::runtime_error("Hashed key-value index references a missing record");
-            }
-            check_mdbx(rc, "Failed to read hashed key-value record");
             value = deserialize_payload_value(parse_record(db_val));
             return true;
         }
@@ -911,54 +796,53 @@ namespace mdbxc {
         bool db_contains(const KeyT& key, MDBX_txn* txn) const {
             std::vector<uint8_t> original_key = key_bytes(key);
             const std::uint64_t hash = hash_key_bytes(original_key);
-            LocatedRecord located;
-            return db_find_record_bytes(original_key, hash, located, txn);
+            return db_find_record_bytes(original_key, hash, nullptr, txn);
         }
 
         bool db_insert_if_absent(const KeyT& key, const ValueT& value, MDBX_txn* txn) {
             std::vector<uint8_t> original_key = key_bytes(key);
             const std::uint64_t hash = hash_key_bytes(original_key);
-            LocatedRecord located;
-            if (db_find_record_bytes(original_key, hash, located, txn)) {
+            if (db_find_record_bytes(original_key, hash, nullptr, txn)) {
                 return false;
             }
-            put_new_record(original_key, hash, value, txn);
+            put_record(hash, original_key, value, txn);
             return true;
         }
 
         void db_insert_or_assign(const KeyT& key, const ValueT& value, MDBX_txn* txn) {
             std::vector<uint8_t> original_key = key_bytes(key);
             const std::uint64_t hash = hash_key_bytes(original_key);
-            LocatedRecord located;
-            if (db_find_record_bytes(original_key, hash, located, txn)) {
-                put_record(located.record_key, original_key, value, MDBX_UPSERT, txn);
-                return;
-            }
-            put_new_record(original_key, hash, value, txn);
+            delete_record_bytes(original_key, hash, txn);
+            put_record(hash, original_key, value, txn);
         }
 
         bool db_erase(const KeyT& key, MDBX_txn* txn) {
             std::vector<uint8_t> original_key = key_bytes(key);
             const std::uint64_t hash = hash_key_bytes(original_key);
-            LocatedRecord located;
-            if (!db_find_record_bytes(original_key, hash, located, txn)) {
-                return false;
-            }
-
-            MDBX_val db_key = record_key_view(located.record_key);
-            int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
-            if (rc == MDBX_NOTFOUND) {
-                throw std::runtime_error("Hashed key-value index references a missing record");
-            }
-            check_mdbx(rc, "Failed to delete hashed key-value record");
-            delete_index_entry(located.hash, located.ordinal, txn);
-            return true;
+            return delete_record_bytes(original_key, hash, txn);
         }
 
         std::size_t db_count(MDBX_txn* txn) const {
-            MDBX_stat stat;
-            check_mdbx(mdbx_dbi_stat(txn, m_dbi, &stat, sizeof(stat)), "Failed to query hashed key-value statistics");
-            return stat.ms_entries;
+            std::size_t count = 0;
+            MDBX_cursor* cursor = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
+            try {
+                MDBX_val db_hash, db_val;
+                int rc = MDBX_SUCCESS;
+                while ((rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    (void)db_hash;
+                    (void)db_val;
+                    ++count;
+                }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to count hashed key-value records");
+                }
+                mdbx_cursor_close(cursor);
+                return count;
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
+            }
         }
 
         template<template<class...> class ContainerT>
@@ -966,10 +850,10 @@ namespace mdbxc {
             MDBX_cursor* cursor = nullptr;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
             try {
-                MDBX_val db_key, db_val;
+                MDBX_val db_hash, db_val;
                 int rc = MDBX_SUCCESS;
-                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
-                    (void)db_key;
+                while ((rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    (void)db_hash;
                     PackedRecordView record = parse_record(db_val);
                     KeyT key = deserialize_key_bytes(record.key_data, record.key_size);
                     ValueT value = deserialize_payload_value(record);
@@ -989,10 +873,10 @@ namespace mdbxc {
             MDBX_cursor* cursor = nullptr;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
             try {
-                MDBX_val db_key, db_val;
+                MDBX_val db_hash, db_val;
                 int rc = MDBX_SUCCESS;
-                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
-                    (void)db_key;
+                while ((rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    (void)db_hash;
                     PackedRecordView record = parse_record(db_val);
                     KeyT key = deserialize_key_bytes(record.key_data, record.key_size);
                     ValueT value = deserialize_payload_value(record);
@@ -1030,30 +914,21 @@ namespace mdbxc {
                 std::vector<uint8_t> original_key = key_bytes(it->first);
                 desired_keys.insert(original_key);
                 const std::uint64_t hash = hash_key_bytes(original_key);
-                LocatedRecord located;
-                if (db_find_record_bytes(original_key, hash, located, txn)) {
-                    put_record(located.record_key, original_key, it->second, MDBX_UPSERT, txn);
-                } else {
-                    put_new_record(original_key, hash, it->second, txn);
-                }
+                delete_record_bytes(original_key, hash, txn);
+                put_record(hash, original_key, it->second, txn);
             }
 
             MDBX_cursor* cursor = nullptr;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
             try {
-                MDBX_val db_key, db_val;
+                MDBX_val db_hash, db_val;
                 int rc = MDBX_SUCCESS;
-                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                while ((rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    (void)db_hash;
                     PackedRecordView record = parse_record(db_val);
                     std::vector<uint8_t> stored_key = copy_bytes(record.key_data, record.key_size);
                     if (desired_keys.find(stored_key) == desired_keys.end()) {
-                        std::uint64_t hash = 0;
-                        std::uint64_t ordinal = 0;
-                        if (!decode_record_key(db_key, hash, ordinal)) {
-                            throw std::runtime_error("Corrupted hashed key-value record key");
-                        }
                         check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete stale hashed key-value record");
-                        delete_index_entry(hash, ordinal, txn);
                     }
                 }
                 if (rc != MDBX_NOTFOUND) {
@@ -1077,7 +952,6 @@ namespace mdbxc {
 
         void db_clear(MDBX_txn* txn) {
             check_mdbx(mdbx_drop(txn, m_dbi, 0), "Failed to clear hashed key-value records");
-            check_mdbx(mdbx_drop(txn, m_index_dbi, 0), "Failed to clear hashed key-value index");
         }
     };
 
