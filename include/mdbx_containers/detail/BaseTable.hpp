@@ -101,6 +101,18 @@ namespace mdbxc {
         /// \brief Gets the raw DBI handle.
         /// \return DBI handle for the opened table.
         MDBX_dbi handle() const { return m_dbi; }
+
+        /// \brief Throws when a duplicate value exceeds the configured proactive limit.
+        /// \param value Duplicate value that will be written into an MDBX_DUPSORT DBI.
+        void check_dupsort_value_size(const MDBX_val& value) const {
+            const int64_t limit = m_connection->max_dupsort_value_size();
+            if (limit > 0 && value.iov_len > static_cast<std::size_t>(limit)) {
+                throw std::length_error(
+                    "MDBX_DUPSORT duplicate value is too large. "
+                    "Use a large-value layout or increase Config::max_dupsort_value_size."
+                );
+            }
+        }
     };
     
 }; // namespace mdbxc

@@ -17,6 +17,340 @@
 
 namespace mdbxc {
 
+    /// \enum HashedStoreLayout
+    /// \ingroup mdbxc_tables
+    /// \brief Physical storage layout used by \ref HashedKeyValueStore.
+    enum class HashedStoreLayout {
+        LargeValues, ///< Two DBIs; payloads live outside DUPSORT duplicate values.
+        SmallValues  ///< One MDBX_DUPSORT DBI; duplicate values contain key and payload bytes.
+    };
+
+    template<class KeyT,
+             class ValueT,
+             class Hasher = XXH3Hasher,
+             HashedStoreLayout Layout = HashedStoreLayout::LargeValues>
+    class HashedKeyValueStore;
+
+    namespace detail {
+
+        template<class Derived, class KeyT, class ValueT>
+        class HashedKeyValueStorePublicApi {
+        public:
+            typedef std::pair<KeyT, ValueT> value_type;
+
+            template<template<class...> class ContainerT>
+            Derived& operator=(const ContainerT<KeyT, ValueT>& container) {
+                derived().reconcile(container);
+                return derived();
+            }
+
+            Derived& operator=(const std::vector<value_type>& container) {
+                derived().reconcile(container);
+                return derived();
+            }
+
+            template<template<class...> class ContainerT = std::map>
+            typename detail::key_value_result_container<ContainerT, KeyT, ValueT>::type operator()() const {
+                return derived().template retrieve_all<ContainerT>();
+            }
+
+            class AssignmentProxy {
+            public:
+                AssignmentProxy(Derived& store, KeyT key)
+                    : m_store(store), m_key(std::move(key)) {}
+
+                AssignmentProxy& operator=(const ValueT& value) {
+                    m_store.insert_or_assign(m_key, value);
+                    return *this;
+                }
+
+                operator ValueT() const {
+#if __cplusplus >= 201703L
+                    std::optional<ValueT> found = m_store.find(m_key);
+                    if (found) return *found;
+#else
+                    std::pair<bool, ValueT> found = m_store.find_compat(m_key);
+                    if (found.first) return found.second;
+#endif
+                    ValueT value{};
+                    m_store.insert_or_assign(m_key, value);
+                    return value;
+                }
+
+            private:
+                Derived& m_store;
+                KeyT m_key;
+            };
+
+            AssignmentProxy operator[](const KeyT& key) {
+                return AssignmentProxy(derived(), key);
+            }
+
+            template<template<class...> class ContainerT>
+            void load(ContainerT<KeyT, ValueT>& container, MDBX_txn* txn = nullptr) const {
+                const Derived& self = derived();
+                self.with_transaction([&self, &container](MDBX_txn* t) {
+                    self.db_load(container, t);
+                }, TransactionMode::READ_ONLY, txn);
+            }
+
+            template<template<class...> class ContainerT>
+            void load(ContainerT<KeyT, ValueT>& container, const Transaction& txn) const {
+                load(container, txn.handle());
+            }
+
+            void load(std::vector<value_type>& container, MDBX_txn* txn = nullptr) const {
+                const Derived& self = derived();
+                self.with_transaction([&self, &container](MDBX_txn* t) {
+                    self.db_load(container, t);
+                }, TransactionMode::READ_ONLY, txn);
+            }
+
+            void load(std::vector<value_type>& container, const Transaction& txn) const {
+                load(container, txn.handle());
+            }
+
+            template<template<class...> class ContainerT = std::map>
+            typename detail::key_value_result_container<ContainerT, KeyT, ValueT>::type
+            retrieve_all(MDBX_txn* txn = nullptr) const {
+                typename detail::key_value_result_container<ContainerT, KeyT, ValueT>::type container;
+                load(container, txn);
+                return container;
+            }
+
+            template<template<class...> class ContainerT = std::map>
+            typename detail::key_value_result_container<ContainerT, KeyT, ValueT>::type
+            retrieve_all(const Transaction& txn) const {
+                return retrieve_all<ContainerT>(txn.handle());
+            }
+
+            template<template<class...> class ContainerT>
+            void append(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn = nullptr) {
+                Derived& self = derived();
+                self.with_transaction([&self, &container](MDBX_txn* t) {
+                    self.db_append(container, t);
+                }, TransactionMode::WRITABLE, txn);
+            }
+
+            template<template<class...> class ContainerT>
+            void append(const ContainerT<KeyT, ValueT>& container, const Transaction& txn) {
+                append(container, txn.handle());
+            }
+
+            void append(const std::vector<value_type>& container, MDBX_txn* txn = nullptr) {
+                Derived& self = derived();
+                self.with_transaction([&self, &container](MDBX_txn* t) {
+                    self.db_append(container, t);
+                }, TransactionMode::WRITABLE, txn);
+            }
+
+            void append(const std::vector<value_type>& container, const Transaction& txn) {
+                append(container, txn.handle());
+            }
+
+            template<template<class...> class ContainerT>
+            void reconcile(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn = nullptr) {
+                Derived& self = derived();
+                self.with_transaction([&self, &container](MDBX_txn* t) {
+                    self.db_reconcile(container, t);
+                }, TransactionMode::WRITABLE, txn);
+            }
+
+            template<template<class...> class ContainerT>
+            void reconcile(const ContainerT<KeyT, ValueT>& container, const Transaction& txn) {
+                reconcile(container, txn.handle());
+            }
+
+            void reconcile(const std::vector<value_type>& container, MDBX_txn* txn = nullptr) {
+                Derived& self = derived();
+                self.with_transaction([&self, &container](MDBX_txn* t) {
+                    self.db_reconcile(container, t);
+                }, TransactionMode::WRITABLE, txn);
+            }
+
+            void reconcile(const std::vector<value_type>& container, const Transaction& txn) {
+                reconcile(container, txn.handle());
+            }
+
+            bool insert(const KeyT& key, const ValueT& value, MDBX_txn* txn = nullptr) {
+                bool res = false;
+                Derived& self = derived();
+                self.with_transaction([&self, &key, &value, &res](MDBX_txn* t) {
+                    res = self.db_insert_if_absent(key, value, t);
+                }, TransactionMode::WRITABLE, txn);
+                return res;
+            }
+
+            bool insert(const KeyT& key, const ValueT& value, const Transaction& txn) {
+                return insert(key, value, txn.handle());
+            }
+
+            bool insert(const value_type& pair, MDBX_txn* txn = nullptr) {
+                return insert(pair.first, pair.second, txn);
+            }
+
+            bool insert(const value_type& pair, const Transaction& txn) {
+                return insert(pair, txn.handle());
+            }
+
+            void insert_or_assign(const KeyT& key, const ValueT& value, MDBX_txn* txn = nullptr) {
+                Derived& self = derived();
+                self.with_transaction([&self, &key, &value](MDBX_txn* t) {
+                    self.db_insert_or_assign(key, value, t);
+                }, TransactionMode::WRITABLE, txn);
+            }
+
+            void insert_or_assign(const KeyT& key, const ValueT& value, const Transaction& txn) {
+                insert_or_assign(key, value, txn.handle());
+            }
+
+            void insert_or_assign(const value_type& pair, MDBX_txn* txn = nullptr) {
+                insert_or_assign(pair.first, pair.second, txn);
+            }
+
+            void insert_or_assign(const value_type& pair, const Transaction& txn) {
+                insert_or_assign(pair, txn.handle());
+            }
+
+            ValueT at(const KeyT& key, MDBX_txn* txn = nullptr) const {
+                ValueT value;
+                const Derived& self = derived();
+                self.with_transaction([&self, &key, &value](MDBX_txn* t) {
+                    if (!self.db_get(key, value, t)) {
+                        throw std::out_of_range("Key not found in hashed key-value store");
+                    }
+                }, TransactionMode::READ_ONLY, txn);
+                return value;
+            }
+
+            ValueT at(const KeyT& key, const Transaction& txn) const {
+                return at(key, txn.handle());
+            }
+
+            bool try_get(const KeyT& key, ValueT& out, MDBX_txn* txn = nullptr) const {
+                bool res = false;
+                const Derived& self = derived();
+                self.with_transaction([&self, &key, &out, &res](MDBX_txn* t) {
+                    res = self.db_get(key, out, t);
+                }, TransactionMode::READ_ONLY, txn);
+                return res;
+            }
+
+            bool try_get(const KeyT& key, ValueT& out, const Transaction& txn) const {
+                return try_get(key, out, txn.handle());
+            }
+
+#if __cplusplus >= 201703L
+            std::optional<ValueT> find(const KeyT& key, MDBX_txn* txn = nullptr) const {
+                std::optional<ValueT> result;
+                const Derived& self = derived();
+                self.with_transaction([&self, &key, &result](MDBX_txn* t) {
+                    ValueT value;
+                    if (self.db_get(key, value, t)) {
+                        result = std::move(value);
+                    }
+                }, TransactionMode::READ_ONLY, txn);
+                return result;
+            }
+
+            std::optional<ValueT> find(const KeyT& key, const Transaction& txn) const {
+                return find(key, txn.handle());
+            }
+#else
+            std::pair<bool, ValueT> find(const KeyT& key, MDBX_txn* txn = nullptr) const {
+                return find_compat(key, txn);
+            }
+
+            std::pair<bool, ValueT> find(const KeyT& key, const Transaction& txn) const {
+                return find_compat(key, txn.handle());
+            }
+#endif
+
+            std::pair<bool, ValueT> find_compat(const KeyT& key, MDBX_txn* txn = nullptr) const {
+                std::pair<bool, ValueT> result(false, ValueT());
+                const Derived& self = derived();
+                self.with_transaction([&self, &key, &result](MDBX_txn* t) {
+                    if (self.db_get(key, result.second, t)) {
+                        result.first = true;
+                    }
+                }, TransactionMode::READ_ONLY, txn);
+                return result;
+            }
+
+            std::pair<bool, ValueT> find_compat(const KeyT& key, const Transaction& txn) const {
+                return find_compat(key, txn.handle());
+            }
+
+            bool contains(const KeyT& key, MDBX_txn* txn = nullptr) const {
+                bool res = false;
+                const Derived& self = derived();
+                self.with_transaction([&self, &key, &res](MDBX_txn* t) {
+                    res = self.db_contains(key, t);
+                }, TransactionMode::READ_ONLY, txn);
+                return res;
+            }
+
+            bool contains(const KeyT& key, const Transaction& txn) const {
+                return contains(key, txn.handle());
+            }
+
+            std::size_t count(MDBX_txn* txn = nullptr) const {
+                std::size_t res = 0;
+                const Derived& self = derived();
+                self.with_transaction([&self, &res](MDBX_txn* t) {
+                    res = self.db_count(t);
+                }, TransactionMode::READ_ONLY, txn);
+                return res;
+            }
+
+            std::size_t count(const Transaction& txn) const {
+                return count(txn.handle());
+            }
+
+            bool empty(MDBX_txn* txn = nullptr) const {
+                return count(txn) == 0;
+            }
+
+            bool empty(const Transaction& txn) const {
+                return empty(txn.handle());
+            }
+
+            bool erase(const KeyT& key, MDBX_txn* txn = nullptr) {
+                bool res = false;
+                Derived& self = derived();
+                self.with_transaction([&self, &key, &res](MDBX_txn* t) {
+                    res = self.db_erase(key, t);
+                }, TransactionMode::WRITABLE, txn);
+                return res;
+            }
+
+            bool erase(const KeyT& key, const Transaction& txn) {
+                return erase(key, txn.handle());
+            }
+
+            void clear(MDBX_txn* txn = nullptr) {
+                Derived& self = derived();
+                self.with_transaction([&self](MDBX_txn* t) {
+                    self.db_clear(t);
+                }, TransactionMode::WRITABLE, txn);
+            }
+
+            void clear(const Transaction& txn) {
+                clear(txn.handle());
+            }
+
+        protected:
+            Derived& derived() {
+                return static_cast<Derived&>(*this);
+            }
+
+            const Derived& derived() const {
+                return static_cast<const Derived&>(*this);
+            }
+        };
+
+    } // namespace detail
+
     /// \class HashedKeyValueStore
     /// \ingroup mdbxc_tables
     /// \brief Map-like table with a hash index over string or byte-vector keys.
@@ -25,6 +359,8 @@ namespace mdbxc {
     ///         \c std::vector<uint8_t>, and in C++17 \c std::vector<std::byte>.
     /// \tparam ValueT Type of values stored under each key.
     /// \tparam Hasher Callable taking \ref ByteView and returning a 64-bit hash.
+    /// \tparam Layout Physical storage layout. Defaults to
+    ///         \ref HashedStoreLayout::LargeValues.
     ///
     /// \details
     /// Stores one value per original key, similar to \ref KeyValueTable, while
@@ -37,10 +373,11 @@ namespace mdbxc {
     /// hasher such as \ref SipHashHasher. Changing the hasher or keyed hasher
     /// material for an existing store changes the lookup domain.
     ///
-    /// \note One logical store opens two MDBX DBIs: the records table named by
-    ///       \p name and a hash index named \c name + "__hash_index".
-    template<class KeyT, class ValueT, class Hasher = XXH3Hasher>
-    class HashedKeyValueStore final : public BaseTable {
+    /// \note The default LargeValues layout opens two MDBX DBIs: the records
+    ///       table named by \p name and a hash index named
+    ///       \c name + "__hash_index".
+    template<class KeyT, class ValueT, class Hasher>
+    class HashedKeyValueStore<KeyT, ValueT, Hasher, HashedStoreLayout::LargeValues> final : public BaseTable {
         static_assert(is_hashed_key_type<KeyT>::value,
                       "HashedKeyValueStore key must be std::string or a supported byte vector");
 
@@ -755,6 +1092,14 @@ namespace mdbxc {
             return payload;
         }
 
+        std::vector<uint8_t> make_checked_record_payload(const std::vector<uint8_t>& key,
+                                                         const ValueT& value) const {
+            std::vector<uint8_t> payload = make_record_payload(key, value);
+            MDBX_val db_val = SerializeScratch::view(payload.empty() ? nullptr : payload.data(), payload.size());
+            check_dupsort_value_size(db_val);
+            return payload;
+        }
+
         bool db_find_record_bytes(const std::vector<uint8_t>& key,
                                   std::uint64_t hash,
                                   LocatedRecord& out,
@@ -860,6 +1205,7 @@ namespace mdbxc {
             SerializeScratch sc_ordinal;
             MDBX_val db_hash = hash_key_view(hash, sc_hash);
             MDBX_val db_ordinal = ordinal_view(ordinal, sc_ordinal);
+            check_dupsort_value_size(db_ordinal);
             int rc = mdbx_put(txn, m_index_dbi, &db_hash, &db_ordinal, MDBX_NODUPDATA);
             if (rc == MDBX_KEYEXIST) {
                 throw std::runtime_error("Hashed key-value index ordinal already exists");
@@ -1078,6 +1424,469 @@ namespace mdbxc {
         void db_clear(MDBX_txn* txn) {
             check_mdbx(mdbx_drop(txn, m_dbi, 0), "Failed to clear hashed key-value records");
             check_mdbx(mdbx_drop(txn, m_index_dbi, 0), "Failed to clear hashed key-value index");
+        }
+    };
+
+    /// \class HashedKeyValueStore
+    /// \ingroup mdbxc_tables
+    /// \brief Small-value specialization backed by one MDBX_DUPSORT DBI.
+    /// \details
+    /// Stores one duplicate value per original key under the 64-bit hash bucket.
+    /// Duplicate values contain the original key bytes and serialized payload,
+    /// so this layout is intended only for small values. Use the default
+    /// LargeValues layout when values may exceed the MDBX_DUPSORT duplicate
+    /// value limit.
+    template<class KeyT, class ValueT, class Hasher>
+    class HashedKeyValueStore<KeyT, ValueT, Hasher, HashedStoreLayout::SmallValues> final
+        : public BaseTable,
+          public detail::HashedKeyValueStorePublicApi<
+              HashedKeyValueStore<KeyT, ValueT, Hasher, HashedStoreLayout::SmallValues>,
+              KeyT,
+              ValueT> {
+        static_assert(is_hashed_key_type<KeyT>::value,
+                      "HashedKeyValueStore key must be std::string or a supported byte vector");
+
+        typedef detail::HashedKeyValueStorePublicApi<
+            HashedKeyValueStore<KeyT, ValueT, Hasher, HashedStoreLayout::SmallValues>,
+            KeyT,
+            ValueT> ApiBase;
+
+        friend class detail::HashedKeyValueStorePublicApi<
+            HashedKeyValueStore<KeyT, ValueT, Hasher, HashedStoreLayout::SmallValues>,
+            KeyT,
+            ValueT>;
+
+    public:
+        typedef std::pair<KeyT, ValueT> value_type;
+        using ApiBase::operator=;
+
+        /// \brief Constructs a small-value store using an existing connection.
+        /// \param connection Existing \ref Connection instance.
+        /// \param name Name of the DUPSORT table within the MDBX environment.
+        /// \param hasher Hashing strategy used for key lookup.
+        /// \param flags Additional MDBX database flags for table creation.
+        explicit HashedKeyValueStore(std::shared_ptr<Connection> connection,
+                                     std::string name = "hashed_kv_store",
+                                     Hasher hasher = Hasher(),
+                                     MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE)
+            : BaseTable(std::move(connection), std::move(name), flags | MDBX_DUPSORT | MDBX_INTEGERKEY),
+              m_hasher(std::move(hasher)) {}
+
+        /// \brief Constructs a small-value store using a database configuration.
+        /// \param config Configuration settings for the database.
+        /// \param name Name of the DUPSORT table within the MDBX environment.
+        /// \param hasher Hashing strategy used for key lookup.
+        /// \param flags Additional MDBX database flags for table creation.
+        explicit HashedKeyValueStore(const Config& config,
+                                     std::string name = "hashed_kv_store",
+                                     Hasher hasher = Hasher(),
+                                     MDBX_db_flags_t flags = MDBX_DB_DEFAULTS | MDBX_CREATE)
+            : BaseTable(Connection::create(config), std::move(name), flags | MDBX_DUPSORT | MDBX_INTEGERKEY),
+              m_hasher(std::move(hasher)) {}
+
+        /// \brief Destructor.
+        ~HashedKeyValueStore() override = default;
+
+    private:
+        Hasher m_hasher;
+
+        struct PackedRecordView {
+            const uint8_t* key_data;
+            std::size_t key_size;
+            const uint8_t* value_data;
+            std::size_t value_size;
+        };
+
+        template<typename F>
+        void with_transaction(F&& action, TransactionMode mode, MDBX_txn* txn = nullptr) const {
+            if (txn) {
+                action(txn);
+                return;
+            }
+            txn = thread_txn();
+            if (txn) {
+                action(txn);
+                return;
+            }
+
+            auto txn_guard = m_connection->transaction(mode);
+            try {
+                action(txn_guard.handle());
+                txn_guard.commit();
+            } catch (...) {
+                try { txn_guard.rollback(); } catch (...) {}
+                throw;
+            }
+        }
+
+        static void write_u64_le(std::uint64_t value, uint8_t* out) noexcept {
+            for (int i = 0; i < 8; ++i) {
+                out[i] = static_cast<uint8_t>((value >> (8 * i)) & 0xffu);
+            }
+        }
+
+        static std::uint64_t read_u64_le(const uint8_t* data) noexcept {
+            std::uint64_t value = 0;
+            for (int i = 0; i < 8; ++i) {
+                value |= static_cast<std::uint64_t>(data[i]) << (8 * i);
+            }
+            return value;
+        }
+
+        static std::vector<uint8_t> copy_bytes(const void* data, std::size_t size) {
+            std::vector<uint8_t> out(size);
+            if (size) {
+                std::memcpy(out.data(), data, size);
+            }
+            return out;
+        }
+
+        static std::vector<uint8_t> key_bytes(const KeyT& key) {
+            ByteView view = make_byte_view(key);
+            return copy_bytes(view.data, view.size);
+        }
+
+        std::uint64_t hash_key_bytes(const std::vector<uint8_t>& bytes) const {
+            return m_hasher(ByteView(bytes.empty() ? nullptr : bytes.data(), bytes.size()));
+        }
+
+        MDBX_val hash_key_view(std::uint64_t hash, SerializeScratch& sc_hash) const {
+            return serialize_key<true>(hash, sc_hash);
+        }
+
+        static PackedRecordView parse_record(const MDBX_val& db_val) {
+            if (db_val.iov_len < 8 || !db_val.iov_base) {
+                throw std::runtime_error("Corrupted hashed key-value duplicate value");
+            }
+
+            const uint8_t* data = static_cast<const uint8_t*>(db_val.iov_base);
+            const std::uint64_t key_size64 = read_u64_le(data);
+            const std::size_t available = db_val.iov_len - 8;
+            if (key_size64 > static_cast<std::uint64_t>(available)) {
+                throw std::runtime_error("Corrupted hashed key-value duplicate value");
+            }
+
+            PackedRecordView view;
+            view.key_data = data + 8;
+            view.key_size = static_cast<std::size_t>(key_size64);
+            view.value_data = view.key_data + view.key_size;
+            view.value_size = available - view.key_size;
+            return view;
+        }
+
+        static bool key_matches(const PackedRecordView& record, const std::vector<uint8_t>& key) {
+            if (record.key_size != key.size()) {
+                return false;
+            }
+            if (key.empty()) {
+                return true;
+            }
+            return std::memcmp(record.key_data, key.data(), key.size()) == 0;
+        }
+
+        template<class T>
+        static typename std::enable_if<std::is_same<T, std::string>::value, T>::type
+        make_key_from_bytes(const uint8_t* data, std::size_t size) {
+            if (!size) {
+                return T();
+            }
+            return T(reinterpret_cast<const char*>(size ? data : nullptr), size);
+        }
+
+        template<class T>
+        static typename std::enable_if<!std::is_same<T, std::string>::value, T>::type
+        make_key_from_bytes(const uint8_t* data, std::size_t size) {
+            T out;
+            out.resize(size);
+            if (size) {
+                std::memcpy(out.data(), data, size);
+            }
+            return out;
+        }
+
+        static KeyT deserialize_key_bytes(const uint8_t* data, std::size_t size) {
+            return make_key_from_bytes<KeyT>(data, size);
+        }
+
+        static ValueT deserialize_payload_value(const PackedRecordView& record) {
+            MDBX_val value_val = SerializeScratch::view(
+                record.value_size ? record.value_data : nullptr,
+                record.value_size
+            );
+            return deserialize_value<ValueT>(value_val);
+        }
+
+        static std::vector<uint8_t> make_record_payload(const std::vector<uint8_t>& key,
+                                                        const ValueT& value) {
+            SerializeScratch sc_value;
+            MDBX_val raw_value = serialize_value(value, sc_value);
+            std::vector<uint8_t> payload(8 + key.size() + raw_value.iov_len);
+            write_u64_le(static_cast<std::uint64_t>(key.size()), payload.data());
+            if (!key.empty()) {
+                std::memcpy(payload.data() + 8, key.data(), key.size());
+            }
+            if (raw_value.iov_len) {
+                std::memcpy(payload.data() + 8 + key.size(), raw_value.iov_base, raw_value.iov_len);
+            }
+            return payload;
+        }
+
+        std::vector<uint8_t> make_checked_record_payload(const std::vector<uint8_t>& key,
+                                                         const ValueT& value) const {
+            std::vector<uint8_t> payload = make_record_payload(key, value);
+            MDBX_val db_val = SerializeScratch::view(payload.empty() ? nullptr : payload.data(), payload.size());
+            check_dupsort_value_size(db_val);
+            return payload;
+        }
+
+        template<typename Found>
+        bool with_matching_duplicate(const std::vector<uint8_t>& key,
+                                     std::uint64_t hash,
+                                     MDBX_txn* txn,
+                                     Found found) const {
+            MDBX_cursor* cursor = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
+            try {
+                SerializeScratch sc_hash;
+                MDBX_val db_hash = hash_key_view(hash, sc_hash);
+                MDBX_val db_val;
+                int rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_SET_KEY);
+                if (rc == MDBX_NOTFOUND) {
+                    mdbx_cursor_close(cursor);
+                    return false;
+                }
+                check_mdbx(rc, "Failed to seek hashed key-value bucket");
+
+                while (rc == MDBX_SUCCESS) {
+                    PackedRecordView record = parse_record(db_val);
+                    if (key_matches(record, key)) {
+                        found(cursor, db_hash, db_val, record);
+                        mdbx_cursor_close(cursor);
+                        return true;
+                    }
+                    rc = mdbx_cursor_get(cursor, &db_hash, &db_val, MDBX_NEXT_DUP);
+                }
+
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to scan hashed key-value bucket");
+                }
+                mdbx_cursor_close(cursor);
+                return false;
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
+            }
+        }
+
+        void put_duplicate_payload(std::uint64_t hash,
+                                   const std::vector<uint8_t>& payload,
+                                   MDBX_txn* txn) {
+            SerializeScratch sc_hash;
+            MDBX_val db_hash = hash_key_view(hash, sc_hash);
+            MDBX_val db_val = SerializeScratch::view(payload.empty() ? nullptr : payload.data(), payload.size());
+            check_dupsort_value_size(db_val);
+            int rc = mdbx_put(txn, m_dbi, &db_hash, &db_val, MDBX_NODUPDATA);
+            if (rc == MDBX_KEYEXIST) {
+                throw std::runtime_error("Hashed key-value duplicate already exists");
+            }
+            check_mdbx(rc, "Failed to write hashed key-value duplicate");
+        }
+
+        void put_duplicate(const std::vector<uint8_t>& original_key,
+                           std::uint64_t hash,
+                           const ValueT& value,
+                           MDBX_txn* txn) {
+            std::vector<uint8_t> payload = make_checked_record_payload(original_key, value);
+            put_duplicate_payload(hash, payload, txn);
+        }
+
+        bool db_get(const KeyT& key, ValueT& value, MDBX_txn* txn) const {
+            std::vector<uint8_t> original_key = key_bytes(key);
+            const std::uint64_t hash = hash_key_bytes(original_key);
+            return with_matching_duplicate(
+                original_key,
+                hash,
+                txn,
+                [&value](MDBX_cursor*, MDBX_val&, MDBX_val&, const PackedRecordView& record) {
+                    value = deserialize_payload_value(record);
+                }
+            );
+        }
+
+        bool db_contains(const KeyT& key, MDBX_txn* txn) const {
+            std::vector<uint8_t> original_key = key_bytes(key);
+            const std::uint64_t hash = hash_key_bytes(original_key);
+            return with_matching_duplicate(
+                original_key,
+                hash,
+                txn,
+                [](MDBX_cursor*, MDBX_val&, MDBX_val&, const PackedRecordView&) {}
+            );
+        }
+
+        bool db_insert_if_absent(const KeyT& key, const ValueT& value, MDBX_txn* txn) {
+            std::vector<uint8_t> original_key = key_bytes(key);
+            const std::uint64_t hash = hash_key_bytes(original_key);
+            if (with_matching_duplicate(
+                    original_key,
+                    hash,
+                    txn,
+                    [](MDBX_cursor*, MDBX_val&, MDBX_val&, const PackedRecordView&) {})) {
+                return false;
+            }
+            put_duplicate(original_key, hash, value, txn);
+            return true;
+        }
+
+        void db_insert_or_assign(const KeyT& key, const ValueT& value, MDBX_txn* txn) {
+            std::vector<uint8_t> original_key = key_bytes(key);
+            const std::uint64_t hash = hash_key_bytes(original_key);
+            std::vector<uint8_t> payload = make_checked_record_payload(original_key, value);
+            with_matching_duplicate(
+                original_key,
+                hash,
+                txn,
+                [](MDBX_cursor* cursor, MDBX_val&, MDBX_val&, const PackedRecordView&) {
+                    check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to replace hashed key-value duplicate");
+                }
+            );
+            put_duplicate_payload(hash, payload, txn);
+        }
+
+        bool db_erase(const KeyT& key, MDBX_txn* txn) {
+            std::vector<uint8_t> original_key = key_bytes(key);
+            const std::uint64_t hash = hash_key_bytes(original_key);
+            return with_matching_duplicate(
+                original_key,
+                hash,
+                txn,
+                [](MDBX_cursor* cursor, MDBX_val&, MDBX_val&, const PackedRecordView&) {
+                    check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete hashed key-value duplicate");
+                }
+            );
+        }
+
+        std::size_t db_count(MDBX_txn* txn) const {
+            MDBX_stat stat;
+            check_mdbx(mdbx_dbi_stat(txn, m_dbi, &stat, sizeof(stat)), "Failed to query hashed key-value statistics");
+            return stat.ms_entries;
+        }
+
+        template<template<class...> class ContainerT>
+        void db_load(ContainerT<KeyT, ValueT>& container, MDBX_txn* txn) const {
+            MDBX_cursor* cursor = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
+            try {
+                MDBX_val db_key, db_val;
+                int rc = MDBX_SUCCESS;
+                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    (void)db_key;
+                    PackedRecordView record = parse_record(db_val);
+                    KeyT key = deserialize_key_bytes(record.key_data, record.key_size);
+                    ValueT value = deserialize_payload_value(record);
+                    container.emplace(std::move(key), std::move(value));
+                }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to read hashed key-value duplicates");
+                }
+                mdbx_cursor_close(cursor);
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
+            }
+        }
+
+        void db_load(std::vector<value_type>& container, MDBX_txn* txn) const {
+            MDBX_cursor* cursor = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
+            try {
+                MDBX_val db_key, db_val;
+                int rc = MDBX_SUCCESS;
+                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    (void)db_key;
+                    PackedRecordView record = parse_record(db_val);
+                    KeyT key = deserialize_key_bytes(record.key_data, record.key_size);
+                    ValueT value = deserialize_payload_value(record);
+                    container.emplace_back(std::move(key), std::move(value));
+                }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to read hashed key-value duplicates");
+                }
+                mdbx_cursor_close(cursor);
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
+            }
+        }
+
+        template<template<class...> class ContainerT>
+        void db_append(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn) {
+            for (typename ContainerT<KeyT, ValueT>::const_iterator it = container.begin();
+                 it != container.end(); ++it) {
+                db_insert_or_assign(it->first, it->second, txn);
+            }
+        }
+
+        void db_append(const std::vector<value_type>& container, MDBX_txn* txn) {
+            for (typename std::vector<value_type>::const_iterator it = container.begin();
+                 it != container.end(); ++it) {
+                db_insert_or_assign(it->first, it->second, txn);
+            }
+        }
+
+        template<class ContainerT>
+        void db_reconcile_impl(const ContainerT& container, MDBX_txn* txn) {
+            std::set<std::vector<uint8_t> > desired_keys;
+            for (typename ContainerT::const_iterator it = container.begin(); it != container.end(); ++it) {
+                std::vector<uint8_t> original_key = key_bytes(it->first);
+                desired_keys.insert(original_key);
+                const std::uint64_t hash = hash_key_bytes(original_key);
+                std::vector<uint8_t> payload = make_checked_record_payload(original_key, it->second);
+                with_matching_duplicate(
+                    original_key,
+                    hash,
+                    txn,
+                    [](MDBX_cursor* cursor, MDBX_val&, MDBX_val&, const PackedRecordView&) {
+                        check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to replace hashed key-value duplicate");
+                    }
+                );
+                put_duplicate_payload(hash, payload, txn);
+            }
+
+            MDBX_cursor* cursor = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open hashed key-value cursor");
+            try {
+                MDBX_val db_key, db_val;
+                int rc = MDBX_SUCCESS;
+                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    (void)db_key;
+                    PackedRecordView record = parse_record(db_val);
+                    std::vector<uint8_t> stored_key = copy_bytes(record.key_data, record.key_size);
+                    if (desired_keys.find(stored_key) == desired_keys.end()) {
+                        check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete stale hashed key-value duplicate");
+                    }
+                }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to scan hashed key-value duplicates");
+                }
+                mdbx_cursor_close(cursor);
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
+            }
+        }
+
+        template<template<class...> class ContainerT>
+        void db_reconcile(const ContainerT<KeyT, ValueT>& container, MDBX_txn* txn) {
+            db_reconcile_impl(container, txn);
+        }
+
+        void db_reconcile(const std::vector<value_type>& container, MDBX_txn* txn) {
+            db_reconcile_impl(container, txn);
+        }
+
+        void db_clear(MDBX_txn* txn) {
+            check_mdbx(mdbx_drop(txn, m_dbi, 0), "Failed to clear hashed key-value records");
         }
     };
 

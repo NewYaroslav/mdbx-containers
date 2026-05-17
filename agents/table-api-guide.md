@@ -15,7 +15,7 @@ source of truth.
 | Need | Use | STL analogue | Notes |
 | --- | --- | --- | --- |
 | One value per key | `KeyValueTable<K, V>` | `std::map` | Default choice for durable key-value storage. |
-| One value per string/byte key with hash lookup | `HashedKeyValueStore<K, V, H>` | `std::map` | Uses a hash bucket index and verifies original key bytes. |
+| One value per string/byte key with hash lookup | `HashedKeyValueStore<K, V, H, Layout>` | `std::map` | Uses a hash bucket index and verifies original key bytes. |
 | Unique keys only | `KeyTable<K>` | `std::set` | Stores serialized keys with empty values. |
 | Multiple values per key | `KeyMultiValueTable<K, V>` | `std::multimap` | Preserves repeated identical `(key, value)` pairs. |
 | Different value types by key | `AnyValueTable<K>` | Heterogeneous key-value store | Caller names value type on each access. |
@@ -41,8 +41,10 @@ All public table classes follow the same broad shape:
 - They provide constructors from `std::shared_ptr<Connection>` and `Config`.
 - Constructor `name` opens a named MDBX DBI; increase `Config::max_dbs` when
   tests/examples open several named tables in one environment.
-- `HashedKeyValueStore` consumes two DBIs per logical store: records plus
-  `name + "__hash_index"`.
+- Default `HashedKeyValueStore` uses `LargeValues` and consumes two DBIs per
+  logical store: records plus `name + "__hash_index"`.
+- `HashedStoreLayout::SmallValues` uses one DUPSORT DBI and stores user payload
+  inside duplicate values, so respect `Config::max_dupsort_value_size`.
 - Public methods accept an optional `MDBX_txn*` where relevant.
 - `const Transaction&` overloads delegate to `.handle()`.
 - Automatic operations create a transaction, reuse a thread-bound transaction,
@@ -127,11 +129,11 @@ Avoid it when:
 
 ## HashedKeyValueStore
 
-`HashedKeyValueStore<K, V, H>` is a map-like table for `std::string` and
+`HashedKeyValueStore<K, V, H, Layout>` is a map-like table for `std::string` and
 byte-vector keys. It stores one value per original key and keeps a separate
-hash index for lookup. Hash collisions do not affect correctness because reads,
-updates, and deletes compare the stored original key bytes after selecting the
-hash bucket.
+hash index for lookup by default. Hash collisions do not affect correctness
+because reads, updates, and deletes compare the stored original key bytes after
+selecting the hash bucket.
 
 Write/read methods mirror `KeyValueTable`: `insert()`, `insert_or_assign()`,
 `append()`, `reconcile()`, `at()`, `try_get()`, `find()`/`find_compat()`,
@@ -145,7 +147,15 @@ Restrictions and common mistakes:
   choose many keys.
 - Reuse the same hasher and key material for existing data; changing them makes
   existing records unreachable through normal key lookup until rebuilt.
-- Increase `Config::max_dbs` by two per logical hashed store.
+- The default `HashedStoreLayout::LargeValues` keeps payload bytes out of
+  DUPSORT duplicate values and supports large serialized values.
+- `HashedStoreLayout::SmallValues` stores `original_key + serialized_value` as
+  the duplicate value under `hash64`. It is opt-in and intended for small
+  values only.
+- Increase `Config::max_dbs` by two per default LargeValues store. SmallValues
+  consumes one DBI.
+- Do not open the same DBI name with different layouts; the physical formats
+  are incompatible.
 
 Use it for:
 
@@ -153,6 +163,14 @@ Use it for:
   ordering is not the desired lookup shape.
 - Key domains with potentially long keys where a hash bucket narrows lookup
   before original-key verification.
+
+## DUPSORT value limits
+
+`Config::max_dupsort_value_size` proactively rejects oversized duplicate values
+before `mdbx_put`. The default is 16 KiB. Set it to a non-positive value to
+disable the proactive check and let MDBX return its own storage error. This
+limit applies to `KeyMultiValueTable` stored values and
+`HashedKeyValueStore<..., HashedStoreLayout::SmallValues>`.
 
 ## KeyTable
 
@@ -223,6 +241,9 @@ Restrictions and common mistakes:
 - Identical repeats are intentional and visible in counts and vector retrieval.
 - The internal storage adds a sequence prefix to duplicate value bytes. Public
   reads strip it before deserialization.
+- Stored duplicate values include the sequence prefix and serialized payload.
+  Large values may exceed MDBX_DUPSORT limits or the proactive
+  `Config::max_dupsort_value_size` setting.
 - `retrieve_all<std::map>()` is legal but loses data according to `std::map`
   unique-key insertion rules. Prefer the default `std::multimap` or
   `retrieve_all_vector()`.

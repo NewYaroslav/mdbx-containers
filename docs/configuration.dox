@@ -19,6 +19,12 @@ MDBX API calls or flags.
   parallel read transactions.
 - **max_dbs**: Upper bound for the number of named sub-databases configured via
   [mdbx_env_set_maxdbs](https://libmdbx.dqdkfa.ru/group__c__settings.html#gaa6a52dc5b2242d407f0382ac5d57e689). Set this to the total tables you expect.
+- **max_dupsort_value_size**: Proactive limit for values written as
+  `MDBX_DUPSORT` duplicate values. The default is 16 KiB. Set it to a
+  non-positive value to disable the proactive check and let MDBX report any
+  storage-size error. This affects layouts that store user payload in duplicate
+  values, such as `KeyMultiValueTable` and
+  `HashedKeyValueStore<..., HashedStoreLayout::SmallValues>`.
 - **read_only**: When true adds `MDBX_RDONLY` so the environment is opened in
   read-only mode.
 - **readahead**: If false adds `MDBX_NORDAHEAD`, disabling OS readahead and

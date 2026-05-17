@@ -1,6 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,28 @@ void assert_found(const Store& store, const Key& key, const Value& expected) {
     assert(found.first);
     assert(found.second == expected);
 #endif
+}
+
+template<class Fn>
+void assert_throws_length_error(Fn fn) {
+    bool thrown = false;
+    try {
+        fn();
+    } catch (const std::length_error&) {
+        thrown = true;
+    }
+    assert(thrown);
+}
+
+template<class Fn>
+void assert_throws_any(Fn fn) {
+    bool thrown = false;
+    try {
+        fn();
+    } catch (const std::exception&) {
+        thrown = true;
+    }
+    assert(thrown);
 }
 
 } // namespace
@@ -237,6 +260,120 @@ int main() {
         large[large.size() - 1] = 'Z';
         store.insert_or_assign("large", large);
         assert(store.at("large") == large);
+    }
+
+    {
+        typedef mdbxc::HashedKeyValueStore<
+            std::string,
+            int,
+            mdbxc::XXH3Hasher,
+            mdbxc::HashedStoreLayout::SmallValues> SmallStore;
+        SmallStore store(conn, "hashed_small_values");
+        store.clear();
+
+        assert(store.empty());
+        assert(store.insert("a", 1));
+        assert(!store.insert("a", 11));
+        store.insert_or_assign("b", 2);
+        store.insert_or_assign("b", 22);
+        assert_found<SmallStore, std::string, int>(store, "a", 1);
+        assert_found<SmallStore, std::string, int>(store, "b", 22);
+        assert(store.contains("a"));
+        assert(store.count() == 2);
+
+        std::map<std::string, int> as_map;
+        store.load(as_map);
+        assert(as_map["a"] == 1);
+        assert(as_map["b"] == 22);
+
+        std::vector<std::pair<std::string, int> > replacement;
+        replacement.push_back(std::make_pair(std::string("b"), 200));
+        replacement.push_back(std::make_pair(std::string("b"), 201));
+        replacement.push_back(std::make_pair(std::string("c"), 3));
+        store.reconcile(replacement);
+        assert(store.count() == 2);
+        assert(store.at("b") == 201);
+        assert(store.at("c") == 3);
+        assert(!store.contains("a"));
+    }
+
+    {
+        typedef mdbxc::HashedKeyValueStore<
+            std::string,
+            std::string,
+            ConstantHasher,
+            mdbxc::HashedStoreLayout::SmallValues> SmallCollisionStore;
+        SmallCollisionStore store(conn, "hashed_small_collisions", ConstantHasher());
+        store.clear();
+
+        assert(store.insert("alpha", "one"));
+        assert(store.insert("beta", "two"));
+        assert(store.insert("gamma", "three"));
+        store.insert_or_assign("beta", "TWO");
+
+        assert_found<SmallCollisionStore, std::string, std::string>(store, "alpha", "one");
+        assert_found<SmallCollisionStore, std::string, std::string>(store, "beta", "TWO");
+        assert_found<SmallCollisionStore, std::string, std::string>(store, "gamma", "three");
+        assert(store.erase("beta"));
+        assert(!store.contains("beta"));
+        assert(store.contains("alpha"));
+        assert(store.contains("gamma"));
+        assert(store.count() == 2);
+    }
+
+    {
+        mdbxc::Config small_cfg;
+        small_cfg.pathname = "data/hashed_small_oversized_test.mdbx";
+        small_cfg.max_dbs = 4;
+        small_cfg.max_dupsort_value_size = 128;
+        small_cfg.no_subdir = true;
+        small_cfg.relative_to_exe = true;
+
+        auto small_conn = mdbxc::Connection::create(small_cfg);
+        typedef mdbxc::HashedKeyValueStore<
+            std::string,
+            std::string,
+            mdbxc::XXH3Hasher,
+            mdbxc::HashedStoreLayout::SmallValues> SmallStringStore;
+        SmallStringStore store(small_conn, "hashed_small_oversized");
+        store.clear();
+        std::string large(1024, 'x');
+        assert_throws_length_error([&store, &large]() {
+            store.insert_or_assign("large", large);
+        });
+    }
+
+    {
+        mdbxc::Config small_cfg;
+        small_cfg.pathname = "data/hashed_small_maxdbs_test.mdbx";
+        small_cfg.max_dbs = 1;
+        small_cfg.no_subdir = true;
+        small_cfg.relative_to_exe = true;
+
+        auto small_conn = mdbxc::Connection::create(small_cfg);
+        typedef mdbxc::HashedKeyValueStore<
+            std::string,
+            int,
+            mdbxc::XXH3Hasher,
+            mdbxc::HashedStoreLayout::SmallValues> SmallStore;
+        SmallStore store(small_conn, "one_dbi_small");
+        store.clear();
+        store.insert_or_assign("ok", 7);
+        assert(store.at("ok") == 7);
+    }
+
+    {
+        mdbxc::Config large_cfg;
+        large_cfg.pathname = "data/hashed_large_maxdbs_test.mdbx";
+        large_cfg.max_dbs = 1;
+        large_cfg.no_subdir = true;
+        large_cfg.relative_to_exe = true;
+
+        auto large_conn = mdbxc::Connection::create(large_cfg);
+        assert_throws_any([&large_conn]() {
+            mdbxc::HashedKeyValueStore<std::string, int> store(large_conn, "two_dbi_large");
+            (void)store;
+        });
     }
 
     std::cout << "HashedKeyValueStore test passed.\n";
