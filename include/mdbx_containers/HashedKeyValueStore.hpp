@@ -1092,14 +1092,6 @@ namespace mdbxc {
             return payload;
         }
 
-        std::vector<uint8_t> make_checked_record_payload(const std::vector<uint8_t>& key,
-                                                         const ValueT& value) const {
-            std::vector<uint8_t> payload = make_record_payload(key, value);
-            MDBX_val db_val = SerializeScratch::view(payload.empty() ? nullptr : payload.data(), payload.size());
-            check_dupsort_value_size(db_val);
-            return payload;
-        }
-
         bool db_find_record_bytes(const std::vector<uint8_t>& key,
                                   std::uint64_t hash,
                                   LocatedRecord& out,

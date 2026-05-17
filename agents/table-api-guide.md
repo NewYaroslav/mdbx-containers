@@ -167,9 +167,10 @@ Use it for:
 ## DUPSORT value limits
 
 `Config::max_dupsort_value_size` proactively rejects oversized duplicate values
-before `mdbx_put`. The default is 16 KiB. Set it to a non-positive value to
-disable the proactive check and let MDBX return its own storage error. This
-limit applies to `KeyMultiValueTable` stored values and
+before `mdbx_put` when set to a positive value. The default is `-1`, so the
+proactive check is disabled and MDBX returns its own storage error. Set an
+explicit positive limit, such as `16 * 1024`, to enable an application-level
+guard. This limit applies to `KeyMultiValueTable` stored values and
 `HashedKeyValueStore<..., HashedStoreLayout::SmallValues>`.
 
 ## KeyTable
