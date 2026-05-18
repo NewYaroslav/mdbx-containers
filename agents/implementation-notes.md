@@ -78,7 +78,13 @@ Important fields include:
 - `sync_durable`
 - `max_readers`
 - `max_dbs`
+- `max_dupsort_value_size`
 - `relative_to_exe`
+
+`Config::max_dupsort_value_size` is a proactive guard for MDBX_DUPSORT
+duplicate values. Check it before writes that store user payload in duplicate
+values, and throw `std::length_error` when the configured positive limit is
+exceeded.
 
 ## Compatibility
 

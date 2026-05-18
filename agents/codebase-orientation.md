@@ -388,8 +388,10 @@ Do not add an HTTP/WebSocket framework to persistence-library headers.
 - Check C++11 and C++17 branches when public templates change.
 - Use `Config::pathname`, constructor table names, and `Config::max_dbs` for
   multiple DBIs.
-- Remember `HashedKeyValueStore` uses two DBIs per logical store: records plus
-  `name + "__hash_index"`.
+- Remember default `HashedKeyValueStore` uses the LargeValues layout and two
+  DBIs per logical store: records plus `name + "__hash_index"`. The opt-in
+  SmallValues layout uses one DUPSORT DBI and is size-limited by
+  `Config::max_dupsort_value_size`.
 - Reuse `SerializeScratch` and serialization helpers.
 - Wrap MDBX errors through `check_mdbx`.
 - Add tests near existing tests for the same mechanism.

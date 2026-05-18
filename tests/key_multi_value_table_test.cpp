@@ -1,6 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,17 @@ void assert_vector_equal(const std::vector<T>& actual, const std::vector<T>& exp
     for (std::size_t i = 0; i < actual.size(); ++i) {
         assert(actual[i] == expected[i]);
     }
+}
+
+template<class Fn>
+void assert_throws_length_error(Fn fn) {
+    bool thrown = false;
+    try {
+        fn();
+    } catch (const std::length_error&) {
+        thrown = true;
+    }
+    assert(thrown);
 }
 
 } // namespace
@@ -166,6 +178,23 @@ int main() {
         fast_table.insert(12, "fast");
         assert(fast_table.count(11, std::string("safe")) == 1);
         assert(safe_table.count(12, std::string("fast")) == 1);
+    }
+
+    {
+        mdbxc::Config limit_cfg;
+        limit_cfg.pathname = "data/key_multi_value_oversized_test.mdbx";
+        limit_cfg.max_dbs = 4;
+        limit_cfg.max_dupsort_value_size = 128;
+        limit_cfg.no_subdir = true;
+        limit_cfg.relative_to_exe = true;
+
+        auto limit_conn = mdbxc::Connection::create(limit_cfg);
+        mdbxc::KeyMultiValueTable<int, std::string> table(limit_conn, "multi_oversized");
+        table.clear();
+        std::string large(1024, 'x');
+        assert_throws_length_error([&table, &large]() {
+            table.insert(1, large);
+        });
     }
 
     std::cout << "KeyMultiValueTable test passed.\n";

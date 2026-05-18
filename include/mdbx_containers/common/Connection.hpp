@@ -77,6 +77,10 @@ namespace mdbxc {
         /// \return MDBX environment pointer.
         MDBX_env* env_handle() noexcept;
 
+        /// \brief Returns the configured proactive DUPSORT duplicate value limit.
+        /// \return Maximum duplicate value size, or a non-positive value when disabled.
+        int64_t max_dupsort_value_size() const;
+
     private:
         friend class Transaction;
 

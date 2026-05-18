@@ -798,6 +798,7 @@ namespace mdbxc {
             uint64_t sequence = next_sequence(key, txn);
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             MDBX_val db_val = make_stored_value(sequence, value, sc_value);
+            check_dupsort_value_size(db_val);
             check_mdbx(mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_UPSERT), "Failed to insert multi-value record");
         }
 

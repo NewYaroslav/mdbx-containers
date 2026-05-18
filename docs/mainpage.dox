@@ -62,6 +62,10 @@ mdbxc::HashedKeyValueStore<std::string, std::string> store(conn, "tokens");
 store.insert_or_assign("user:42", "active");
 ```
 
+The default hashed layout is `LargeValues`, which supports large serialized
+values and consumes two DBIs. `HashedStoreLayout::SmallValues` is opt-in, uses
+one DUPSORT DBI, and should be used only for small duplicate values.
+
 \subsection ex_multitable Multiple tables
 ```cpp
 mdbxc::Config cfg; cfg.pathname = "multi.mdbx"; cfg.max_dbs = 2;

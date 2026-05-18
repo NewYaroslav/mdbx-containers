@@ -62,7 +62,8 @@ for (std::map<int, std::string>::const_iterator it = restored.begin();
 \ref mdbxc::HashedKeyValueStore stores one value per original string or
 byte-vector key, but uses a 64-bit hash as a lookup accelerator. It verifies the
 stored original key bytes after locating a hash bucket, so container correctness
-does not rely on hash uniqueness.
+does not rely on hash uniqueness. The default layout is
+\ref mdbxc::HashedStoreLayout::LargeValues.
 
 The default \ref mdbxc::XXH3Hasher is non-cryptographic. It is suitable for
 local keys such as paths, URLs, names, IDs, and tickers. For externally
@@ -71,9 +72,17 @@ controlled or adversarial keys, use a stable keyed hasher such as
 an existing store; changing the hash domain makes existing records unreachable
 through normal key lookup until the store is rebuilt.
 
-\note Each hashed store consumes two named MDBX DBIs: the records table named by
-      the constructor argument and a `__hash_index` table. Increase
-      \ref mdbxc::Config::max_dbs accordingly.
+\ref mdbxc::HashedStoreLayout::LargeValues stores payload bytes in a records
+DBI and keeps a small `hash64 -> ordinal` DUPSORT index. It supports large
+serialized values, but each logical store consumes two named MDBX DBIs: the
+records table named by the constructor argument and a `__hash_index` table.
+Increase \ref mdbxc::Config::max_dbs accordingly.
+
+\ref mdbxc::HashedStoreLayout::SmallValues stores one DUPSORT duplicate value
+per original key under the `hash64` bucket. It uses one named DBI and is
+optimized for small duplicate values. Large serialized values may exceed the
+MDBX_DUPSORT duplicate value limit or the proactive
+\ref mdbxc::Config::max_dupsort_value_size setting.
 
 ```cpp
 mdbxc::Config cfg;
@@ -88,6 +97,14 @@ mdbxc::SipHashHasher sip(0x0706050403020100ULL, 0x0f0e0d0c0b0a0908ULL);
 mdbxc::HashedKeyValueStore<std::string, std::string, mdbxc::SipHashHasher>
     untrusted(conn, "untrusted", sip);
 untrusted.insert_or_assign("external-token", "accepted");
+
+using SmallStore = mdbxc::HashedKeyValueStore<
+    std::string,
+    int,
+    mdbxc::XXH3Hasher,
+    mdbxc::HashedStoreLayout::SmallValues>;
+SmallStore small(conn, "small");
+small.insert_or_assign("flag", 1);
 ```
 
 ## Key-only tables
@@ -116,6 +133,10 @@ identical `(key, value)` pairs are preserved, and `find(key)` returns all values
 for a key in insertion order. The table uses MDBX duplicate records internally
 and adds a hidden sequence prefix to duplicate values so exact repeated pairs can
 coexist.
+
+Stored duplicate values include the sequence prefix and serialized payload.
+Large values may exceed MDBX_DUPSORT limits or the proactive
+\ref mdbxc::Config::max_dupsort_value_size setting.
 
 The default \c retrieve_all() container is \c std::multimap. Use
 \c retrieve_all_vector() when every physical pair must remain visible as a

@@ -11,7 +11,7 @@
 int main() {
     mdbxc::Config config;
     config.pathname = "hashed_key_value_store_example.mdbx";
-    config.max_dbs = 4; // two DBIs per hashed store
+    config.max_dbs = 5; // LargeValues uses two DBIs; SmallValues uses one.
 
     auto conn = mdbxc::Connection::create(config);
 
@@ -29,5 +29,16 @@ int main() {
     untrusted.insert_or_assign("external-token", "accepted");
 
     std::cout << "Token state: " << untrusted.at("external-token") << "\n";
+
+    typedef mdbxc::HashedKeyValueStore<
+        std::string,
+        int,
+        mdbxc::XXH3Hasher,
+        mdbxc::HashedStoreLayout::SmallValues> SmallStore;
+    SmallStore counters(conn, "small_counters");
+    counters.clear();
+    counters.insert_or_assign("hits", 7);
+
+    std::cout << "Small counter: " << counters.at("hits") << "\n";
     return 0;
 }
