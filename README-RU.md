@@ -1,56 +1,66 @@
 # MDBX-Containers
 
-**mdbx-containers** — это лёгкая заголовочная библиотека на C++11/C++17, предоставляющая удобный STL‑подобный интерфейс для работы с базой данных [libmdbx](https://github.com/erthink/libmdbx).
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue) ![C++ Standard](https://img.shields.io/badge/C++-11--17-orange) [![CI Windows](https://img.shields.io/github/actions/workflow/status/NewYaroslav/mdbx-containers/ci.yml?branch=main&label=Windows&logo=windows)](https://github.com/NewYaroslav/mdbx-containers/actions/workflows/ci.yml) [![CI Linux](https://img.shields.io/github/actions/workflow/status/NewYaroslav/mdbx-containers/ci.yml?branch=main&label=Linux&logo=linux)](https://github.com/NewYaroslav/mdbx-containers/actions/workflows/ci.yml) [![CI macOS](https://img.shields.io/github/actions/workflow/status/NewYaroslav/mdbx-containers/ci.yml?branch=main&label=macOS&logo=apple)](https://github.com/NewYaroslav/mdbx-containers/actions/workflows/ci.yml)
 
-Библиотека позволяет прозрачно синхронизировать in-memory контейнеры с данными в MDBX, обеспечивая высокую производительность, надежную транзакционность и поддержку конкурентного доступа.
+[English version](README.md)
 
+**mdbx-containers** — лёгкая заголовочная библиотека C++11/17, которая соединяет
+[libmdbx](https://github.com/erthink/libmdbx) с привычными STL-подобными API.
+Она сохраняет key-value данные в MDBX и при этом предоставляет высокую
+производительность и удобные помощники для транзакций.
 
 > Примечание  
-> Этот проект оценивает техническое качество выше личных взглядов его авторов.  
-> Подробности см. в [PHILOSOPHY.md](PHILOSOPHY.md).
-
----
+> В этом проекте техническое качество важнее личных взглядов авторов.
+> Подробнее см. [PHILOSOPHY.md](PHILOSOPHY.md).
 
 ## ⚙️ Особенности
 
 ### 🧱 API таблиц
-- `KeyValueTable<K, V>` — основная реализованная таблица: один `V` на ключ, методы `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]` и др.
-- `AnyValueTable<K>` — реализованная таблица для значений разных типов с типизированными методами `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, `keys`.
-- `KeyTable<K>` — реализованная таблица только для уникальных ключей со `std::set`-подобным API.
-- `KeyMultiValueTable<K, V>` — реализованная таблица для нескольких `V` на ключ (`std::multimap`), включая повторяющиеся одинаковые пары `(key, value)`.
-- Проверка type-tag prefix в `AnyValueTable` пока реализована не полностью, поэтому не полагайтесь на неё как на полноценную runtime type safety.
+- `KeyValueTable<K, V>` — основная реализованная таблица: одно значение на ключ,
+  методы `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`,
+  `reconcile`, `operator[]` и связанные помощники.
+- `AnyValueTable<K>` хранит значения разных типов по выбранному вызывающим кодом
+  типу и поддерживает типизированные `set`, `insert`, `get`, `find`, `get_or`,
+  `update`, `contains`, `erase` и `keys`.
+- `KeyTable<K>` хранит уникальные ключи со `std::set`-подобным API: `insert`,
+  `contains`, `erase`, `clear`, `load`, `reconcile` и связанные помощники.
+- `KeyMultiValueTable<K, V>` хранит несколько значений на один ключ со
+  `std::multimap`-подобным API и сохраняет повторяющиеся одинаковые пары
+  `(key, value)`.
+- Проверка type-tag prefix в `AnyValueTable` пока реализована не полностью, не
+  полагайтесь на неё как на полноценную runtime type safety.
 
-### 🔁 Сериализация и типы
-- Автоматическая сериализация:
-  - trivially copyable типы — по памяти;
-  - пользовательские — через `to_bytes()` / `from_bytes()`;
-- Поддержка STL-контейнеров: `std::string`, `std::vector`, `std::list`, `std::set`, `std::vector<std::pair<K, V>>` и др.
+### 🔁 Сериализация
+- Автоматическая сериализация trivially copyable типов.
+- Пользовательские типы через `to_bytes()` / `from_bytes()`.
+- Поддержка вложенных STL-контейнеров, например `std::vector` или `std::list`.
 
-### 🔒 Транзакции и многопоточность
-- RAII-обёртка транзакций (`Transaction`);
-- Привязка транзакции к потоку (`std::thread`);
-- Потокобезопасность при работе с таблицами (через `TransactionTracker`, `std::mutex`).
+### 🔒 Транзакции и потоки
+- RAII-транзакции (`Transaction`).
+- Привязка транзакции к потоку.
+- Безопасный конкурентный доступ через `TransactionTracker` и mutex'ы.
 
 ### 🗄️ Структура и конфигурация
-- Поддержка множества таблиц в одном MDBX-файле (через `MDBX_dbi`);
-- Гибкая конфигурация:
-  - `read_only`, `writemap_mode`, `readahead`, `no_subdir`, `sync_durable`,
-    `max_readers`, `max_dbs`, `relative_to_exe`.
-  - Подробности см. в файле `docs/configuration.dox`.
+- Несколько логических таблиц внутри одного MDBX-файла.
+- Гибкая конфигурация: `read_only`, `writemap_mode`, `readahead`, `no_subdir`,
+  `sync_durable`, `max_readers`, `max_dbs`, `relative_to_exe`.
+- Подробнее см. `docs/configuration.dox`.
 
-### 🧰 Совместимость и подключение
-- Заголовочная библиотека (header-only);
-- Требуется только [libmdbx](https://github.com/erthink/libmdbx);
-- Совместимость: C++11 и выше.
-- **Windows (MSVC)** пока не поддерживается. Используйте MinGW-w64 (GCC) или Clang под Windows.
+### 🧰 Совместимость
+- Header-only использование.
+- Зависит только от [libmdbx](https://github.com/erthink/libmdbx).
+- Требует C++11 или новее.
+- **Windows (MSVC)** пока не поддерживается. Используйте MinGW-w64 (GCC) или
+  Clang под Windows.
 
----
+## 🛠️ Установка
 
-## 🛠️ Установка и сборка
-
-1. Скопируйте папку `include/` в проект или подключите репозиторий как submodule.
-2. Убедитесь, что `libmdbx` доступна системе. Установите `MDBXC_DEPS_MODE=BUNDLED`, чтобы использовать bundled submodule в `external/libmdbx`, или `SYSTEM`/`AUTO` для установленного пакета.
-3. Проверьте поддержку стандарта C++11 и выше.
+1. Скопируйте каталог `include/` в свой проект или подключите репозиторий как
+   submodule.
+2. Убедитесь, что `libmdbx` доступна вашей системе сборки. Установите
+   `MDBXC_DEPS_MODE=BUNDLED`, чтобы использовать bundled submodule в
+   `external/libmdbx`, или `SYSTEM`/`AUTO` для установленного пакета.
+3. Используйте компилятор с поддержкой C++11 или новее.
 
 ### Сборка через CMake
 
@@ -68,16 +78,17 @@ ctest --test-dir build --output-on-failure
 > **Предупреждение**
 > Собирайте все translation unit'ы, использующие mdbx-containers, с одинаковым
 > стандартом C++, настройками выравнивания/упаковки структур и набором feature
-> macros. Смешивание C++11 и C++17 или изменение ABI-чувствительных `#define`
-> между файлами может привести к ODR-конфликтам и неопределённому поведению.
+> macros. Смешивание C++11 и C++17 сборок или изменение ABI-чувствительных
+> define'ов между файлами может привести к ODR-нарушениям и неопределённому
+> поведению.
 
-Для Windows доступны `.bat`‑скрипты с аналогичными параметрами (`build-mingw-17-examples.bat`, `build-mingw-17-tests.bat`, `build-mingw-11-tests.bat`).
-
----
+Пользователи Windows могут запускать `.bat`-скрипты, например
+`build-mingw-17-examples.bat`, `build-mingw-17-tests.bat` или
+`build-mingw-11-tests.bat`.
 
 ## 🧪 Примеры использования
 
-### Базовая таблица ключ-значение
+### Базовая key-value таблица
 
 ```cpp
 #include <mdbx_containers/KeyValueTable.hpp>
@@ -105,7 +116,33 @@ int main() {
 }
 ```
 
-### Ручное управление транзакцией
+### Таблица только для ключей
+
+```cpp
+#include <mdbx_containers/KeyTable.hpp>
+#include <set>
+
+mdbxc::KeyTable<std::string> keys(conn, "tags");
+keys.insert("active");
+keys.insert("archived");
+
+std::set<std::string> restored = keys.retrieve_all();
+```
+
+### Таблица с несколькими значениями на ключ
+
+```cpp
+#include <mdbx_containers/KeyMultiValueTable.hpp>
+
+mdbxc::KeyMultiValueTable<int, std::string> events(conn, "events");
+events.insert(7, "created");
+events.insert(7, "created"); // одинаковые повторы сохраняются
+events.insert(7, "sent");
+
+std::vector<std::string> values = events.find(7);
+```
+
+### Ручная транзакция
 
 ```cpp
 mdbxc::Config config;
@@ -118,7 +155,7 @@ table.insert_or_assign(10, "ten");
 conn->commit();
 ```
 
-### Пользовательская структура
+### Сериализация пользовательской структуры
 
 ```cpp
 struct MyData {
@@ -143,11 +180,17 @@ table.insert_or_assign(42, MyData{42, 3.14});
 ```
 
 ## 📚 Документация
-- Подробные примеры см. в папке examples/.
-- API и архитектура описаны в Doxygen-источниках `docs/*.dox`.
-- Автоматическая генерация документации возможна с Doxygen; сгенерированные `docs/html/` и `docs/latex/` не редактируются вручную.
+
+- Больше примеров см. в каталоге `examples/`.
+- Информация об API и архитектуре находится в Doxygen-страницах
+  `docs/*.dox`.
+- Документацию можно сгенерировать через Doxygen; сгенерированные
+  `docs/html/` и `docs/latex/` нельзя редактировать вручную.
 
 ## 📄 Лицензия
+
 Проект распространяется под лицензией MIT.
 
-Проект может использовать bundled [libmdbx](https://github.com/erthink/libmdbx) из `external/libmdbx`; библиотека распространяется по лицензии Apache License 2.0. Файл лицензии расположен в `docs/libmdbx.LICENSE`.
+Проект может использовать bundled [libmdbx](https://github.com/erthink/libmdbx)
+из `external/libmdbx`, распространяемую под Apache License 2.0. Подробнее см.
+`docs/libmdbx.LICENSE`.

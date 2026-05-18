@@ -31,8 +31,14 @@ behavior. Small, well-verified edits matter more than broad rewrites.
   unless the user explicitly asks for that layout.
 - Avoid editing generated Doxygen output under `docs/html/` or `docs/latex/`.
   Update `.dox`, headers, examples, or Doxygen config instead.
+- Keep the English and Russian READMEs synchronized. If a change touches
+  `README.md` or `README-RU.md`, update the paired file in the same change
+  unless the user explicitly requests a single-language edit.
 - Keep public headers valid in both C++11 and C++17. If C++17 utilities are
   useful, follow the existing guarded pattern.
+- In member functions, never rely on implicit `this` capture in lambdas. Use
+  explicit captures such as `[this, &key, &value]` whenever the lambda calls
+  member functions or accesses fields.
 - When touching serialization, read `agents/implementation-notes.md` first.
   `SerializeScratch` exists to avoid MinGW thread-local destructor crashes.
 - When touching transactions or connection lifetime, check the manual and

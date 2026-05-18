@@ -28,6 +28,16 @@ omitting the prefix would be misleading.
 - If a file contains utilities, helpers, or multiple types, use `snake_case`,
   for example `path_utils.hpp`.
 
+## Lambda Captures
+
+- Do not rely on implicit `this` capture through `[&]` or `[=]` in member
+  functions.
+- When a lambda calls member functions or accesses fields, capture `this`
+  explicitly and list the required locals, for example
+  `[this, &key, &value](MDBX_txn* txn)`.
+- Default captures are acceptable only for lambdas that use local variables and
+  do not access object state.
+
 ## Documentation
 
 - Prefer `///` Doxygen comments.
