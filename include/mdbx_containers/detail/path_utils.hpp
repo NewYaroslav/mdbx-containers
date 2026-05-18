@@ -30,7 +30,12 @@
 #include <limits.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <stdlib.h>
 #include <errno.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <stdint.h>
+#endif
 #endif
 
 namespace mdbxc {
@@ -129,6 +134,34 @@ namespace mdbxc {
         return converter.to_bytes(exe_path);
 #       endif
 
+#       elif defined(__APPLE__)
+        uint32_t size = 0;
+        _NSGetExecutablePath(NULL, &size);
+
+        if (size == 0) {
+            throw std::runtime_error("Failed to get executable path.");
+        }
+
+        std::vector<char> buffer(size);
+        if (_NSGetExecutablePath(buffer.data(), &size) != 0) {
+            throw std::runtime_error("Failed to get executable path.");
+        }
+
+        char resolved[PATH_MAX];
+        std::string exe_path;
+        if (realpath(buffer.data(), resolved) != NULL) {
+            exe_path.assign(resolved);
+        } else {
+            exe_path.assign(buffer.data());
+        }
+
+        // Trim the path to the directory (remove the file name, keep only the folder path)
+        size_t pos = exe_path.find_last_of("\\/");
+        if (pos != std::string::npos) {
+            exe_path = exe_path.substr(0, pos);
+        }
+
+        return exe_path;
 #       else
         char result[PATH_MAX];
         ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
