@@ -354,7 +354,7 @@ int main() {
         ConcurrentStruct written;
         std::exception_ptr w_ex, r_ex;
 
-        auto writer = make_thread_catching([&] {
+        auto writer = make_thread_catching([&kv, &failed, &mtx, &written, &epoch, &cv, &done] {
             try {
                 for (int i = 0; i < 1000; ++i) {
                     if (failed) break;
@@ -384,11 +384,11 @@ int main() {
             }
         }, w_ex);
 
-        auto reader = make_thread_catching([&] {
+        auto reader = make_thread_catching([&mtx, &cv, &epoch, &last_seen, &done, &failed, &written, &kv] {
             try {
                 for (;;) {
                     std::unique_lock<std::mutex> lock(mtx);
-                    bool ok = cv.wait_for(lock, std::chrono::seconds(2), [&] {
+                    bool ok = cv.wait_for(lock, std::chrono::seconds(2), [&epoch, &last_seen, &done] {
                         return epoch > last_seen || done.load(std::memory_order_acquire);
                     });
                     if (!ok) {

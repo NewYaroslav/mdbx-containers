@@ -54,7 +54,7 @@ namespace mdbxc {
     /// \param s Path string to inspect.
     /// \return true if path starts with "./", "../", ".\\", or "..\\".
     inline bool is_explicitly_relative(const std::string& s) noexcept {
-        auto sw = [&](const char* p){ return s.rfind(p, 0) == 0; };
+        auto sw = [&s](const char* p){ return s.rfind(p, 0) == 0; };
         return sw("./") || sw("../") || sw(".\\") || sw("..\\");
     }
 
@@ -338,7 +338,7 @@ namespace mdbxc {
         // ----- tokenize and fold . / .. -----
         std::vector<std::string> comps;
 
-        auto push_component = [&](const std::string& token) {
+        auto push_component = [&comps](const std::string& token) {
             if (token.empty() || token == ".") return;
             if (token == "..") {
 #           ifdef _WIN32
