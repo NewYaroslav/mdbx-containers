@@ -87,7 +87,7 @@ namespace mdbxc {
         ///       through another \c T at the call site.
         template <class T>
         void set(const KeyT& key, const T& value, MDBX_txn* txn = nullptr) {
-            with_transaction([&](MDBX_txn* t){
+            with_transaction([this, &key, &value](MDBX_txn* t){
                 put_typed(key, value, true, t);
             }, TransactionMode::WRITABLE, txn);
         }
@@ -109,7 +109,7 @@ namespace mdbxc {
         template <class T>
         bool insert(const KeyT& key, const T& value, MDBX_txn* txn = nullptr) {
             bool res = false;
-            with_transaction([&](MDBX_txn* t){
+            with_transaction([this, &key, &value, &res](MDBX_txn* t){
                 res = put_typed(key, value, false, t);
             }, TransactionMode::WRITABLE, txn);
             return res;
@@ -132,7 +132,7 @@ namespace mdbxc {
         ///       is passed to \p fn and then stored.
         template <class T, class Fn>
         void update(const KeyT& key, Fn&& fn, bool create_if_missing = false, MDBX_txn* txn = nullptr) {
-            with_transaction([&](MDBX_txn* t){
+            with_transaction([this, &key, &fn, create_if_missing](MDBX_txn* t){
                 T tmp{};
                 bool exists = get_typed(key, tmp, t);
                 if (!exists) {
@@ -162,7 +162,7 @@ namespace mdbxc {
         T get(const KeyT& key, MDBX_txn* txn = nullptr) const {
             T out{};
             bool found = false;
-            with_transaction([&](MDBX_txn* t){
+            with_transaction([this, &key, &out, &found](MDBX_txn* t){
                 found = get_typed(key, out, t);
             }, TransactionMode::READ_ONLY, txn);
             if (!found) {
@@ -188,7 +188,7 @@ namespace mdbxc {
         template <class T>
         std::optional<T> find(const KeyT& key, MDBX_txn* txn = nullptr) const {
             std::optional<T> result;
-            with_transaction([&](MDBX_txn* t){
+            with_transaction([this, &key, &result](MDBX_txn* t){
                 T tmp{};
                 try {
                     if (get_typed(key, tmp, t)) {
@@ -240,7 +240,7 @@ namespace mdbxc {
         template <class T>
         std::pair<bool, T> find_compat(const KeyT& key, MDBX_txn* txn = nullptr) const {
             std::pair<bool, T> result{false, T{}};
-            with_transaction([&](MDBX_txn* t){
+            with_transaction([this, &key, &result](MDBX_txn* t){
                 try {
                     if (get_typed(key, result.second, t)) {
                         result.first = true;
@@ -299,7 +299,9 @@ namespace mdbxc {
         template <class KT = KeyT>
         bool contains(const KT& key, MDBX_txn* txn = nullptr) const {
             bool res = false;
-            with_transaction([&](MDBX_txn* t){ res = db_contains(key, t); }, TransactionMode::READ_ONLY, txn);
+            with_transaction([this, &key, &res](MDBX_txn* t) {
+                res = db_contains(key, t);
+            }, TransactionMode::READ_ONLY, txn);
             return res;
         }
 
@@ -317,7 +319,9 @@ namespace mdbxc {
         /// \return \c true if key was removed, otherwise \c false.
         bool erase(const KeyT& key, MDBX_txn* txn = nullptr) {
             bool res = false;
-            with_transaction([&](MDBX_txn* t){ res = db_erase(key, t); }, TransactionMode::WRITABLE, txn);
+            with_transaction([this, &key, &res](MDBX_txn* t) {
+                res = db_erase(key, t);
+            }, TransactionMode::WRITABLE, txn);
             return res;
         }
 
@@ -335,7 +339,9 @@ namespace mdbxc {
         /// \note Key order follows MDBX key ordering, not insertion order.
         std::vector<KeyT> keys(MDBX_txn* txn = nullptr) const {
             std::vector<KeyT> out;
-            with_transaction([&](MDBX_txn* t){ db_list_keys(out, t); }, TransactionMode::READ_ONLY, txn);
+            with_transaction([this, &out](MDBX_txn* t) {
+                db_list_keys(out, t);
+            }, TransactionMode::READ_ONLY, txn);
             return out;
         }
 

@@ -28,6 +28,15 @@ omitting the prefix would be misleading.
 - If a file contains utilities, helpers, or multiple types, use `snake_case`,
   for example `path_utils.hpp`.
 
+## Lambda Captures
+
+- Do not use lambda default captures (`[&]` or `[=]`) in C++ code.
+- List every captured variable explicitly so future edits cannot silently pull
+  extra state into the lambda.
+- When a lambda calls member functions or accesses fields, capture `this`
+  explicitly and list the required locals, for example
+  `[this, &key, &value](MDBX_txn* txn)`.
+
 ## Documentation
 
 - Prefer `///` Doxygen comments.

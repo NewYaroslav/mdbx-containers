@@ -82,7 +82,7 @@ static fs::path expected_path_from_policy(const std::string& pathname,
                                           const fs::path& exeDir,
                                           const fs::path& cwd) {
     auto explicitly_rel = [](const std::string& s){
-        auto sw = [&](const char* p){ return s.rfind(p, 0) == 0; };
+        auto sw = [&s](const char* p){ return s.rfind(p, 0) == 0; };
         return sw("./") || sw("../") || sw(".\\") || sw("..\\");
     };
     fs::path p = fs::u8path(pathname);

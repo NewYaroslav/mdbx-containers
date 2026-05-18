@@ -9,7 +9,8 @@ behavior. Small, well-verified edits matter more than broad rewrites.
 
 ## Default Loop
 
-1. Read `AGENTS.md`, then load only the relevant files from `agents/`.
+1. Read `AGENTS.md`, then load `guides/critical-defaults.md` and the relevant
+   topic files from `guides/`.
 2. Run `git status --short` before editing.
 3. Search with `rg` or `rg --files` before adding new concepts or files.
 4. Read nearby implementation, tests, examples, and docs before changing code.
@@ -31,9 +32,16 @@ behavior. Small, well-verified edits matter more than broad rewrites.
   unless the user explicitly asks for that layout.
 - Avoid editing generated Doxygen output under `docs/html/` or `docs/latex/`.
   Update `.dox`, headers, examples, or Doxygen config instead.
+- Treat `guides/critical-defaults.md` as mandatory for every task. Topic guides
+  are also binding whenever their area is relevant to the change.
+- Keep the English and Russian READMEs synchronized. If a change touches
+  `README.md` or `README-RU.md`, update the paired file in the same change
+  unless the user explicitly requests a single-language edit.
 - Keep public headers valid in both C++11 and C++17. If C++17 utilities are
   useful, follow the existing guarded pattern.
-- When touching serialization, read `agents/implementation-notes.md` first.
+- Never use lambda default captures (`[&]` or `[=]`) in C++ code. List every
+  captured variable explicitly, for example `[this, &key, &value]`.
+- When touching serialization, read `guides/implementation-notes.md` first.
   `SerializeScratch` exists to avoid MinGW thread-local destructor crashes.
 - When touching transactions or connection lifetime, check the manual and
   automatic transaction tests and examples.
@@ -58,7 +66,7 @@ behavior. Small, well-verified edits matter more than broad rewrites.
 ## Context Hygiene
 
 - Keep the root `AGENTS.md` short. Add detailed rules to topic files under
-  `agents/`.
+  `guides/`.
 - Prefer a new session for a new feature, architecture decision, or debugging
   thread when the conversation context becomes noisy.
 - Use subagents only when the host environment supports them and the delegated

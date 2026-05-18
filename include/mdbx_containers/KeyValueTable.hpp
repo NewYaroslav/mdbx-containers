@@ -456,7 +456,7 @@ namespace mdbxc {
         /// \param txn Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
         void insert_or_assign(const std::pair<KeyT, ValueT> &pair, MDBX_txn* txn = nullptr) {
-            insert_or_assign([&pair](MDBX_txn* txn) {
+            insert_or_assign([this, &pair](MDBX_txn* txn) {
                 db_insert_or_assign(pair.first, pair.second, txn);
             }, TransactionMode::WRITABLE, txn);
         }
