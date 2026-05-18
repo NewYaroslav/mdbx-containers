@@ -24,7 +24,8 @@ and compiles in the consumer's translation units.
 | --- | --- | --- |
 | `KeyValueTable<K, V>` | Active | One value per key, similar to `std::map`. |
 | `HashedKeyValueStore<K, V, H, Layout>` | Active | One value per string/byte key with a hash lookup index. |
-| `AnyValueTable<K>` | Active | Heterogeneous values by caller-specified type; type-tag prefix checks are not fully implemented yet. |
+| `ValueTable<V>` | Active | One strongly typed singleton value per named table. |
+| `AnyValueTable<K>` | Active | Heterogeneous values by caller-specified type with optional type-tag prefix checks. |
 | `KeyTable<K>` | Active | Key-only table with `std::set`-like membership semantics. |
 | `KeyMultiValueTable<K, V>` | Active | Multimap-like table with multiple values per key, including repeated identical pairs. |
 
@@ -82,7 +83,8 @@ keys.
 - MDBX errors are checked with `check_mdbx()` and reported as `MdbxException`.
 - Serialization and type validation errors use standard exceptions such as
   `std::runtime_error`.
-- `AnyValueTable` should not be documented as providing full runtime type
-  safety until its type-tag TODO is implemented.
+- `AnyValueTable` type-tag checks are opt-in via `set_type_tag_check(true)`.
+  They are disabled by default for raw-record compatibility; durable schemas
+  should specialize `AnyValueTypeTag<T>`.
 - In C++17 builds, lookup APIs can return `std::optional`. C++11 fallback APIs
   use explicit success flags such as `std::pair<bool, ValueT>`.

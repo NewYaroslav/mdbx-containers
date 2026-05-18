@@ -32,6 +32,7 @@ Primary entry points:
   `include/mdbx_containers/KeyValueTable.hpp`,
   `include/mdbx_containers/HashedKeyValueStore.hpp`,
   `include/mdbx_containers/Hash.hpp`,
+  `include/mdbx_containers/ValueTable.hpp`,
   `include/mdbx_containers/AnyValueTable.hpp`,
   `include/mdbx_containers/KeyTable.hpp`,
   `include/mdbx_containers/KeyMultiValueTable.hpp`.
@@ -51,8 +52,8 @@ library over libmdbx.
 Real subdomains:
 
 - **Persistent tables**: active `KeyValueTable`, active
-  `HashedKeyValueStore`, active `AnyValueTable`, active `KeyTable`, active
-  `KeyMultiValueTable`.
+  `HashedKeyValueStore`, active `ValueTable`, active `AnyValueTable`, active
+  `KeyTable`, active `KeyMultiValueTable`.
 - **MDBX environment and transactions**: `Connection`, `Transaction`,
   `TransactionTracker`, `BaseTable`.
 - **Serialization**: `serialize_key`, `serialize_value`,
@@ -107,8 +108,8 @@ Avoid:
   in `commit()`, `rollback()`, or the destructor.
 - **Factory method**: `Connection::create(const Config&)` returns
   `std::shared_ptr<Connection>` and opens the environment.
-- **Table Gateway / repository-like API**: `KeyValueTable` and `AnyValueTable`
-  hide MDBX DBI/cursor handling behind STL-like methods.
+- **Table Gateway / repository-like API**: `KeyValueTable`, `ValueTable`, and
+  `AnyValueTable` hide MDBX DBI/cursor handling behind typed methods.
 - **Adapter over MDBX C API**: `check_mdbx`, `BaseTable`, `Connection`, and
   private `db_*` methods translate raw MDBX calls into C++ APIs.
 - **Template strategy / SFINAE**: `serialize_key`, `serialize_value`, and
@@ -135,9 +136,9 @@ Prefer for new table code:
 
 Do not copy without review:
 
-- `AnyValueTable::wrap_with_type_tag()` and
-  `unwrap_and_check_type_tag()` still contain TODOs and do not implement the
-  type-tag prefix yet.
+- `AnyValueTable` type-tag checks are opt-in. Raw records remain the default
+  storage format unless `set_type_tag_check(true)` is enabled on the table
+  instance.
 - `KeyMultiValueTable` hidden duplicate sequence-prefix storage; do not change
   it without migration notes and compatibility tests.
 - `tests/mdbx_test.cpp` is a raw MDBX smoke test, not the library API style.
@@ -370,8 +371,9 @@ Do not add an HTTP/WebSocket framework to persistence-library headers.
   `m_mdbx_mutex`, `m_transactions`, `TransactionTracker::m_thread_txns`.
 - Cursor cleanup must be explicit. If early returns/exceptions are added around
   cursor logic, make sure the cursor is closed.
-- `AnyValueTable` type-tag checking is not fully implemented yet; do not
-  promise runtime type safety until the TODO is implemented.
+- `AnyValueTable` type-tag checking is opt-in and default tags are
+  implementation-defined. Durable schemas should specialize
+  `AnyValueTypeTag<T>`.
 
 ## Usually Do Not Change
 

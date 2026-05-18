@@ -10,6 +10,8 @@ Key features:
 - Implemented `KeyValueTable` API for map-like key-value storage.
 - Implemented `HashedKeyValueStore` API for string and byte-vector keys with a
   hash lookup index.
+- Implemented `ValueTable` API for singleton metadata, state, snapshots, and
+  single-object configuration records.
 - Implemented `AnyValueTable` API for heterogeneous values by caller-selected type.
 - Implemented `KeyTable` API for set-like key storage.
 - Implemented `KeyMultiValueTable` API for multimap-like storage with repeated
@@ -76,6 +78,15 @@ a.insert_or_assign(100, "hundred");
 b.insert_or_assign("a", "b");
 ```
 
+\subsection ex_value Singleton value table
+```cpp
+mdbxc::Config cfg; cfg.pathname = "state.mdbx";
+auto conn = mdbxc::Connection::create(cfg);
+mdbxc::ValueTable<int> schema_version(conn, "schema_version");
+schema_version.set(1);
+int version = schema_version.get_or(0);
+```
+
 \section build_sec Building
 Use CMake or simply include the headers and link with libmdbx.
 ```bash
@@ -86,8 +97,11 @@ cmake --build build
 
 For more details on container usage and C++ version differences see \subpage tables_page.
 
-\warning `AnyValueTable` type-tag prefix verification is not fully implemented
-yet and should not be treated as complete runtime type safety.
+\note `AnyValueTable` type-tag prefix verification is opt-in through
+`set_type_tag_check(true)`. It is disabled by default for compatibility with
+existing raw records, and durable application schemas should specialize
+`AnyValueTypeTag<T>` rather than relying on the default implementation-defined
+tag.
 
 \section config_sec Configuration Guide
 Details on tuning the MDBX environment are available on \subpage config_page.

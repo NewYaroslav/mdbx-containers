@@ -51,7 +51,9 @@ behavior. Small, well-verified edits matter more than broad rewrites.
 - Serialization changes: run `kv_container_all_types_test` and any affected
   table tests.
 - Transaction/concurrency changes: run `mdbx_test` and related examples/tests.
-- AnyValueTable changes: run `any_value_table_test` and the example build.
+- `ValueTable` changes: run `value_table_test` and build
+  `value_table_example`.
+- `AnyValueTable` changes: run `any_value_table_test` and the example build.
 
 ## Context Hygiene
 

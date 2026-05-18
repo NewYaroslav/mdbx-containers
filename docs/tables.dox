@@ -3,8 +3,9 @@
 
 This page describes how to work with persistent container classes. The
 implemented table APIs are \ref mdbxc::KeyValueTable,
-\ref mdbxc::HashedKeyValueStore, \ref mdbxc::AnyValueTable,
-\ref mdbxc::KeyTable, and \ref mdbxc::KeyMultiValueTable.
+\ref mdbxc::HashedKeyValueStore, \ref mdbxc::ValueTable,
+\ref mdbxc::AnyValueTable, \ref mdbxc::KeyTable, and
+\ref mdbxc::KeyMultiValueTable.
 
 ## Creating a connection
 
@@ -55,6 +56,32 @@ table = src;                     // reconcile with database keys
 auto restored = table.operator()<std::map>();
 for (std::map<int, std::string>::const_iterator it = restored.begin();
      it != restored.end(); ++it) {/* ... */}
+```
+
+## Singleton value tables
+
+\ref mdbxc::ValueTable stores one strongly typed value in a named MDBX table.
+Use it for true singleton objects where the table name identifies the object:
+storage metadata, schema/version records, config snapshots, module state,
+scheduler state, durable checkpoints, and other single-object records where an
+artificial user key would obscure the data model. Operations such as \c set(),
+\c insert(), \c get(), \c find(), \c get_or(), \c update(), \c has_value(),
+\c erase(), and \c clear() operate on the singleton value directly.
+
+\note If the data contains many records with the same schema, use
+      \ref mdbxc::KeyValueTable instead. If the values are independent keys with
+      genuinely different C++ types, use \ref mdbxc::AnyValueTable.
+
+\note The one-value invariant is guaranteed for operations performed through
+      \ref mdbxc::ValueTable. Opening the same DBI through another table type can
+      intentionally create extra physical rows; \c clear() removes all rows in
+      the DBI.
+
+```cpp
+mdbxc::ValueTable<int> schema_version(conn, "schema_version");
+schema_version.set(1);
+schema_version.update([](int& value){ value += 1; });
+int version = schema_version.get_or(0);
 ```
 
 ## Hashed key-value stores
@@ -156,15 +183,23 @@ std::vector<std::string> values = events.find(7);
 ## Heterogeneous values
 
 \ref mdbxc::AnyValueTable stores values of arbitrary caller-selected types.
+Use it for small heterogeneous keyed settings and option bags: mixed primitive
+settings, feature flags, plugin/module options, and local preferences where one
+stable key namespace naturally contains different C++ value types. It is not a
+substitute for a typed schema: use \ref mdbxc::ValueTable for one coherent
+config/state object, and \ref mdbxc::KeyValueTable for many uniform records.
 \c set<T>(), \c insert<T>(), and \c get<T>() operate on typed values, and
 \c update<T>() modifies them in place with a functor. Each key stores at most one
 value: \c set<T>() replaces any existing value, while \c insert<T>() succeeds
 only when the key is absent. \c keys() lists stored keys, but the class does not
 provide type-erased enumeration of all values.
 
-\warning Type-tag prefix verification is currently a reserved switch and should
-         not be treated as complete runtime type safety. Read values with the
-         same type and serialization contract used to store them.
+\note Type-tag prefix verification is opt-in through
+      \c set_type_tag_check(true). When enabled, newly written values get a
+      type-tag prefix and reads validate that prefix before deserialization.
+      Existing raw records behave as type mismatches while checking is enabled.
+      For durable schemas, specialize \ref mdbxc::AnyValueTypeTag instead of
+      relying on the default implementation-defined tag.
 
 ```cpp
 mdbxc::AnyValueTable<int> any(conn);

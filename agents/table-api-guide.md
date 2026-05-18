@@ -16,6 +16,7 @@ source of truth.
 | --- | --- | --- | --- |
 | One value per key | `KeyValueTable<K, V>` | `std::map` | Default choice for durable key-value storage. |
 | One value per string/byte key with hash lookup | `HashedKeyValueStore<K, V, H, Layout>` | `std::map` | Uses a hash bucket index and verifies original key bytes. |
+| One true singleton object in a named table | `ValueTable<V>` | persistent variable | Best for metadata, config snapshots, module state, schema/version records, and checkpoints. |
 | Unique keys only | `KeyTable<K>` | `std::set` | Stores serialized keys with empty values. |
 | Multiple values per key | `KeyMultiValueTable<K, V>` | `std::multimap` | Preserves repeated identical `(key, value)` pairs. |
 | Different value types by key | `AnyValueTable<K>` | Heterogeneous key-value store | Caller names value type on each access. |
@@ -25,12 +26,16 @@ Choose the narrowest table that represents the data:
 - Use `KeyTable` for membership, tags, IDs, indexes, and "seen" sets.
 - Use `KeyValueTable` for configuration, object snapshots, latest state, and
   any model where a key has one current value.
+- Use `ValueTable` for a true singleton object scoped by table name, such as
+  storage metadata, app/config snapshots, module state, scheduler state,
+  schema/version records, and durable checkpoints.
 - Use `HashedKeyValueStore` when keys are strings or byte vectors and a compact
   hash-index lookup path is preferable to ordering by full original key bytes.
 - Use `KeyMultiValueTable` for event lists, secondary indexes, histories, and
   any model where repeated values for the same key must remain visible.
-- Use `AnyValueTable` only when values under one key domain genuinely need
-  different C++ types. It is not a replacement for schema design.
+- Use `AnyValueTable` only for small heterogeneous keyed settings where values
+  under one stable key domain genuinely need different C++ types. It is not a
+  replacement for schema design or a typed singleton object.
 
 ## Common Table Contract
 
@@ -210,6 +215,57 @@ Avoid it when:
 - A key needs a payload. Use `KeyValueTable`.
 - A key needs multiple payloads. Use `KeyMultiValueTable`.
 
+## ValueTable
+
+`ValueTable<V>` stores one strongly typed value in a named MDBX table. It is the
+right shape for a real singleton object: the table name identifies the object,
+and there is no caller-visible key. It uses a fixed internal key and exposes
+value-oriented operations instead of asking the caller to remember a sentinel
+key.
+
+Write methods:
+
+- `set(value)` upserts the singleton value.
+- `insert(value)` writes only when the singleton is absent.
+- `update(fn)` reads the value, applies `fn(ValueT&)`, writes it back, and
+  returns whether a value existed.
+- `erase()` removes the singleton value.
+- `clear()` removes all physical rows from the DBI.
+
+Read/meta methods:
+
+- `get()` returns the value or throws `std::out_of_range`.
+- `try_get(out)` returns a success flag.
+- `find()` returns `std::optional<ValueT>` in C++17 and a pair in C++11.
+- `find_compat()` is the pair-based compatibility form.
+- `get_or(fallback)`, `has_value()`, `count()`, and `empty()` expose singleton
+  state.
+
+Restrictions and common mistakes:
+
+- `count()` is logical and returns `0` or `1`.
+- The singleton invariant is guaranteed only when using `ValueTable`; opening
+  the same DBI through another table type can intentionally add extra rows.
+- Use `clear()` if you need to remove extra physical rows from a DBI that was
+  previously misused through another table type.
+
+Use it for:
+
+- `StorageMetadata`, schema version records, migration state, and other
+  database metadata.
+- `AppConfigSnapshot`, `ModuleState`, `SchedulerState`, and other coherent
+  single-object state.
+- Durable checkpoints, last-run summaries, cache manifests, and snapshots that
+  should have exactly one current value.
+
+Avoid it when:
+
+- Multiple records share one schema, for example profiles by ID or state by
+  account. Use `KeyValueTable<K,V>`.
+- The data is a set of IDs or flags without payload. Use `KeyTable`.
+- Values need different C++ types under user keys and are not one coherent
+  object. Use `AnyValueTable`.
+
 ## KeyMultiValueTable
 
 `KeyMultiValueTable<K, V>` is the multimap-like table. It stores multiple values
@@ -266,7 +322,9 @@ Avoid it when:
 ## AnyValueTable
 
 `AnyValueTable<K>` stores one value per key, but the value type is selected by
-the caller for each operation.
+the caller for each operation. It is best treated as a small heterogeneous
+keyed store for settings and options, not as a replacement for a typed table or
+a typed singleton record.
 
 Write methods:
 
@@ -284,27 +342,35 @@ Read/meta methods:
 - `get_or<T>(key, fallback)` returns a fallback when missing.
 - `contains(key)` checks key existence.
 - `keys()` returns stored keys only.
-- `set_type_tag_check(enabled)` toggles the reserved type-tag flag.
+- `set_type_tag_check(enabled)` toggles opt-in type-tag prefix validation.
 
 Restrictions and common mistakes:
 
 - Each key stores one value. Setting a new type under the same key replaces the
   old value bytes.
 - There is no type-erased value enumeration API.
-- Type-tag prefix checking is not fully implemented. Do not promise complete
-  runtime type safety.
-- Callers must read with the same type and serialization contract used to write.
+- Type-tag prefix checking is opt-in through `set_type_tag_check(true)` and is
+  disabled by default for compatibility with existing raw records.
+- Default type tags are implementation-defined. Durable schemas should
+  specialize `AnyValueTypeTag<T>`.
+- Raw records behave as type mismatches while tag checking is enabled.
 
 Use it for:
 
-- Small heterogeneous settings keyed by stable IDs.
-- Cases where the key domain is shared but values naturally differ by type.
+- Small heterogeneous settings keyed by stable IDs, such as `"host"` as
+  `std::string`, `"port"` as `int`, and `"enabled"` as `bool`.
+- Feature flags, plugin/module options, and local preferences where a shared
+  key namespace naturally contains different value types.
+- Transitional or extensible option bags where adding a new key should not
+  require changing a single aggregate type.
 
 Avoid it when:
 
-- The value schema is known and uniform. Use `KeyValueTable`.
-- Runtime type safety is required. Implement type-tag support first or store an
-  explicit tagged value type in `KeyValueTable`.
+- The value schema is known and uniform. Use `KeyValueTable<K,V>`.
+- The values together form one coherent config/state object. Use
+  `ValueTable<AppConfig>` or another explicit aggregate type.
+- Runtime type safety is required for an existing raw table. Enable type-tag
+  checks only after planning how old raw records should be rewritten or handled.
 
 ## Method Stack For Implementers
 
