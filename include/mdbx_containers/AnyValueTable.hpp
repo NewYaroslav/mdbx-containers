@@ -9,8 +9,26 @@
 /// serialized value chosen by the caller at the access site.
 
 #include "common.hpp"
+#include <limits>
+#include <typeinfo>
 
 namespace mdbxc {
+
+    /// \struct AnyValueTypeTag
+    /// \ingroup mdbxc_tables
+    /// \brief Provides the runtime type tag used by \ref AnyValueTable.
+    /// \tparam T Value type.
+    /// \details
+    /// Specialize this trait for durable, application-defined type tags. The
+    /// default tag is implementation-defined and may differ across compilers.
+    template<class T>
+    struct AnyValueTypeTag {
+        /// \brief Returns the type tag for \c T.
+        /// \return Implementation-defined default tag.
+        static const char* value() noexcept {
+            return typeid(T).name();
+        }
+    };
 
     /// \class AnyValueTable
     /// \ingroup mdbxc_tables
@@ -31,9 +49,9 @@ namespace mdbxc {
     ///
     /// \note \c keys() lists stored keys only; this table does not expose a
     ///       type-erased value enumeration API.
-    /// \warning Type-tag prefix verification is currently a reserved switch, not
-    ///          complete runtime type safety. Callers must request values with
-    ///          the same type and serialization contract used to store them.
+    /// \note Type-tag prefix verification is opt-in through
+    ///       \c set_type_tag_check(true). It is disabled by default to preserve
+    ///       compatibility with existing raw records.
     template <class KeyT, class Options = DefaultTableOptions>
     class AnyValueTable final : public BaseTable {
     public:
@@ -165,9 +183,7 @@ namespace mdbxc {
         /// \param txn Optional transaction handle.
         /// \return Optional with value or std::nullopt.
         /// \note If type-tag verification reports a mismatch, the value is
-        ///       treated as missing. The current type-tag implementation does
-        ///       not provide full runtime type safety; use the same \c T that
-        ///       was used to store the value.
+        ///       treated as missing.
 #if __cplusplus >= 201703L
         template <class T>
         std::optional<T> find(const KeyT& key, MDBX_txn* txn = nullptr) const {
@@ -220,9 +236,7 @@ namespace mdbxc {
         /// \param txn Optional transaction handle.
         /// \return Pair of success flag and retrieved value.
         /// \note If type-tag verification reports a mismatch, the value is
-        ///       treated as missing. The current type-tag implementation does
-        ///       not provide full runtime type safety; use the same \c T that
-        ///       was used to store the value.
+        ///       treated as missing.
         template <class T>
         std::pair<bool, T> find_compat(const KeyT& key, MDBX_txn* txn = nullptr) const {
             std::pair<bool, T> result{false, T{}};
@@ -334,8 +348,10 @@ namespace mdbxc {
 
         /// \brief Enable or disable type-tag checking.
         /// \param enabled Enables check when set to true.
-        /// \warning Reserved for future type-tag prefix verification; currently
-        ///          toggling this flag does not add or validate type metadata.
+        /// \note When enabled, newly written values are stored with a type-tag
+        ///       prefix and reads validate that prefix before deserialization.
+        ///       Existing raw records behave as type mismatches while this flag
+        ///       is enabled.
         void set_type_tag_check(bool enabled) noexcept { m_check_type_tag = enabled; }
 
     private:
@@ -366,9 +382,10 @@ namespace mdbxc {
         bool put_typed(const KeyT& key, const T& value, bool upsert, MDBX_txn* txn) {
             SerializeScratch sc_key;
             SerializeScratch sc_value;
+            SerializeScratch sc_tagged_value;
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             MDBX_val raw_val = serialize_value(value, sc_value);
-            MDBX_val db_val = wrap_with_type_tag<T>(raw_val);
+            MDBX_val db_val = wrap_with_type_tag<T>(raw_val, sc_tagged_value);
             MDBX_put_flags_t flags = upsert ? MDBX_UPSERT : MDBX_NOOVERWRITE;
             int rc = mdbx_put(txn, m_dbi, &db_key, &db_val, flags);
             if (!upsert && rc == MDBX_KEYEXIST) {
@@ -394,7 +411,8 @@ namespace mdbxc {
         bool db_contains(const KeyT& key, MDBX_txn* txn) const {
             SerializeScratch sc_key;
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
-            int rc = mdbx_get(txn, m_dbi, &db_key, nullptr);
+            MDBX_val db_val;
+            int rc = mdbx_get(txn, m_dbi, &db_key, &db_val);
             if (rc == MDBX_SUCCESS) return true;
             if (rc == MDBX_NOTFOUND) return false;
             check_mdbx(rc, "Failed to check key presence");
@@ -422,15 +440,93 @@ namespace mdbxc {
         }
 
         template <class T>
-        MDBX_val wrap_with_type_tag(const MDBX_val& raw) const {
+        MDBX_val wrap_with_type_tag(const MDBX_val& raw, SerializeScratch& sc) const {
             if (!m_check_type_tag) return raw;
-            return raw; // TODO: implement type-tag prefix
+
+            const std::string tag = type_tag<T>();
+            if (tag.size() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+                throw std::length_error("AnyValueTable type tag is too large");
+            }
+
+            sc.bytes.clear();
+            sc.bytes.reserve(type_tag_header_size() + tag.size() + raw.iov_len);
+            append_magic(sc.bytes);
+            append_le32(sc.bytes, static_cast<std::uint32_t>(tag.size()));
+            sc.bytes.insert(sc.bytes.end(), tag.begin(), tag.end());
+            if (raw.iov_len) {
+                const std::uint8_t* payload = static_cast<const std::uint8_t*>(raw.iov_base);
+                sc.bytes.insert(sc.bytes.end(), payload, payload + raw.iov_len);
+            }
+            return sc.view_bytes();
         }
 
         template <class T>
         MDBX_val unwrap_and_check_type_tag(const MDBX_val& raw) const {
             if (!m_check_type_tag) return raw;
-            return raw; // TODO: verify type-tag
+
+            if (raw.iov_len < type_tag_header_size() || !raw.iov_base) {
+                throw std::bad_cast();
+            }
+
+            const std::uint8_t* data = static_cast<const std::uint8_t*>(raw.iov_base);
+            if (std::memcmp(data, type_tag_magic(), type_tag_magic_size()) != 0) {
+                throw std::bad_cast();
+            }
+
+            const std::uint32_t tag_size = read_le32(data + type_tag_magic_size());
+            const std::size_t payload_offset = type_tag_header_size() + tag_size;
+            if (tag_size > raw.iov_len - type_tag_header_size()) {
+                throw std::bad_cast();
+            }
+
+            const std::string expected = type_tag<T>();
+            if (expected.size() != tag_size ||
+                std::memcmp(data + type_tag_header_size(), expected.data(), tag_size) != 0) {
+                throw std::bad_cast();
+            }
+
+            MDBX_val payload;
+            payload.iov_len = raw.iov_len - payload_offset;
+            payload.iov_base = payload.iov_len
+                ? const_cast<std::uint8_t*>(data + payload_offset)
+                : nullptr;
+            return payload;
+        }
+
+        static const char* type_tag_magic() {
+            return "MDBXCAV1";
+        }
+
+        static std::size_t type_tag_magic_size() {
+            return 8u;
+        }
+
+        static std::size_t type_tag_header_size() {
+            return type_tag_magic_size() + 4u;
+        }
+
+        static void append_magic(std::vector<std::uint8_t>& out) {
+            const char* magic = type_tag_magic();
+            out.insert(out.end(), magic, magic + type_tag_magic_size());
+        }
+
+        static void append_le32(std::vector<std::uint8_t>& out, std::uint32_t value) {
+            out.push_back(static_cast<std::uint8_t>(value & 0xffu));
+            out.push_back(static_cast<std::uint8_t>((value >> 8) & 0xffu));
+            out.push_back(static_cast<std::uint8_t>((value >> 16) & 0xffu));
+            out.push_back(static_cast<std::uint8_t>((value >> 24) & 0xffu));
+        }
+
+        static std::uint32_t read_le32(const std::uint8_t* data) {
+            return static_cast<std::uint32_t>(data[0]) |
+                   (static_cast<std::uint32_t>(data[1]) << 8) |
+                   (static_cast<std::uint32_t>(data[2]) << 16) |
+                   (static_cast<std::uint32_t>(data[3]) << 24);
+        }
+
+        template <class T>
+        static std::string type_tag() {
+            return std::string(AnyValueTypeTag<T>::value());
         }
     };
 

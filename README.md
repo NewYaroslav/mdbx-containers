@@ -12,10 +12,11 @@
 
 ### 🧱 Table APIs
 - `KeyValueTable<K, V>` is the main implemented table: one value per key with `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]`, and related helpers.
+- `ValueTable<V>` stores one strongly typed singleton value per named table for metadata, module state, snapshots, and single-object configuration records.
 - `AnyValueTable<K>` stores heterogeneous values by caller-selected type and supports typed `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, and `keys`.
 - `KeyTable<K>` stores unique keys with a `std::set`-like API: `insert`, `contains`, `erase`, `clear`, `load`, `reconcile`, and related helpers.
 - `KeyMultiValueTable<K, V>` stores multiple values per key with a `std::multimap`-like API and preserves repeated identical `(key, value)` pairs.
-- `AnyValueTable` type-tag prefix verification is not fully implemented yet, so do not rely on it for complete runtime type safety.
+- `AnyValueTable` type-tag prefix verification is opt-in via `set_type_tag_check(true)` and is disabled by default for compatibility with existing raw records.
 
 ### 🔁 Serialization
 - Automatic serialization of trivially copyable types.
@@ -106,6 +107,25 @@ keys.insert("active");
 keys.insert("archived");
 
 std::set<std::string> restored = keys.retrieve_all();
+```
+
+### Single-value table
+
+```cpp
+#include <mdbx_containers/ValueTable.hpp>
+
+struct AppState {
+    int schema_version = 1;
+    int active_profiles = 0;
+
+    std::vector<uint8_t> to_bytes() const;
+    static AppState from_bytes(const void* data, size_t size);
+};
+
+mdbxc::ValueTable<AppState> state(conn, "app_state");
+state.set(AppState{});
+
+AppState loaded = state.get_or(AppState{});
 ```
 
 ### Multi-value table

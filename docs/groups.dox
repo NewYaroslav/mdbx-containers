@@ -5,7 +5,7 @@ and the common base classes shared across containers.
 
 /*! \defgroup mdbxc_tables Persistent Containers
 STL-like containers backed by MDBX: \c KeyValueTable, \c HashedKeyValueStore,
-\c AnyValueTable, \c KeyTable, and \c KeyMultiValueTable.
+\c ValueTable, \c AnyValueTable, \c KeyTable, and \c KeyMultiValueTable.
  */
 
 /*! \defgroup mdbxc_utils Utility Functions
