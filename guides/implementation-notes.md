@@ -61,7 +61,7 @@ tables in one environment.
 
 For choosing between `KeyValueTable`, `ValueTable`, `KeyTable`,
 `KeyMultiValueTable`, and `AnyValueTable`, and for their operation semantics, see
-`agents/table-api-guide.md`.
+`guides/table-api-guide.md`.
 
 ## Configuration
 

@@ -30,13 +30,12 @@ omitting the prefix would be misleading.
 
 ## Lambda Captures
 
-- Do not rely on implicit `this` capture through `[&]` or `[=]` in member
-  functions.
+- Do not use lambda default captures (`[&]` or `[=]`) in C++ code.
+- List every captured variable explicitly so future edits cannot silently pull
+  extra state into the lambda.
 - When a lambda calls member functions or accesses fields, capture `this`
   explicitly and list the required locals, for example
   `[this, &key, &value](MDBX_txn* txn)`.
-- Default captures are acceptable only for lambdas that use local variables and
-  do not access object state.
 
 ## Documentation
 

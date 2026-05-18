@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 - Clarified that `KeyValueTable` and `AnyValueTable` are implemented APIs, while `KeyTable` and `KeyMultiValueTable` remain placeholder headers.
 - Clarified that `AnyValueTable` type-tag prefix verification is not fully implemented yet and should not be treated as complete runtime type safety.
 - Made project philosophy documentation English-only and kept the Russian project overview in `README-RU.md`.
-- Added and updated English agent guidance under `agents/`, including codebase orientation, build/test notes, implementation notes, coding style, and commit conventions.
+- Added and updated English agent guidance under `guides/`, including codebase orientation, build/test notes, implementation notes, coding style, and commit conventions.
 - Bumped the project version to `v1.0.2`.
 
 ## [v1.0.1] - 2025-08-21

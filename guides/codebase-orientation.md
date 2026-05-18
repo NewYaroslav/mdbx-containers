@@ -41,7 +41,7 @@ Primary entry points:
   `common/Config.hpp`.
 - Serialization: `detail/utils.hpp`.
 - Path policy: `detail/path_utils.hpp` and `tests/path_resolution_test.cpp`.
-- Table choice and method semantics: `agents/table-api-guide.md`.
+- Table choice and method semantics: `guides/table-api-guide.md`.
 
 ## Architecture
 
@@ -131,7 +131,7 @@ Prefer for new table code:
 - Use `SerializeScratch` near each MDBX call that needs an `MDBX_val`.
 - Split public methods from private `db_*` implementations, following
   `KeyValueTable`.
-- Use `agents/table-api-guide.md` to choose the correct existing table class or
+- Use `guides/table-api-guide.md` to choose the correct existing table class or
   to keep new table behavior consistent with current method semantics.
 
 Do not copy without review:

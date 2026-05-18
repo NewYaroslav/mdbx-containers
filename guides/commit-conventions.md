@@ -18,7 +18,7 @@ Operational rule for AI agents that create commits in this repository.
 Example:
 
 ```bash
-git commit -m "docs(agents): split project instructions" -m "Move detailed agent guidance into topic-specific files under agents/ and keep AGENTS.md as a compact index."
+git commit -m "docs(guides): split project instructions" -m "Move detailed agent guidance into topic-specific files under guides/ and keep AGENTS.md as a compact index."
 ```
 
 ## Allowed Types
