@@ -19,6 +19,7 @@
 - `AnyValueTable<K>` stores heterogeneous values by caller-selected type and supports typed `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, and `keys`.
 - `KeyTable<K>` stores unique keys with a `std::set`-like API: `insert`, `contains`, `erase`, `clear`, `load`, `reconcile`, and related helpers.
 - `KeyMultiValueTable<K, V>` stores multiple values per key with a `std::multimap`-like API and preserves repeated identical `(key, value)` pairs.
+- `SequenceTable<ValueT>` stores values by stable uint64_t id with append-only semantics and sparse index support. Append returns a stable id; erase does not reindex following records.
 - `AnyValueTable` type-tag prefix verification is opt-in via `set_type_tag_check(true)` and is disabled by default for compatibility with existing raw records.
 
 ### 🔁 Serialization

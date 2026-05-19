@@ -14,6 +14,7 @@
 #include "mdbx_containers/KeyMultiValueTable.hpp"
 #include "mdbx_containers/KeyTable.hpp"
 #include "mdbx_containers/KeyValueTable.hpp"
+#include "mdbx_containers/SequenceTable.hpp"
 #include "mdbx_containers/ValueTable.hpp"
 
 #endif // _MDBX_CONTAINERS_HPP_INCLUDED

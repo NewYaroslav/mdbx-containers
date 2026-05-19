@@ -19,6 +19,7 @@ source of truth.
 | One true singleton object in a named table | `ValueTable<V>` | persistent variable | Best for metadata, config snapshots, module state, schema/version records, and checkpoints. |
 | Unique keys only | `KeyTable<K>` | `std::set` | Stores serialized keys with empty values. |
 | Multiple values per key | `KeyMultiValueTable<K, V>` | `std::multimap` | Preserves repeated identical `(key, value)` pairs. |
+| Append-only stable-id sequence | `SequenceTable<V>` | `std::vector`-like append, but sparse | Stable uint64_t ids; erase does not shift indices. |
 | Different value types by key | `AnyValueTable<K>` | Heterogeneous key-value store | Caller names value type on each access. |
 
 Choose the narrowest table that represents the data:
@@ -36,6 +37,9 @@ Choose the narrowest table that represents the data:
 - Use `AnyValueTable` only for small heterogeneous keyed settings where values
   under one stable key domain genuinely need different C++ types. It is not a
   replacement for schema design or a typed singleton object.
+- Use `SequenceTable` for profiles by id, event logs, histories, tasks/signals
+  with stable numeric ids, and any append-only sequence where sparse indices are
+  acceptable.
 
 ## Common Table Contract
 
@@ -282,7 +286,68 @@ Avoid it when:
 - Values need different C++ types under user keys and are not one coherent
   object. Use `AnyValueTable`.
 
-## KeyMultiValueTable
+## SequenceTable
+
+`SequenceTable<ValueT>` is a persistent appendable table with stable uint64_t
+indices. Indices are stable record identifiers: erasing a record does not shift
+following indices, and `append()` uses the maximum existing index plus one.
+
+Write methods:
+
+- `append(value)` stores a value at the next available index and returns the
+  assigned index.
+- `append_many(container)` appends every value from a container and returns a
+  vector of assigned indices.
+- `insert_or_assign(id, value)` and `set(id, value)` write a value at a
+  caller-chosen index, creating holes when the index was not previously used.
+- `erase(id)` removes the record at the given index.
+- `clear()` removes all records.
+
+Read/meta methods:
+
+- `at(id)` returns the value or throws `std::out_of_range`.
+- `try_get(id, out)` returns a success flag.
+- `find(id)` returns `std::optional<ValueT>` in C++17.
+- `find_compat(id)` is the C++11 pair-based compatibility form.
+- `contains(id)`, `count()`, and `empty()` expose table state.
+- `first_index()` / `first_index_compat()` return the smallest stored index.
+- `last_index()` / `last_index_compat()` return the largest stored index.
+- `load(values)`, `retrieve_all()` return values in ascending index order.
+- `load_entries(entries)`, `retrieve_entries()` return `(index, value)` pairs in
+  ascending index order.
+- `range(from, to)` returns `(index, value)` pairs for an inclusive index range.
+
+Behavior:
+
+- `append()` uses `max(existing_id) + 1`. If the table is empty, the first
+  appended id is 0.
+- `erase()` leaves holes. Following indices are not shifted.
+- `set()` / `insert_or_assign()` can create holes at arbitrary indices.
+- `retrieve_all()` returns only existing values in index order; holes are not
+  represented.
+- `retrieve_entries()` and `range()` return real `(id, value)` pairs so holes
+  are visible by absence.
+- `range(from, to)` is inclusive on both ends. Returns an empty vector when
+  `from > to` or when no indices fall in the range.
+
+Restrictions:
+
+- No `insert(pos)`, `push_front`, `pop_front`, `pop_back`, `compact`, or
+  `operator[]`.
+- `append()` is not atomic across concurrent transactions; use external
+  synchronization or a single transaction when concurrent appends must not
+  collide.
+
+Use it for:
+
+- Profiles by id, event logs, histories.
+- Tasks or signals with stable numeric identifiers.
+- Append-only logs where sparse indices are acceptable.
+
+Avoid it when:
+
+- Dense positional access is needed. Use an in-memory `std::vector`.
+- Key-value semantics with arbitrary keys are needed. Use `KeyValueTable`.
 
 `KeyMultiValueTable<K, V>` is the multimap-like table. It stores multiple values
 for the same key and preserves exact repeated `(key, value)` pairs.
