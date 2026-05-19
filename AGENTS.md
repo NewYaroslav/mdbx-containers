@@ -86,6 +86,8 @@ Determine the task type and apply the corresponding format:
 - Do not introduce `thread_local` STL scratch buffers in serialization paths.
 - For code changes, verify with the narrowest relevant tests, and use both C++11
   and C++17 when the change touches shared headers or template behavior.
+- All changes reach `main` through PRs; do not push directly to `main` unless
+  the user explicitly overrides this rule.
 
 ## Provenance and Honesty
 

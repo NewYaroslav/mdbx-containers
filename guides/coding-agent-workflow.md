@@ -22,6 +22,18 @@ behavior. Small, well-verified edits matter more than broad rewrites.
 10. In the final response, separate what changed, what was verified, and any
     remaining limitation.
 
+## Git Workflow
+
+All code changes must reach `main` through pull requests. Never push directly
+to `main`.
+
+- Create a feature or fix branch from `main` for any non-trivial work.
+- Keep the branch focused: one logical change per PR.
+- Open a PR when the change is complete and verified; do not bypass review
+  by fast-forwarding `main` locally.
+- Trivial one-line fixes may still go through a branch and PR; the only
+  exception is when the user explicitly asks for a direct push.
+
 ## Behavioral Principles
 
 ### Goal-Driven Execution
