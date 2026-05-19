@@ -456,9 +456,7 @@ namespace mdbxc {
         /// \param txn Active MDBX transaction.
         /// \throws MdbxException if a database error occurs.
         void insert_or_assign(const std::pair<KeyT, ValueT> &pair, MDBX_txn* txn = nullptr) {
-            insert_or_assign([this, &pair](MDBX_txn* txn) {
-                db_insert_or_assign(pair.first, pair.second, txn);
-            }, TransactionMode::WRITABLE, txn);
+            insert_or_assign(pair.first, pair.second, txn);
         }
         
         /// \brief Inserts or replaces key-value pair.
@@ -739,15 +737,22 @@ namespace mdbxc {
         void db_load(ContainerT<KeyT, ValueT>& container, MDBX_txn* txn_handle) {
             MDBX_cursor* cursor = nullptr;
             check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "Failed to open MDBX cursor");
-
-            MDBX_val db_key, db_val;
-            while (mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT) == MDBX_SUCCESS) {
-                auto&& key = deserialize_value<KeyT>(db_key);
-                auto&& value = deserialize_value<ValueT>(db_val);
-                container.emplace(std::move(key), std::move(value));
+            try {
+                MDBX_val db_key, db_val;
+                int rc = MDBX_SUCCESS;
+                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    KeyT key = deserialize_value<KeyT>(db_key);
+                    ValueT value = deserialize_value<ValueT>(db_val);
+                    container.emplace(std::move(key), std::move(value));
+                }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to load key-value table");
+                }
+                mdbx_cursor_close(cursor);
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
             }
-
-            mdbx_cursor_close(cursor);
         }
         
         /// \brief Loads all key-value pairs into a std::vector of pairs.
@@ -757,15 +762,22 @@ namespace mdbxc {
         void db_load(std::vector<std::pair<KeyT, ValueT>>& out_vector, MDBX_txn* txn) {
             MDBX_cursor* cursor = nullptr;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-
-            MDBX_val db_key, db_val;
-            while (mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT) == MDBX_SUCCESS) {
-                auto&& key = deserialize_value<KeyT>(db_key);
-                auto&& value = deserialize_value<ValueT>(db_val);
-                out_vector.emplace_back(std::move(key), std::move(value));
+            try {
+                MDBX_val db_key, db_val;
+                int rc = MDBX_SUCCESS;
+                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    KeyT key = deserialize_value<KeyT>(db_key);
+                    ValueT value = deserialize_value<ValueT>(db_val);
+                    out_vector.emplace_back(std::move(key), std::move(value));
+                }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to load key-value table");
+                }
+                mdbx_cursor_close(cursor);
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
             }
-
-            mdbx_cursor_close(cursor);
         }
 
         /// \brief Gets a value by key from the database.
@@ -889,16 +901,23 @@ namespace mdbxc {
             // 2. Iterate over existing keys in the DB and remove the extras
             MDBX_cursor* cursor = nullptr;
             check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "Failed to open MDBX cursor");
-
-            MDBX_val db_key, db_val;
-            while (mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT) == MDBX_SUCCESS) {
-                auto&& key = deserialize_value<KeyT>(db_key);
-                if (new_keys.find(key) == new_keys.end()) {
-                    check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete record using cursor");
+            try {
+                MDBX_val db_key, db_val;
+                int rc = MDBX_SUCCESS;
+                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    KeyT key = deserialize_value<KeyT>(db_key);
+                    if (new_keys.find(key) == new_keys.end()) {
+                        check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete record using cursor");
+                    }
                 }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to reconcile key-value table");
+                }
+                mdbx_cursor_close(cursor);
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
             }
-
-            mdbx_cursor_close(cursor);
         }
         
         /// \brief Reconciles the content of the database with the given vector of key-value pairs.
@@ -929,16 +948,23 @@ namespace mdbxc {
             // 2. Delete stale keys from DB
             MDBX_cursor* cursor = nullptr;
             check_mdbx(mdbx_cursor_open(txn_handle, m_dbi, &cursor), "Failed to open MDBX cursor");
-
-            MDBX_val db_key, db_val;
-            while (mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT) == MDBX_SUCCESS) {
-                KeyT key = deserialize_value<KeyT>(db_key);
-                if (new_keys.find(key) == new_keys.end()) {
-                    check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete record using cursor");
+            try {
+                MDBX_val db_key, db_val;
+                int rc = MDBX_SUCCESS;
+                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    KeyT key = deserialize_value<KeyT>(db_key);
+                    if (new_keys.find(key) == new_keys.end()) {
+                        check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to delete record using cursor");
+                    }
                 }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to reconcile key-value table");
+                }
+                mdbx_cursor_close(cursor);
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
             }
-
-            mdbx_cursor_close(cursor);
         }
         
         /// \brief Inserts a key-value pair only if the key does not already exist.

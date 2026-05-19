@@ -26,7 +26,10 @@ namespace mdbxc {
         int64_t max_readers = 0;                ///< Maximum reader slots; use 0 for the default (twice the CPU count).
         int64_t max_dbs = 10;                   ///< Maximum number of named databases (DBI) in the environment.
         int64_t max_dupsort_value_size = -1;        ///< Proactive MDBX_DUPSORT duplicate value size limit; <= 0 disables it.
-        bool read_only = false;                 ///< Whether to open the environment in read-only mode.
+        /// Open the environment with MDBX_RDONLY.
+        /// Table wrappers open existing DBIs only in this mode, and missing
+        /// directories are not created.
+        bool read_only = false;
         bool readahead = true;                  ///< Whether to enable OS readahead for sequential access.
         bool no_subdir = true;                  ///< Whether to store the database in a single file instead of a directory.
         bool sync_durable = true;               ///< Whether to enforce synchronous durable writes (MDBX_SYNC_DURABLE).

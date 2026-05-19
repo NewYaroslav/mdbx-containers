@@ -5,23 +5,86 @@ namespace mdbxc {
         begin();
     }
 
+    inline Transaction::Transaction(Transaction&& other) noexcept {
+        move_from(other);
+    }
+
+    inline Transaction& Transaction::operator=(Transaction&& other) noexcept {
+        if (this != &other) {
+            release();
+            move_from(other);
+        }
+        return *this;
+    }
+
     inline Transaction::~Transaction() {
-        m_registry->unbind_txn();
-        if (!m_txn) return;
-        mdbx_txn_abort(m_txn);
+        release();
+    }
+
+    inline void Transaction::release() noexcept {
+        TransactionTracker* registry = m_registry;
+        MDBX_txn* txn = m_txn;
+        bool was_started = m_started;
+
+        m_registry = nullptr;
+        m_env = nullptr;
         m_txn = nullptr;
+        m_started = false;
+
+        if (registry && txn && was_started) {
+            registry->unbind_txn(txn);
+        }
+        if (txn) {
+            mdbx_txn_abort(txn);
+            if (registry) {
+                registry->unregister_txn_handle();
+            }
+        }
+    }
+
+    inline void Transaction::move_from(Transaction& other) noexcept {
+        m_registry = other.m_registry;
+        m_env = other.m_env;
+        m_txn = other.m_txn;
+        m_mode = other.m_mode;
+        m_started = other.m_started;
+
+        other.m_registry = nullptr;
+        other.m_env = nullptr;
+        other.m_txn = nullptr;
+        other.m_started = false;
     }
 
     inline void Transaction::begin() {
         if (m_started) return;
+        bool new_handle = false;
+        bool registered_handle = false;
         if (m_txn && m_mode == TransactionMode::READ_ONLY) {
             check_mdbx(mdbx_txn_renew(m_txn), "Failed to renew transaction");
         } else {
             MDBX_txn_flags_t flags = (m_mode == TransactionMode::READ_ONLY) ? MDBX_TXN_RDONLY : MDBX_TXN_READWRITE;
             check_mdbx(mdbx_txn_begin(m_env, nullptr, flags, &m_txn), "Failed to begin transaction");
+            new_handle = true;
         }
-        m_registry->bind_txn(m_txn);
-        m_started = true;
+        try {
+            if (new_handle) {
+                m_registry->register_txn_handle();
+                registered_handle = true;
+            }
+            m_registry->bind_txn(m_txn);
+            m_started = true;
+        } catch (...) {
+            if (new_handle && m_txn) {
+                mdbx_txn_abort(m_txn);
+                if (registered_handle) {
+                    m_registry->unregister_txn_handle();
+                }
+                m_txn = nullptr;
+            } else if (m_txn && m_mode == TransactionMode::READ_ONLY) {
+                mdbx_txn_reset(m_txn);
+            }
+            throw;
+        }
     }
 
     inline void Transaction::commit() {
@@ -29,20 +92,30 @@ namespace mdbxc {
         try {
             switch (m_mode) {
             case TransactionMode::READ_ONLY:
-                check_mdbx(mdbx_txn_reset(m_txn), "Failed to reset read-only transaction");
+            {
+                MDBX_txn* txn = m_txn;
+                check_mdbx(mdbx_txn_reset(txn), "Failed to reset read-only transaction");
+                m_registry->unbind_txn(txn);
                 break;
+            }
             case TransactionMode::WRITABLE:
-                check_mdbx(mdbx_txn_commit(m_txn), "Failed to commit writable transaction");
+            {
+                MDBX_txn* txn = m_txn;
+                check_mdbx(mdbx_txn_commit(txn), "Failed to commit writable transaction");
+                m_registry->unbind_txn(txn);
+                m_registry->unregister_txn_handle();
                 m_txn = nullptr;
-                m_registry->unbind_txn();
                 break;
+            }
             };
             m_started = false;
         } catch (...) {
             if (m_txn) {
-                mdbx_txn_abort(m_txn);
+                MDBX_txn* txn = m_txn;
+                mdbx_txn_abort(txn);
+                m_registry->unbind_txn(txn);
+                m_registry->unregister_txn_handle();
                 m_txn = nullptr;
-                m_registry->unbind_txn();
             }
             m_started = false;
             throw;
@@ -54,20 +127,30 @@ namespace mdbxc {
         try {
             switch (m_mode) {
             case TransactionMode::READ_ONLY:
-                check_mdbx(mdbx_txn_reset(m_txn), "Failed to reset read-only transaction");
+            {
+                MDBX_txn* txn = m_txn;
+                check_mdbx(mdbx_txn_reset(txn), "Failed to reset read-only transaction");
+                m_registry->unbind_txn(txn);
                 break;
+            }
             case TransactionMode::WRITABLE:
-                check_mdbx(mdbx_txn_abort(m_txn), "Failed to abort writable transaction");
+            {
+                MDBX_txn* txn = m_txn;
+                check_mdbx(mdbx_txn_abort(txn), "Failed to abort writable transaction");
+                m_registry->unbind_txn(txn);
+                m_registry->unregister_txn_handle();
                 m_txn = nullptr;
-                m_registry->unbind_txn();
                 break;
+            }
             };
             m_started = false;
         } catch (...) {
             if (m_txn) {
-                mdbx_txn_abort(m_txn);
+                MDBX_txn* txn = m_txn;
+                mdbx_txn_abort(txn);
+                m_registry->unbind_txn(txn);
+                m_registry->unregister_txn_handle();
                 m_txn = nullptr;
-                m_registry->unbind_txn();
             }
             m_started = false;
             throw;

@@ -19,10 +19,11 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <type_traits>
-#include <optional>
 #include <memory>
 #include <mutex>
+#include <condition_variable>
 #include <thread>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
@@ -31,6 +32,7 @@
 #include <mdbx.h>
 
 #if __cplusplus >= 201703L
+#	include <optional>
 #	include <cstddef> // std::byte
 #endif
 

@@ -6,7 +6,7 @@
 /// \brief Main include file for the MDBX Containers library.
 /// 
 /// Provides integration between MDBX and STL-style containers with support
-/// for transactions, persistence, and thread-safe operations.
+/// for transactions, persistence, and thread-bound table operations.
 
 #include "mdbx_containers/AnyValueTable.hpp"
 #include "mdbx_containers/Hash.hpp"

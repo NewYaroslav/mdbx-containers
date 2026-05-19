@@ -199,6 +199,25 @@ int main() {
         ASSERT_FOUND(kv, std::string("key"), std::string("value"));
     }
 
+    std::cout << "[case] pair insert_or_assign overloads\n";
+    {
+        mdbxc::KeyValueTable<int, std::string> kv(conn, "pair_insert_or_assign");
+
+        std::pair<int, std::string> first = std::make_pair(1, std::string("one"));
+        kv.insert_or_assign(first);
+        ASSERT_FOUND(kv, 1, std::string("one"));
+
+        std::pair<int, std::string> replacement = std::make_pair(1, std::string("uno"));
+        kv.insert_or_assign(replacement);
+        ASSERT_FOUND(kv, 1, std::string("uno"));
+
+        mdbxc::Transaction txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        std::pair<int, std::string> second = std::make_pair(2, std::string("two"));
+        kv.insert_or_assign(second, txn);
+        txn.commit();
+        ASSERT_FOUND(kv, 2, std::string("two"));
+    }
+
     std::cout << "[case] string -> POD(SimpleStruct)\n";
     {
         mdbxc::KeyValueTable<std::string, SimpleStruct> kv(conn, "str_struct");

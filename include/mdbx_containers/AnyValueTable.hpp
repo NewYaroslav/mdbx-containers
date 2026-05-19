@@ -438,11 +438,20 @@ namespace mdbxc {
         void db_list_keys(std::vector<KeyT>& out, MDBX_txn* txn) const {
             MDBX_cursor* cursor = nullptr;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            MDBX_val db_key, db_val;
-            while (mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT) == MDBX_SUCCESS) {
-                out.emplace_back(deserialize_value<KeyT>(db_key));
+            try {
+                MDBX_val db_key, db_val;
+                int rc = MDBX_SUCCESS;
+                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                    out.emplace_back(deserialize_value<KeyT>(db_key));
+                }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to list AnyValueTable keys");
+                }
+                mdbx_cursor_close(cursor);
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
             }
-            mdbx_cursor_close(cursor);
         }
 
         template <class T>

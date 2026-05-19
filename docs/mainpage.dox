@@ -18,14 +18,89 @@ Key features:
   identical pairs preserved.
 - Automatic serialization of trivially copyable types and custom `to_bytes()`/`from_bytes()` support.
 - Multiple logical tables inside one MDBX environment.
-- Thread-safe operations with per-thread transactions.
+- Read-only configuration for inspecting existing DBIs without creating tables.
+- Shared `Connection` with thread-bound transactions.
 
 \section transaction_sec Transactions
 Every modifying operation runs inside a transaction. There are two ways to manage them:
 - **RAII transactions** created via `Connection::transaction()`. A transaction object commits on `commit()` or rolls back on destruction. Convenient for scoped writes.
 - **Manual transactions** started with `Connection::begin()` and finished with `commit()` or `rollback()`. This approach reduces overhead when grouping many operations.
 
-Read transactions are reused per thread. Nested transactions are not supported.
+Table operations reuse the current thread-bound transaction when one is active.
+Nested transactions are not supported.
+
+\section threading_sec Threading Model
+mdbx-containers follows libMDBX's default thread-owned transaction model.
+
+- A single \ref mdbxc::Connection normally represents one MDBX environment and
+  may be shared by table wrappers.
+- Each thread may have at most one active transaction at a time. Automatic table
+  operations create a transaction, reuse the current thread-bound transaction,
+  or use an explicitly supplied transaction handle.
+- \ref mdbxc::Transaction, raw `MDBX_txn*`, and MDBX cursors must not be used
+  concurrently or moved for use by another thread.
+- Table wrapper instances are not synchronization objects. Prefer one wrapper
+  instance per worker thread over the shared \ref mdbxc::Connection, or protect
+  a shared wrapper instance with an external mutex.
+- `configure()`, `connect()`, `disconnect()`, and \ref mdbxc::Connection
+  destruction are lifecycle operations. Run them before worker threads start or
+  after all workers have stopped and all transactions/cursors are gone.
+- Use \ref mdbxc::Connection::shutdown "shutdown()" for coordinated shutdown:
+  it rejects new transactions, waits for open transaction handles to close on
+  their owning threads, then calls `disconnect()`.
+- Use \ref mdbxc::Connection::shutdown_for "shutdown_for()" when shutdown needs
+  a timeout. If it returns false, shutdown is still requested and new
+  transactions remain rejected.
+- Use `disconnect()` only after transactions/cursors are already gone. It does
+  not abort transactions owned by another thread and fails with `MDBX_BUSY` when
+  transaction handles are still open.
+- mdbx-containers does not enable `MDBX_NOSTICKYTHREADS`.
+
+\warning The internal mutexes protect connection state and transaction
+registries. They do not serialize all MDBX operations and do not make MDBX
+transaction handles cross-thread safe.
+
+\see MDBX documents transaction thread ownership under `mdbx_txn_begin()`:
+https://libmdbx.dqdkfa.ru/group__c__transactions.html
+
+\see MDBX documents environment-close preconditions under `mdbx_env_close_ex()`:
+https://libmdbx.dqdkfa.ru/group__c__opening.html
+
+\section shutdown_examples_sec Connection Shutdown Examples
+
+Use `disconnect()` only when the connection lifecycle is already clean:
+
+```cpp
+{
+    mdbxc::KeyValueTable<int, std::string> table(conn, "items");
+    table.insert_or_assign(1, "done");
+}
+conn->disconnect();
+```
+
+Use \ref mdbxc::Connection::shutdown "shutdown()" for a coordinated stop. The
+typical owner first asks workers to stop producing new work, then lets
+`shutdown()` reject new transactions, wait for open transaction handles, and
+close the environment:
+
+```cpp
+stop_requested.store(true);
+conn->shutdown();
+worker.join();
+```
+
+Use \ref mdbxc::Connection::shutdown_for "shutdown_for()" when the stop path
+needs a bounded wait:
+
+```cpp
+if (!conn->shutdown_for(std::chrono::seconds(2))) {
+    request_worker_stop();
+    worker.join();
+    conn->shutdown();
+}
+```
+
+For a complete runnable sample, see `examples/connection_shutdown_example.cpp`.
 
 \section examples_sec Examples
 \subsection ex_basic Basic usage
@@ -105,6 +180,13 @@ tag.
 
 \section config_sec Configuration Guide
 Details on tuning the MDBX environment are available on \subpage config_page.
+
+In `read_only` mode, `Connection` opens the environment with `MDBX_RDONLY`.
+Table wrappers open existing named DBIs in a read-only transaction and
+automatically ignore `MDBX_CREATE` during construction. This also applies to
+wrapper-owned secondary DBIs such as the default `HashedKeyValueStore`
+LargeValues hash index. Every DBI used by the wrapper must already exist; write
+methods still fail through MDBX.
 
 \section repo_sec Repository
 Sources: [GitHub repository](https://github.com/NewYaroslav/mdbx-containers).

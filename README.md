@@ -14,6 +14,7 @@
 
 ### 🧱 Table APIs
 - `KeyValueTable<K, V>` is the main implemented table: one value per key with `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`, `operator[]`, and related helpers.
+- `HashedKeyValueStore<K, V, H, Layout>` stores one value per string or byte-vector key through a hash index and verifies original key bytes to handle collisions.
 - `ValueTable<V>` stores one strongly typed singleton value per named table for metadata, module state, snapshots, and single-object configuration records.
 - `AnyValueTable<K>` stores heterogeneous values by caller-selected type and supports typed `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, and `keys`.
 - `KeyTable<K>` stores unique keys with a `std::set`-like API: `insert`, `contains`, `erase`, `clear`, `load`, `reconcile`, and related helpers.
@@ -27,12 +28,26 @@
 
 ### 🔒 Transactions and Threads
 - RAII transactions (`Transaction`).
-- Thread-local transaction binding.
-- Safe concurrent access through `TransactionTracker` and mutexes.
+- Thread-bound automatic and manual transaction reuse.
+- Use one shared `Connection` per MDBX environment, with at most one active
+  transaction per thread.
+- Do not share `Transaction`, raw `MDBX_txn*`, or MDBX cursors across threads.
+- Treat `configure()`, `connect()`, `disconnect()`, and `Connection`
+  destruction as lifecycle operations outside concurrent table activity.
+- Use `shutdown()` to request a coordinated stop: it rejects new transactions,
+  waits for open transaction handles to close on their owning threads, then
+  disconnects. Use `shutdown_for(timeout)` when the caller needs a bounded wait.
+- Use `disconnect()` only after all transactions/cursors are already gone; it
+  fails with `MDBX_BUSY` instead of aborting transactions from other threads.
+- This follows MDBX `mdbx_txn_begin()` and `mdbx_env_close_ex()` rules:
+  [Transactions](https://libmdbx.dqdkfa.ru/group__c__transactions.html) and
+  [Opening & Closing](https://libmdbx.dqdkfa.ru/group__c__opening.html).
 
 ### 🗄️ Structure & Configuration
 - Multiple logical tables inside one MDBX file.
 - Flexible configuration: `read_only`, `writemap_mode`, `readahead`, `no_subdir`, `sync_durable`, `max_readers`, `max_dbs`, `relative_to_exe`.
+- In `read_only` mode, table wrappers open existing DBIs with a read-only
+  transaction and ignore `MDBX_CREATE`; writes still fail through MDBX.
 - See `docs/configuration.dox` for details.
 
 ### 🧰 Compatibility
@@ -98,6 +113,23 @@ int main() {
 }
 ```
 
+### Hash-indexed key-value store
+
+```cpp
+#include <mdbx_containers/HashedKeyValueStore.hpp>
+
+// LargeValues layout uses two DBIs: one hash index and one record table.
+mdbxc::Config config;
+config.pathname = "hashed.mdbx";
+config.max_dbs = 4;
+
+auto conn = mdbxc::Connection::create(config);
+mdbxc::HashedKeyValueStore<std::string, std::string> cache(conn, "cache");
+
+cache.insert_or_assign("url:https://example.test", "queued");
+std::string state = cache.at("url:https://example.test");
+```
+
 ### Key-only table
 
 ```cpp
@@ -150,11 +182,48 @@ mdbxc::Config config;
 config.pathname = "txn.mdbx";
 auto conn = mdbxc::Connection::create(config);
 mdbxc::KeyValueTable<int, std::string> table(conn, "demo");
+mdbxc::ValueTable<int> schema(conn, "schema");
 
-conn->begin(mdbxc::TransactionMode::WRITABLE);
-table.insert_or_assign(10, "ten");
-conn->commit();
+auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+table.insert_or_assign(10, "ten", txn);
+schema.set(1, txn);
+txn.commit();
 ```
+
+### Closing a connection
+
+Use `disconnect()` for a clean lifecycle where all transactions and cursors are
+already gone:
+
+```cpp
+{
+    mdbxc::KeyValueTable<int, std::string> table(conn, "items");
+    table.insert_or_assign(1, "done");
+}
+conn->disconnect();
+```
+
+Use `shutdown()` when worker threads may still be finishing their current
+transaction. It rejects new transactions, waits for open transaction handles,
+and then disconnects:
+
+```cpp
+stop_requested.store(true);
+conn->shutdown();
+worker.join();
+```
+
+Use `shutdown_for(timeout)` when service stop must be bounded:
+
+```cpp
+if (!conn->shutdown_for(std::chrono::seconds(2))) {
+    request_worker_stop();
+    worker.join();
+    conn->shutdown();
+}
+```
+
+See `examples/connection_shutdown_example.cpp` for a complete runnable example.
 
 ### Custom struct serialization
 

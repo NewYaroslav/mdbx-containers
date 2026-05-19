@@ -20,8 +20,66 @@ is header-only and template-heavy.
 - Manual transactions are available through `Connection::begin()`,
   `Connection::commit()`, and `Connection::rollback()`.
 - Nested MDBX transactions are not supported by default project behavior.
+- mdbx-containers uses the default MDBX transaction ownership model and does
+  not enable `MDBX_NOSTICKYTHREADS`.
+- Use one shared `Connection` for one MDBX environment/database, and keep at
+  most one active transaction per thread.
+- Do not pass `Transaction`, raw `MDBX_txn*`, or MDBX cursors across threads.
+  Commit, roll back, abort, reset, and destroy transaction guards on the owning
+  thread.
+- Treat `Connection::configure()`, `connect()`, `disconnect()`, `cleanup()`, and
+  destruction as lifecycle-only operations. They must not race with table
+  operations, active transactions, or MDBX cursors.
+- `Connection::shutdown()` is the coordinated close API. It requests shutdown,
+  rejects new transactions, waits until `TransactionTracker` has no open
+  transaction handles, then calls `disconnect()`.
+- `Connection::shutdown_for(timeout)` has the same shutdown request semantics
+  but returns `false` on timeout. The shutdown request remains active, so new
+  transactions stay rejected and callers may retry after workers finish.
+- `Connection::disconnect()` is strict: close only when no transaction handles
+  remain. It must not abort/reset transactions owned by another thread; return
+  a clear `MDBX_BUSY` failure instead.
+- Do not call `shutdown()`/`shutdown_for()` from a thread that currently owns an
+  active or reset transaction handle; that would wait on itself.
+- `Connection::m_mdbx_mutex` protects connection lifecycle/config state and the
+  manual transaction map. It is not a global MDBX operation lock, and
+  `Connection::transaction()` uses it only to gate new transactions against
+  shutdown/disconnect races.
+- `TransactionTracker::m_mutex` protects only the thread-id-to-`MDBX_txn*`
+  registry and its condition variable. It does not make transaction handles
+  cross-thread safe.
 - Be careful with current-thread transaction lookup when modifying
   `TransactionTracker`, `Connection`, `Transaction`, or `BaseTable`.
+
+Close-path examples:
+
+```cpp
+// Clean lifecycle: no open transaction handles or cursors remain.
+conn->disconnect();
+
+// Coordinated application stop.
+stop_requested.store(true);
+conn->shutdown();
+worker.join();
+
+// Bounded service stop; shutdown remains requested after false.
+if (!conn->shutdown_for(std::chrono::seconds(2))) {
+    request_worker_stop();
+    worker.join();
+    conn->shutdown();
+}
+```
+
+MDBX references:
+
+- `mdbx_txn_begin()` documents that a transaction and its cursors must only be
+  used by a single thread, and that a thread may only have one transaction at a
+  time unless `MDBX_NOSTICKYTHREADS` is used:
+  https://libmdbx.dqdkfa.ru/group__c__transactions.html
+- `mdbx_env_close_ex()` documents that only one thread may close the
+  environment and that all transactions, tables, and cursors must already be
+  closed before the environment is closed:
+  https://libmdbx.dqdkfa.ru/group__c__opening.html
 
 ## Serialization
 
@@ -58,6 +116,25 @@ mdbxc::KeyValueTable<std::string, int> orders(conn, "orders");
 
 Set `Config::max_dbs` high enough for tests and examples that open several
 tables in one environment.
+
+Read-only configuration:
+
+- `Config::read_only` opens the environment with `MDBX_RDONLY`.
+- `BaseTable` detects read-only connections, clears `MDBX_CREATE` from DBI flags,
+  and opens the named DBI inside a `TransactionMode::READ_ONLY` transaction.
+- Wrappers that open additional DBIs outside `BaseTable` must repeat the same
+  read-only path: clear `MDBX_CREATE`, use `TransactionMode::READ_ONLY`, and
+  open only existing DBIs. The default
+  `HashedKeyValueStore<..., HashedStoreLayout::LargeValues>` does this for its
+  `name + "__hash_index"` DBI.
+- The named DBI must already exist. Do not add code that creates DBIs or writes
+  records when `Connection::is_read_only()` is true.
+- `Connection::db_init()` must not call `create_directories()` for read-only
+  opens; missing paths should fail through MDBX instead of mutating the
+  filesystem.
+- Keep table constructor defaults convenient for callers: wrapper constructors
+  may keep `MDBX_CREATE` in their default flags because `BaseTable` strips it for
+  read-only connections and wrapper-specific DBI open code must do the same.
 
 For choosing between `KeyValueTable`, `ValueTable`, `KeyTable`,
 `KeyMultiValueTable`, and `AnyValueTable`, and for their operation semantics, see

@@ -126,6 +126,10 @@ Prefer for new table code:
 
 - Inherit from `BaseTable`, accept `std::shared_ptr<Connection>` and `Config`,
   and add overloads for `MDBX_txn*` and `const Transaction&`.
+- Use `BaseTable` for primary DBI read-only behavior: table constructors may
+  keep `MDBX_CREATE` defaults, but `BaseTable` strips that flag and uses
+  `TransactionMode::READ_ONLY` when `Connection::is_read_only()` is true.
+  If a wrapper opens extra DBIs outside `BaseTable`, repeat the same rule there.
 - Wrap raw MDBX calls with `check_mdbx`; handle `MDBX_NOTFOUND` and
   `MDBX_KEYEXIST` explicitly.
 - Use `SerializeScratch` near each MDBX call that needs an `MDBX_val`.
@@ -194,6 +198,10 @@ Pointers and ownership:
 - Tables store `std::shared_ptr<Connection>` in `BaseTable::m_connection`.
 - `Connection` stores manual per-thread transactions as
   `std::shared_ptr<Transaction>`.
+- The normal threading model is one shared `Connection` per MDBX environment
+  and at most one active transaction per thread.
+- `Transaction`, raw `MDBX_txn*`, and MDBX cursors are thread-owned; never move
+  them for use by another thread.
 - `Config` storage is `std::optional<Config>` in C++17+ and
   `std::unique_ptr<Config>` in the C++11 fallback.
 - Raw `MDBX_env*`, `MDBX_txn*`, `MDBX_cursor*`, and `MDBX_dbi` are MDBX handles;
@@ -335,7 +343,7 @@ Example: adding `get_or()` to `KeyValueTable`:
 ValueT get_or(const KeyT& key, ValueT fallback, MDBX_txn* txn = nullptr) const {
     ValueT out{};
     bool found = false;
-    with_transaction([&](MDBX_txn* t) {
+    with_transaction([this, &key, &out, &found](MDBX_txn* t) {
         found = db_get(key, out, t);
     }, TransactionMode::READ_ONLY, txn);
     return found ? out : fallback;
@@ -360,6 +368,14 @@ Do not add an HTTP/WebSocket framework to persistence-library headers.
   MinGW/Windows problem.
 - Do not silently start nested transactions. `Connection::begin()` forbids a
   second manual transaction on the same thread.
+- Do not call `configure()`, `connect()`, `disconnect()`, or `Connection`
+  destruction while table operations, transactions, or cursors may still be
+  active on worker threads.
+- Use `Connection::shutdown()`/`shutdown_for()` for coordinated stop behavior.
+  Keep `disconnect()` strict: it closes only when no transaction handle is open
+  and must not abort transaction handles owned by another thread.
+- Do not pass transaction guards, raw `MDBX_txn*`, or MDBX cursors between
+  threads. mdbx-containers does not enable `MDBX_NOSTICKYTHREADS`.
 - Preserve C++11 ABI/API fallbacks for public headers.
 - Do not change the binary serialization format without an explicit migration
   strategy and backward-compatibility tests.
@@ -367,8 +383,16 @@ Do not add an HTTP/WebSocket framework to persistence-library headers.
   `tests/path_resolution_test.cpp` and `docs/configuration.dox`.
 - Do not change `Config` defaults casually; they affect env flags, durability,
   file/directory mode, and max DBI.
+- Do not bypass read-only DBI opening behavior. A read-only connection must only
+  open existing DBIs, with `MDBX_CREATE` removed, and write attempts should still
+  fail through MDBX. This applies both to `BaseTable` and to wrapper-specific
+  extra DBIs such as the default `HashedKeyValueStore` hash index.
 - `Connection` cleanup and transaction registry require care:
   `m_mdbx_mutex`, `m_transactions`, `TransactionTracker::m_thread_txns`.
+  `m_mdbx_mutex` protects lifecycle/config state and the manual transaction map;
+  `TransactionTracker::m_mutex` protects the raw transaction registry and the
+  shutdown wait condition variable. Neither mutex makes MDBX transaction handles
+  cross-thread safe.
 - Cursor cleanup must be explicit. If early returns/exceptions are added around
   cursor logic, make sure the cursor is closed.
 - `AnyValueTable` type-tag checking is opt-in and default tags are
@@ -393,8 +417,13 @@ Do not add an HTTP/WebSocket framework to persistence-library headers.
 - Remember default `HashedKeyValueStore` uses the LargeValues layout and two
   DBIs per logical store: records plus `name + "__hash_index"`. The opt-in
   SmallValues layout uses one DUPSORT DBI and is size-limited by
-  `Config::max_dupsort_value_size`.
+  `Config::max_dupsort_value_size`. In read-only mode both LargeValues DBIs must
+  already exist.
 - Reuse `SerializeScratch` and serialization helpers.
 - Wrap MDBX errors through `check_mdbx`.
 - Add tests near existing tests for the same mechanism.
 - Do not edit generated docs; update `.dox` sources.
+- For transaction/lifetime changes, re-check MDBX docs:
+  `mdbx_txn_begin()` in https://libmdbx.dqdkfa.ru/group__c__transactions.html
+  and `mdbx_env_close_ex()` in
+  https://libmdbx.dqdkfa.ru/group__c__opening.html.

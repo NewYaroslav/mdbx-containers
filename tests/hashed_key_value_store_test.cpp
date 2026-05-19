@@ -263,6 +263,42 @@ int main() {
     }
 
     {
+        mdbxc::Config read_only_cfg;
+        read_only_cfg.pathname = "data/hashed_large_read_only_test.mdbx";
+        read_only_cfg.max_dbs = 4;
+        read_only_cfg.no_subdir = true;
+        read_only_cfg.relative_to_exe = true;
+
+        {
+            auto write_conn = mdbxc::Connection::create(read_only_cfg);
+            mdbxc::HashedKeyValueStore<std::string, std::string> write_store(
+                write_conn,
+                "hashed_large_read_only"
+            );
+            write_store.clear();
+            write_store.insert_or_assign("alpha", "one");
+        }
+
+        read_only_cfg.read_only = true;
+        auto read_conn = mdbxc::Connection::create(read_only_cfg);
+        mdbxc::HashedKeyValueStore<std::string, std::string> read_store(
+            read_conn,
+            "hashed_large_read_only"
+        );
+        assert(read_store.at("alpha") == "one");
+        assert(read_store.contains("alpha"));
+
+        bool write_failed = false;
+        try {
+            read_store.insert_or_assign("beta", "two");
+        } catch (const mdbxc::MdbxException&) {
+            write_failed = true;
+        }
+        assert(write_failed);
+        assert(!read_store.contains("beta"));
+    }
+
+    {
         typedef mdbxc::HashedKeyValueStore<
             std::string,
             int,

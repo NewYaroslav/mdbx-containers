@@ -76,6 +76,31 @@ static bool dir_nonempty(const fs::path& p) {
     return fs::directory_iterator(p) != fs::directory_iterator{};
 }
 
+static void assert_read_only_does_not_create_parent(const fs::path& db_path,
+                                                    bool no_subdir) {
+    fs::path parent = db_path.parent_path();
+    fs::remove_all(parent);
+    assert(!fs::exists(parent));
+
+    mdbxc::Config cfg;
+    cfg.pathname = db_path.u8string();
+    cfg.max_dbs = 2;
+    cfg.no_subdir = no_subdir;
+    cfg.relative_to_exe = false;
+    cfg.read_only = true;
+
+    bool failed = false;
+    try {
+        auto conn = mdbxc::Connection::create(cfg);
+        (void)conn;
+    } catch (const std::exception&) {
+        failed = true;
+    }
+
+    assert(failed);
+    assert(!fs::exists(parent));
+}
+
 // Правило разрешения пути, которое должна соблюдать библиотека.
 static fs::path expected_path_from_policy(const std::string& pathname,
                                           bool relative_to_exe,
@@ -265,6 +290,15 @@ int main() try {
                  assert(v.first && v.second == (int8_t)13);
 #endif
              });
+
+    assert_read_only_does_not_create_parent(
+        baseTmp / ("readonly_missing_file_" + uniq_suffix()) / "db.mdbx",
+        /*no_subdir=*/true
+    );
+    assert_read_only_does_not_create_parent(
+        baseTmp / ("readonly_missing_dir_" + uniq_suffix()) / "db",
+        /*no_subdir=*/false
+    );
 
     std::cout << "[result] path resolution tests passed\n";
     return 0;

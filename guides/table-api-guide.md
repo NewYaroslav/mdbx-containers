@@ -46,14 +46,30 @@ All public table classes follow the same broad shape:
 - They provide constructors from `std::shared_ptr<Connection>` and `Config`.
 - Constructor `name` opens a named MDBX DBI; increase `Config::max_dbs` when
   tests/examples open several named tables in one environment.
+- With `Config::read_only = true`, constructors open existing DBIs using a
+  read-only transaction. `BaseTable` clears `MDBX_CREATE` automatically, so
+  wrapper defaults can stay the same, but the DBI must already exist and write
+  methods should fail through MDBX. Wrappers with internal secondary DBIs must
+  apply the same rule to those DBIs too.
 - Default `HashedKeyValueStore` uses `LargeValues` and consumes two DBIs per
-  logical store: records plus `name + "__hash_index"`.
+  logical store: records plus `name + "__hash_index"`. In read-only mode both
+  DBIs must already exist.
 - `HashedStoreLayout::SmallValues` uses one DUPSORT DBI and stores user payload
   inside duplicate values, so respect `Config::max_dupsort_value_size`.
 - Public methods accept an optional `MDBX_txn*` where relevant.
 - `const Transaction&` overloads delegate to `.handle()`.
 - Automatic operations create a transaction, reuse a thread-bound transaction,
   or use the caller-supplied transaction.
+- A supplied `MDBX_txn*` or `Transaction` must belong to the current thread.
+  Do not pass transaction handles or MDBX cursors across threads.
+- Table wrapper instances are not synchronization primitives. For concurrent
+  workers, prefer separate wrappers per thread over the same shared
+  `Connection`, or protect one shared wrapper with an external mutex.
+- `connect()`, `disconnect()`, `configure()`, and `Connection` destruction are
+  lifecycle operations outside concurrent table activity.
+- For application stop paths, call `Connection::shutdown()` or
+  `shutdown_for(timeout)` from a non-transaction owner thread. Use
+  `disconnect()` only when all transaction handles/cursors are already gone.
 - Raw MDBX work belongs in private `db_*` helpers.
 - Raw MDBX return codes go through `check_mdbx()`.
 - Serialization uses `SerializeScratch`, `serialize_key()`,
