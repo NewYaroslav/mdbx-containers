@@ -33,6 +33,8 @@ namespace mdbxc {
 
         if (txn) {
             const int rc = mdbx_txn_abort(txn);
+            assert((rc == MDBX_SUCCESS || rc == MDBX_THREAD_MISMATCH) &&
+                   "mdbx_txn_abort() failed in Transaction::release()");
             (void)rc;
         }
 
@@ -100,36 +102,40 @@ namespace mdbxc {
 
     inline void Transaction::commit() {
         if (!m_txn || !m_started) throw MdbxException("No active transaction to commit.");
-        try {
-            switch (m_mode) {
-            case TransactionMode::READ_ONLY:
-            {
-                MDBX_txn* txn = m_txn;
-                check_mdbx(mdbx_txn_reset(txn), "Failed to reset read-only transaction");
-                m_registry->unbind_txn(txn);
-                break;
-            }
-            case TransactionMode::WRITABLE:
-            {
-                MDBX_txn* txn = m_txn;
-                check_mdbx(mdbx_txn_commit(txn), "Failed to commit writable transaction");
-                m_registry->unbind_txn(txn);
-                m_registry->unregister_txn_handle();
-                m_txn = nullptr;
-                break;
-            }
-            };
+
+        switch (m_mode) {
+        case TransactionMode::READ_ONLY:
+        {
+            MDBX_txn* txn = m_txn;
+            check_mdbx(mdbx_txn_reset(txn), "Failed to reset read-only transaction");
+            m_registry->unbind_txn(txn);
             m_started = false;
-        } catch (...) {
-            if (m_txn) {
-                MDBX_txn* txn = m_txn;
-                m_registry->unbind_txn(txn);
-                m_registry->unregister_txn_handle();
-                m_txn = nullptr;
-            }
-            m_started = false;
-            throw;
+            break;
         }
+        case TransactionMode::WRITABLE:
+        {
+            MDBX_txn* txn = m_txn;
+            const int rc = mdbx_txn_commit(txn);
+
+            if (rc == MDBX_SUCCESS) {
+                m_registry->unbind_txn(txn);
+                m_registry->unregister_txn_handle();
+                m_txn = nullptr;
+                m_started = false;
+                break;
+            }
+
+            if (rc == MDBX_THREAD_MISMATCH) {
+                check_mdbx(rc, "Failed to commit writable transaction");
+            }
+
+            m_registry->unbind_txn(txn);
+            m_registry->unregister_txn_handle();
+            m_txn = nullptr;
+            m_started = false;
+            check_mdbx(rc, "Failed to commit writable transaction");
+        }
+        };
     }
 
     inline void Transaction::rollback() {
