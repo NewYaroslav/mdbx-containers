@@ -23,6 +23,9 @@ namespace mdbxc {
     /// Indices are stable record identifiers, not dense vector positions.
     /// Erasing a record does not shift following indices. insert_or_assign()
     /// and set() may create holes. append() uses max existing index + 1.
+    /// \warning append() is not a global atomic sequence allocator.
+    ///          Concurrent writers appending without external synchronization
+    ///          may race for the same next index.
     template<class ValueT>
     class SequenceTable final : public BaseTable {
     public:
@@ -56,6 +59,8 @@ namespace mdbxc {
         /// \param txn Optional transaction handle.
         /// \return Index assigned to the value.
         /// \throws std::overflow_error if the index space is exhausted.
+        /// \warning append() computes next id from current max key; concurrent
+        ///          unsynchronized writers may race for the same next index.
         uint64_t append(const ValueT& value, MDBX_txn* txn = nullptr) {
             uint64_t result = 0;
             with_transaction([this, &value, &result](MDBX_txn* t) {
@@ -77,6 +82,7 @@ namespace mdbxc {
         /// \param values Source container of values.
         /// \param txn Optional transaction handle.
         /// \return Vector of assigned indices.
+        /// \warning Same concurrency warning as append().
         template<class ContainerT>
         std::vector<uint64_t> append_many(const ContainerT& values, MDBX_txn* txn = nullptr) {
             std::vector<uint64_t> result;
@@ -503,6 +509,15 @@ namespace mdbxc {
             }
         }
 
+        static uint64_t read_index_key(const MDBX_val& db_key) {
+            if (!db_key.iov_base || db_key.iov_len != sizeof(uint64_t)) {
+                throw std::runtime_error("SequenceTable: invalid index key");
+            }
+            uint64_t id = 0;
+            std::memcpy(&id, db_key.iov_base, sizeof(id));
+            return id;
+        }
+
         static MDBX_val make_key(uint64_t id, SerializeScratch& sc) {
             return serialize_key<true>(id, sc);
         }
@@ -516,16 +531,13 @@ namespace mdbxc {
                 MDBX_val db_key, db_val;
                 int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_LAST);
                 if (rc == MDBX_SUCCESS) {
-                    if (db_key.iov_len == sizeof(uint64_t)) {
-                        uint64_t last_id;
-                        std::memcpy(&last_id, db_key.iov_base, sizeof(uint64_t));
-                        if (last_id == std::numeric_limits<uint64_t>::max()) {
-                            mdbx_cursor_close(cursor);
-                            cursor = nullptr;
-                            throw std::overflow_error("SequenceTable::append: id overflow");
-                        }
-                        next_id = last_id + 1;
+                    uint64_t last_id = read_index_key(db_key);
+                    if (last_id == std::numeric_limits<uint64_t>::max()) {
+                        mdbx_cursor_close(cursor);
+                        cursor = nullptr;
+                        throw std::overflow_error("SequenceTable::append: id overflow");
                     }
+                    next_id = last_id + 1;
                 } else if (rc != MDBX_NOTFOUND) {
                     check_mdbx(rc, "Failed to seek last key in SequenceTable");
                 }
@@ -540,8 +552,14 @@ namespace mdbxc {
             SerializeScratch sc_value;
             MDBX_val db_key = make_key(next_id, sc_key);
             MDBX_val db_val = serialize_value(value, sc_value);
-            check_mdbx(mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_UPSERT),
-                       "Failed to append value");
+            int rc = mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
+            if (rc == MDBX_KEYEXIST) {
+                throw std::runtime_error(
+                    "SequenceTable::append: computed next index already exists; "
+                    "concurrent append requires external synchronization or retry"
+                );
+            }
+            check_mdbx(rc, "Failed to append value");
             return next_id;
         }
 
@@ -605,12 +623,9 @@ namespace mdbxc {
                 MDBX_val db_key, db_val;
                 int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_FIRST);
                 if (rc == MDBX_SUCCESS) {
-                    if (db_key.iov_len == sizeof(uint64_t)) {
-                        uint64_t id;
-                        std::memcpy(&id, db_key.iov_base, sizeof(uint64_t));
-                        mdbx_cursor_close(cursor);
-                        return std::make_pair(true, id);
-                    }
+                    uint64_t id = read_index_key(db_key);
+                    mdbx_cursor_close(cursor);
+                    return std::make_pair(true, id);
                 } else if (rc == MDBX_NOTFOUND) {
                     mdbx_cursor_close(cursor);
                     return std::make_pair(false, uint64_t(0));
@@ -632,12 +647,9 @@ namespace mdbxc {
                 MDBX_val db_key, db_val;
                 int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_LAST);
                 if (rc == MDBX_SUCCESS) {
-                    if (db_key.iov_len == sizeof(uint64_t)) {
-                        uint64_t id;
-                        std::memcpy(&id, db_key.iov_base, sizeof(uint64_t));
-                        mdbx_cursor_close(cursor);
-                        return std::make_pair(true, id);
-                    }
+                    uint64_t id = read_index_key(db_key);
+                    mdbx_cursor_close(cursor);
+                    return std::make_pair(true, id);
                 } else if (rc == MDBX_NOTFOUND) {
                     mdbx_cursor_close(cursor);
                     return std::make_pair(false, uint64_t(0));
@@ -682,10 +694,7 @@ namespace mdbxc {
                 int rc = MDBX_SUCCESS;
                 while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT))
                        == MDBX_SUCCESS) {
-                    uint64_t id = 0;
-                    if (db_key.iov_len == sizeof(uint64_t)) {
-                        std::memcpy(&id, db_key.iov_base, sizeof(uint64_t));
-                    }
+                    uint64_t id = read_index_key(db_key);
                     entries.push_back(std::make_pair(id, deserialize_value<ValueT>(db_val)));
                 }
                 if (rc != MDBX_NOTFOUND) {
@@ -712,10 +721,7 @@ namespace mdbxc {
                 MDBX_val db_val;
                 int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_RANGE);
                 while (rc == MDBX_SUCCESS) {
-                    uint64_t id = 0;
-                    if (db_key.iov_len == sizeof(uint64_t)) {
-                        std::memcpy(&id, db_key.iov_base, sizeof(uint64_t));
-                    }
+                    uint64_t id = read_index_key(db_key);
                     if (id > to) break;
                     result.push_back(std::make_pair(id, deserialize_value<ValueT>(db_val)));
                     rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT);
