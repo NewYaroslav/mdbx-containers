@@ -113,6 +113,14 @@ namespace mdbxc {
 
         /// \brief Transfers ownership from another transaction object.
         void move_from(Transaction& other) noexcept;
+
+        /// \brief Best-effort unbind of a transaction from the tracker.
+        /// Never throws; asserts in debug if the tracker call fails.
+        void safe_unbind_txn(TransactionTracker* registry, MDBX_txn* txn) noexcept;
+
+        /// \brief Best-effort unregister of a transaction handle from the tracker.
+        /// Never throws; asserts in debug if the tracker call fails.
+        void safe_unregister_txn_handle(TransactionTracker* registry) noexcept;
     }; // Transaction
 
 }; // namespace mdbxc

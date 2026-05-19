@@ -21,10 +21,28 @@ namespace mdbxc {
         release();
     }
 
+    inline void Transaction::safe_unbind_txn(TransactionTracker* registry, MDBX_txn* txn) noexcept {
+        if (!registry || !txn) return;
+        try {
+            registry->unbind_txn(txn);
+        } catch (...) {
+            assert(!"TransactionTracker::unbind_txn() failed during Transaction cleanup");
+        }
+    }
+
+    inline void Transaction::safe_unregister_txn_handle(TransactionTracker* registry) noexcept {
+        if (!registry) return;
+        try {
+            registry->unregister_txn_handle();
+        } catch (...) {
+            assert(!"TransactionTracker::unregister_txn_handle() failed during Transaction cleanup");
+        }
+    }
+
     inline void Transaction::release() noexcept {
         TransactionTracker* registry = m_registry;
         MDBX_txn* txn = m_txn;
-        bool was_started = m_started;
+        const bool was_started = m_started;
 
         m_registry = nullptr;
         m_env = nullptr;
@@ -39,19 +57,11 @@ namespace mdbxc {
         }
 
         if (registry && txn && was_started) {
-            try {
-                registry->unbind_txn(txn);
-            } catch (...) {
-                assert(!"TransactionTracker::unbind_txn() failed in noexcept cleanup");
-            }
+            safe_unbind_txn(registry, txn);
         }
 
         if (registry && txn) {
-            try {
-                registry->unregister_txn_handle();
-            } catch (...) {
-                assert(!"TransactionTracker::unregister_txn_handle() failed in noexcept cleanup");
-            }
+            safe_unregister_txn_handle(registry);
         }
     }
 
@@ -108,8 +118,8 @@ namespace mdbxc {
         {
             MDBX_txn* txn = m_txn;
             check_mdbx(mdbx_txn_reset(txn), "Failed to reset read-only transaction");
-            m_registry->unbind_txn(txn);
             m_started = false;
+            safe_unbind_txn(m_registry, txn);
             break;
         }
         case TransactionMode::WRITABLE:
@@ -125,11 +135,13 @@ namespace mdbxc {
             // terminated (or we threw above for THREAD_MISMATCH). Null the
             // wrapper state before tracker cleanup so that a tracker throw
             // does not cause a double-abort in the destructor.
+            TransactionTracker* registry = m_registry;
+
             m_txn = nullptr;
             m_started = false;
 
-            m_registry->unbind_txn(txn);
-            m_registry->unregister_txn_handle();
+            safe_unbind_txn(registry, txn);
+            safe_unregister_txn_handle(registry);
 
             check_mdbx(rc, "Failed to commit writable transaction");
             break;
@@ -139,37 +151,44 @@ namespace mdbxc {
 
     inline void Transaction::rollback() {
         if (!m_txn || !m_started) throw MdbxException("No active transaction to rollback.");
-        try {
-            switch (m_mode) {
-            case TransactionMode::READ_ONLY:
-            {
-                MDBX_txn* txn = m_txn;
-                check_mdbx(mdbx_txn_reset(txn), "Failed to reset read-only transaction");
-                m_registry->unbind_txn(txn);
-                break;
+
+        switch (m_mode) {
+        case TransactionMode::READ_ONLY:
+        {
+            MDBX_txn* txn = m_txn;
+            const int rc = mdbx_txn_reset(txn);
+
+            if (rc == MDBX_THREAD_MISMATCH) {
+                check_mdbx(rc, "Failed to reset read-only transaction");
             }
-            case TransactionMode::WRITABLE:
-            {
-                MDBX_txn* txn = m_txn;
-                check_mdbx(mdbx_txn_abort(txn), "Failed to abort writable transaction");
-                m_registry->unbind_txn(txn);
-                m_registry->unregister_txn_handle();
-                m_txn = nullptr;
-                break;
-            }
-            };
+            check_mdbx(rc, "Failed to reset read-only transaction");
+
             m_started = false;
-        } catch (...) {
-            if (m_txn) {
-                MDBX_txn* txn = m_txn;
-                mdbx_txn_abort(txn);
-                m_registry->unbind_txn(txn);
-                m_registry->unregister_txn_handle();
-                m_txn = nullptr;
-            }
-            m_started = false;
-            throw;
+            safe_unbind_txn(m_registry, txn);
+            break;
         }
+        case TransactionMode::WRITABLE:
+        {
+            MDBX_txn* txn = m_txn;
+            const int rc = mdbx_txn_abort(txn);
+
+            if (rc == MDBX_THREAD_MISMATCH) {
+                check_mdbx(rc, "Failed to abort writable transaction");
+            }
+            check_mdbx(rc, "Failed to abort writable transaction");
+
+            // Only MDBX_SUCCESS reaches this point; the native handle is terminated.
+            TransactionTracker* registry = m_registry;
+
+            m_txn = nullptr;
+            m_started = false;
+
+            safe_unbind_txn(registry, txn);
+            safe_unregister_txn_handle(registry);
+
+            break;
+        }
+        };
     }
 
     inline MDBX_txn* Transaction::handle() const noexcept {
