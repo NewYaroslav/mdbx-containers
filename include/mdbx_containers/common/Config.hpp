@@ -24,7 +24,7 @@ namespace mdbxc {
         int64_t size_upper  = -1;               ///< Upper bound for database size.
         int64_t growth_step = 16 * 1024 * 1024; ///< Step size for database growth.
         int64_t shrink_threshold = 16 * 1024 * 1024; ///< Threshold for database shrinking.
-        int64_t page_size   = 0;                ///< Page size (must be a power of two).
+        int64_t page_size   = 0;                ///< Page size (must be 0 for default, or a power of two between 256 and 65536).
         int64_t max_readers = 0;                ///< Maximum reader slots; use 0 for the default (twice the CPU count).
         int64_t max_dbs = 10;                   ///< Maximum number of named databases (DBI) in the environment.
         int64_t max_dupsort_value_size = -1;        ///< Proactive MDBX_DUPSORT duplicate value size limit; <= 0 disables it.
