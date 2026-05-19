@@ -36,10 +36,33 @@ Core support classes:
 
 - `Config` - MDBX environment configuration. Use `Config::pathname` for the
   database path.
-- `Connection` - owns the MDBX environment and transaction registry.
-- `Transaction` - RAII wrapper for MDBX transactions.
+- `Connection` - owns one MDBX environment and the transaction registries.
+- `Transaction` - RAII wrapper for an MDBX transaction owned by one thread.
 - `BaseTable` - common DBI opening and transaction helpers.
-- `TransactionTracker` - tracks transactions bound to the current thread.
+- `TransactionTracker` - tracks raw transactions bound to the current thread.
+
+## Threading Model
+
+The intended concurrency model is one shared `Connection` per MDBX environment
+and at most one active transaction per thread. Table wrappers can share the same
+connection, but a single table wrapper instance is not itself a synchronization
+primitive. For concurrent workers, prefer one wrapper instance per worker thread
+over the shared connection, or use an external mutex around a shared wrapper.
+
+Do not pass `Transaction`, raw `MDBX_txn*`, or MDBX cursors across threads.
+`configure()`, `connect()`, `disconnect()`, and `Connection` destruction are
+lifecycle operations: call them before starting worker activity or after all
+workers, transactions, and cursors are finished.
+
+For application stop paths, prefer `Connection::shutdown()` or
+`Connection::shutdown_for(timeout)`. They request shutdown, reject new
+transactions, wait for existing transaction handles to close on their owning
+threads, and then disconnect. Use `disconnect()` only when the lifecycle is
+already clean; it is a strict close and fails while transaction handles are open.
+
+This mirrors MDBX's default model. See `mdbx_txn_begin()` in
+https://libmdbx.dqdkfa.ru/group__c__transactions.html and `mdbx_env_close_ex()`
+in https://libmdbx.dqdkfa.ru/group__c__opening.html.
 
 ## Supported Data Shapes
 

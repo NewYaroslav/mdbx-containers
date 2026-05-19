@@ -16,7 +16,8 @@ MDBX API calls or flags.
   MDBX manual for details: https://libmdbx.dqdkfa.ru/group__c__settings.html#ga79065e4f3c5fb2ad37a52b59224d583e
 - **max_readers**: Maximum number of concurrent readers set via
   [mdbx_env_set_maxreaders](https://libmdbx.dqdkfa.ru/group__c__settings.html#gae34df9a6441a7fc275f2ffcc362e738d). Increase this if many threads or processes need
-  parallel read transactions.
+  parallel read transactions. This does not change the mdbx-containers rule that
+  each `Transaction`/`MDBX_txn*` belongs to one thread.
 - **max_dbs**: Upper bound for the number of named sub-databases configured via
   [mdbx_env_set_maxdbs](https://libmdbx.dqdkfa.ru/group__c__settings.html#gaa6a52dc5b2242d407f0382ac5d57e689). Set this to the total tables you expect.
 - **max_dupsort_value_size**: Proactive limit for values written as
@@ -27,7 +28,13 @@ MDBX API calls or flags.
   `KeyMultiValueTable` and
   `HashedKeyValueStore<..., HashedStoreLayout::SmallValues>`.
 - **read_only**: When true adds `MDBX_RDONLY` so the environment is opened in
-  read-only mode.
+  read-only mode. Table wrappers open existing DBIs through a read-only
+  transaction and automatically clear `MDBX_CREATE` from DBI flags during
+  construction, including internal secondary DBIs such as the default
+  `HashedKeyValueStore<..., HashedStoreLayout::LargeValues>` hash index. This
+  lets the usual constructors be used for inspection, but every DBI used by the
+  wrapper must already exist and write operations still fail with an MDBX error.
+  The connection does not create missing directories in this mode.
 - **readahead**: If false adds `MDBX_NORDAHEAD`, disabling OS readahead and
   potentially improving random I/O performance.
 - **no_subdir**: Adds `MDBX_NOSUBDIR` so the data and lock files are stored next
@@ -39,6 +46,20 @@ MDBX API calls or flags.
   syncing.
 - **relative_to_exe**: When set, resolves relative paths as described for
   `pathname`.
+
+## Threading-related MDBX behavior
+
+mdbx-containers uses the default MDBX transaction model and does not enable
+`MDBX_NOSTICKYTHREADS`. Keep one active transaction per thread, do not pass
+`Transaction`, raw `MDBX_txn*`, or MDBX cursors across threads, and keep
+`connect()`, `disconnect()`, `configure()`, and `Connection` destruction outside
+parallel table activity. Use `shutdown()` for coordinated closing and
+`shutdown_for(timeout)` when the caller needs a bounded wait; use `disconnect()`
+only after transactions/cursors have already ended. MDBX documents these constraints under
+`mdbx_txn_begin()` in
+[Transactions](https://libmdbx.dqdkfa.ru/group__c__transactions.html) and
+under `mdbx_env_close_ex()` in
+[Opening & Closing](https://libmdbx.dqdkfa.ru/group__c__opening.html).
 
 Tune these options to balance performance and durability. Combining
 `writemap_mode` with `sync_durable` mimics MDBX's default safe mode, while

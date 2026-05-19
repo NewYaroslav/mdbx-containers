@@ -12,7 +12,17 @@ namespace mdbxc {
     /// \brief Base class providing common functionality for MDBX database access.
     ///
     /// Opens or creates a table (DBI handle) and offers basic transaction management.
-    /// Not thread-safe for simultaneous operations on the same instance.
+    /// In read-only connections, opens an existing DBI in a read-only
+    /// transaction and ignores `MDBX_CREATE`.
+    ///
+    /// \thread_safety Not thread-safe for simultaneous operations on the same
+    /// instance. For multi-threaded code, prefer separate table wrapper
+    /// instances per worker thread over the same shared Connection, or protect
+    /// one shared wrapper instance with an external mutex.
+    ///
+    /// \note The DBI handle may be used by separate thread-owned transactions
+    /// through separate wrapper instances while the shared Connection lifecycle
+    /// remains stable.
     class BaseTable {
     public:
         /// \brief Construct the database table accessor.
@@ -23,9 +33,15 @@ namespace mdbxc {
                         std::string name,
                         MDBX_db_flags_t flags)
             : m_connection(std::move(connection)) {
-            auto txn = m_connection->transaction();
+            bool read_only = m_connection->is_read_only();
+            MDBX_db_flags_t open_flags = read_only
+                ? static_cast<MDBX_db_flags_t>(flags & ~MDBX_CREATE)
+                : flags;
+            auto txn = m_connection->transaction(
+                read_only ? TransactionMode::READ_ONLY : TransactionMode::WRITABLE
+            );
             check_mdbx(
-                mdbx_dbi_open(txn.handle(), name.c_str(), flags, &m_dbi),
+                mdbx_dbi_open(txn.handle(), name.c_str(), open_flags, &m_dbi),
                 "Failed to open table"
             );
             txn.commit();
@@ -41,12 +57,16 @@ namespace mdbxc {
 
         /// \brief Connects to the MDBX environment if not already connected.
         /// \throws MdbxException if connection fails.
+        /// \warning Lifecycle-only. Do not call concurrently with table
+        /// operations or active transactions.
         void connect() {
             m_connection->connect();
         }
 
         /// \brief Disconnects the MDBX environment.
         /// \throws MdbxException if closing the environment fails.
+        /// \warning Lifecycle-only. Do not call concurrently with table
+        /// operations or active transactions.
         void disconnect() {
             m_connection->disconnect();
         }
@@ -118,4 +138,3 @@ namespace mdbxc {
 }; // namespace mdbxc
 
 #endif // _MDBX_CONTAINERS_BASE_DB_HPP_INCLUDED
-

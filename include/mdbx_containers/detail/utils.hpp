@@ -443,8 +443,11 @@ namespace mdbxc {
     serialize_value(const T& container, SerializeScratch& sc) {
         using Elem = typename T::value_type;
         sc.bytes.resize(container.size() * sizeof(Elem));
-        auto* out = reinterpret_cast<Elem*>(sc.bytes.data());
-        std::copy(container.begin(), container.end(), out);
+        size_t offset = 0;
+        for (typename T::const_iterator it = container.begin(); it != container.end(); ++it) {
+            std::memcpy(sc.bytes.data() + offset, &(*it), sizeof(Elem));
+            offset += sizeof(Elem);
+        }
         return sc.view_bytes();
     }
 
@@ -459,9 +462,11 @@ namespace mdbxc {
     serialize_value(const T& container, SerializeScratch& sc) {
         using Elem = typename T::value_type;
         sc.bytes.resize(container.size() * sizeof(Elem));
-        std::memcpy(sc.bytes.data(),
-                    container.data(),
-                    sc.bytes.size());   
+        if (!sc.bytes.empty()) {
+            std::memcpy(sc.bytes.data(),
+                        container.data(),
+                        sc.bytes.size());
+        }
         return sc.view_bytes();
     }
 
@@ -542,6 +547,9 @@ namespace mdbxc {
     template<typename T>
     typename std::enable_if<std::is_same<T, std::string>::value, T>::type
     deserialize_value(const MDBX_val& val) {
+        if (val.iov_len == 0) {
+            return T();
+        }
         return std::string(static_cast<const char*>(val.iov_base), val.iov_len);
     }
 
@@ -556,6 +564,9 @@ namespace mdbxc {
         std::is_same<T, std::vector<char>>::value ||
         std::is_same<T, std::vector<unsigned char>>::value, T>::type
     deserialize_value(const MDBX_val& val) {
+        if (val.iov_len == 0) {
+            return T();
+        }
         const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
         return T(ptr, ptr + val.iov_len);
     }
@@ -571,6 +582,9 @@ namespace mdbxc {
         std::is_same<T, std::deque<char>>::value ||
         std::is_same<T, std::deque<unsigned char>>::value, T>::type
     deserialize_value(const MDBX_val& val) {
+        if (val.iov_len == 0) {
+            return T();
+        }
         const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
         return T(ptr, ptr + val.iov_len);
     }
@@ -586,6 +600,9 @@ namespace mdbxc {
         std::is_same<T, std::list<char>>::value ||
         std::is_same<T, std::list<unsigned char>>::value, T>::type
     deserialize_value(const MDBX_val& val) {
+        if (val.iov_len == 0) {
+            return T();
+        }
         const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
         return T(ptr, ptr + val.iov_len);
     }
@@ -608,8 +625,11 @@ namespace mdbxc {
         if (val.iov_len % sizeof(Elem) != 0)
             throw std::runtime_error("deserialize_value: size not aligned");
         const size_t count = val.iov_len / sizeof(Elem);
-        const Elem* data = static_cast<const Elem*>(val.iov_base);
-        return T(data, data + count);
+        T out(count);
+        if (count) {
+            std::memcpy(out.data(), val.iov_base, val.iov_len);
+        }
+        return out;
     }
 
     /// \brief Deserializes a deque or list of trivially copyable elements.
@@ -618,25 +638,38 @@ namespace mdbxc {
     typename std::enable_if<
         (std::is_same<T, std::deque<typename T::value_type>>::value ||
          std::is_same<T, std::list<typename T::value_type>>::value) &&
-        std::is_trivially_copyable<typename T::value_type>::value, T>::type
+        std::is_trivially_copyable<typename T::value_type>::value &&
+#       if __cplusplus >= 201703L
+        !std::is_same<T, std::deque<std::byte>>::value &&
+        !std::is_same<T, std::list<std::byte>>::value &&
+#       endif
+        !std::is_same<T, std::deque<uint8_t>>::value &&
+        !std::is_same<T, std::deque<char>>::value &&
+        !std::is_same<T, std::deque<unsigned char>>::value &&
+        !std::is_same<T, std::list<uint8_t>>::value &&
+        !std::is_same<T, std::list<char>>::value &&
+        !std::is_same<T, std::list<unsigned char>>::value, T>::type
     deserialize_value(const MDBX_val& val) {
         typedef typename T::value_type Elem;
         if (val.iov_len % sizeof(Elem) != 0) {
             throw std::runtime_error("deserialize_value: size not aligned");
         }
         const size_t count = val.iov_len / sizeof(Elem);
-        const Elem* data = static_cast<const Elem*>(val.iov_base);
-        return T(data, data + count);
+        const uint8_t* data = static_cast<const uint8_t*>(val.iov_base);
+        T out;
+        for (size_t i = 0; i < count; ++i) {
+            Elem elem;
+            std::memcpy(&elem, data + i * sizeof(Elem), sizeof(Elem));
+            out.push_back(elem);
+        }
+        return out;
     }
 
-    /// \brief Deserializes a set or unordered_set of trivially copyable elements.
-    /// \tparam T Set-like container type.
+    /// \brief Deserializes a set of trivially copyable elements.
+    /// \tparam T Set container type.
     template<typename T>
     typename std::enable_if<
-        (
-            std::is_same<T, std::set<typename T::value_type>>::value ||
-            std::is_same<T, std::unordered_set<typename T::value_type>>::value
-        ) &&
+        std::is_same<T, std::set<typename T::value_type>>::value &&
         std::is_trivially_copyable<typename T::value_type>::value,
         T>::type
     deserialize_value(const MDBX_val& val) {
@@ -644,8 +677,38 @@ namespace mdbxc {
         if (val.iov_len % sizeof(Elem) != 0)
             throw std::runtime_error("deserialize_value: size not aligned");
         const size_t count = val.iov_len / sizeof(Elem);
-        const Elem* data = static_cast<const Elem*>(val.iov_base);
-        return T(data, data + count);
+        const uint8_t* data = static_cast<const uint8_t*>(val.iov_base);
+        T out;
+        typename T::iterator hint = out.end();
+        for (size_t i = 0; i < count; ++i) {
+            Elem elem;
+            std::memcpy(&elem, data + i * sizeof(Elem), sizeof(Elem));
+            hint = out.insert(hint, elem);
+        }
+        return out;
+    }
+
+    /// \brief Deserializes an unordered_set of trivially copyable elements.
+    /// \tparam T Unordered set container type.
+    template<typename T>
+    typename std::enable_if<
+        std::is_same<T, std::unordered_set<typename T::value_type>>::value &&
+        std::is_trivially_copyable<typename T::value_type>::value,
+        T>::type
+    deserialize_value(const MDBX_val& val) {
+        typedef typename T::value_type Elem;
+        if (val.iov_len % sizeof(Elem) != 0)
+            throw std::runtime_error("deserialize_value: size not aligned");
+        const size_t count = val.iov_len / sizeof(Elem);
+        const uint8_t* data = static_cast<const uint8_t*>(val.iov_base);
+        T out;
+        out.reserve(count);
+        for (size_t i = 0; i < count; ++i) {
+            Elem elem;
+            std::memcpy(&elem, data + i * sizeof(Elem), sizeof(Elem));
+            out.insert(elem);
+        }
+        return out;
     }
 
     /// \brief Deserializes a trivially copyable value.
@@ -675,6 +738,9 @@ namespace mdbxc {
     template<typename T>
     typename std::enable_if<is_string_sequence_container<T>::value, T>::type
     deserialize_value(const MDBX_val& val) {
+        if (val.iov_len == 0) {
+            return T();
+        }
         const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
         const uint8_t* end = ptr + val.iov_len;
 
@@ -684,7 +750,8 @@ namespace mdbxc {
             std::memcpy(&len, ptr, sizeof(uint32_t));
             ptr += sizeof(uint32_t);
 
-            if (ptr + len > end)
+            const size_t remaining = static_cast<size_t>(end - ptr);
+            if (len > remaining)
                 throw std::runtime_error("deserialize_value: corrupted data (length overflow)");
 
             result.emplace_back(reinterpret_cast<const char*>(ptr), len);
@@ -702,6 +769,9 @@ namespace mdbxc {
     template<typename T>
     typename std::enable_if<is_string_set_container<T>::value, T>::type
     deserialize_value(const MDBX_val& val) {
+        if (val.iov_len == 0) {
+            return T();
+        }
         const uint8_t* ptr = static_cast<const uint8_t*>(val.iov_base);
         const uint8_t* end = ptr + val.iov_len;
         T result;
@@ -711,7 +781,8 @@ namespace mdbxc {
             std::memcpy(&len, ptr, sizeof(uint32_t));
             ptr += sizeof(uint32_t);
 
-            if (ptr + len > end)
+            const size_t remaining = static_cast<size_t>(end - ptr);
+            if (len > remaining)
                 throw std::runtime_error("deserialize_value: corrupted data (length overflow)");
 
             result.insert(std::string(reinterpret_cast<const char*>(ptr), len));

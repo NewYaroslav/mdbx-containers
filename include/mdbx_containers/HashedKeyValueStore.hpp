@@ -927,12 +927,21 @@ namespace mdbxc {
         }
 
         void open_index(const std::string& index_name, MDBX_db_flags_t flags) {
-            auto txn = m_connection->transaction();
+            bool read_only = m_connection->is_read_only();
+            MDBX_db_flags_t index_flags = static_cast<MDBX_db_flags_t>(
+                flags | MDBX_DUPSORT | MDBX_INTEGERKEY
+            );
+            if (read_only) {
+                index_flags = static_cast<MDBX_db_flags_t>(index_flags & ~MDBX_CREATE);
+            }
+            auto txn = m_connection->transaction(
+                read_only ? TransactionMode::READ_ONLY : TransactionMode::WRITABLE
+            );
             try {
                 check_mdbx(
                     mdbx_dbi_open(txn.handle(),
                                   index_name.c_str(),
-                                  flags | MDBX_DUPSORT | MDBX_INTEGERKEY,
+                                  index_flags,
                                   &m_index_dbi),
                     "Failed to open hashed key-value index"
                 );

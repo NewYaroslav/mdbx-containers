@@ -22,22 +22,34 @@ namespace mdbxc {
     ///
     /// Supports both read-only and writable modes. Provides methods for beginning,
     /// committing, and rolling back transactions, with integration of MDBX-specific behavior.
+    ///
+    /// \thread_safety Not thread-safe. A transaction and its MDBX cursors belong
+    /// to the thread that created or currently owns the guard. Do not use,
+    /// commit, roll back, destroy, or move it for use by another thread.
+    ///
+    /// \note mdbx-containers does not enable `MDBX_NOSTICKYTHREADS`; follow the
+    /// default MDBX transaction ownership rules.
+    /// \see https://libmdbx.dqdkfa.ru/group__c__transactions.html
     class Transaction {
         friend class Connection;
     public:
 
-        /// \brief Destructor that safely closes or resets the transaction.
+        /// \brief Destructor that safely releases the transaction handle.
         ///
-        /// If the transaction is still active, read-only transactions are reset (reusable),
-        /// and writable transactions are aborted.
+        /// If the guard still owns an MDBX transaction handle, the handle is
+        /// aborted/released.
+        ///
+        /// \warning Must run on the same thread that owns the transaction.
         virtual ~Transaction();
 
         /// \brief Starts the transaction.
         ///
-        /// For read-only transactions, uses a shared reusable handle and attempts renewal.
-        /// For writable transactions, begins a new transaction using the MDBX environment.
+        /// For read-only transactions, renews this guard's reset handle when
+        /// available. For writable transactions, begins a new transaction using
+        /// the MDBX environment.
         ///
         /// \throws MdbxException if the transaction is already started or if beginning fails.
+        /// \warning The started MDBX transaction is owned by the calling thread.
         void begin();
 
         /// \brief Commits the transaction.
@@ -46,6 +58,7 @@ namespace mdbxc {
         /// For writable transactions, commits the changes and closes the handle.
         ///
         /// \throws MdbxException if no transaction is active or commit/reset fails.
+        /// \warning Must be called on the owning thread.
         void commit();
 
         /// \brief Rolls back the transaction.
@@ -54,10 +67,12 @@ namespace mdbxc {
         /// For writable transactions, aborts the transaction.
         ///
         /// \throws MdbxException if no transaction is active or rollback/reset fails.
+        /// \warning Must be called on the owning thread.
         void rollback();
 
         /// \brief Returns the internal MDBX transaction handle.
         /// \return Raw pointer to MDBX_txn, or nullptr if not active.
+        /// \warning The returned handle must stay on the owning thread.
         MDBX_txn *handle() const noexcept;
         
         /// \brief Constructs a new transaction object.
@@ -69,8 +84,18 @@ namespace mdbxc {
                     MDBX_env* env,
                     TransactionMode mode);
         
-        Transaction(Transaction&&) noexcept = default;
-        Transaction& operator=(Transaction&&) noexcept = default;
+        /// \brief Move-constructs a transaction guard, transferring ownership.
+        /// \param other Source transaction guard.
+        /// \warning Transfer only within the owning thread. Moving a live
+        /// transaction for use by another thread violates MDBX rules.
+        Transaction(Transaction&& other) noexcept;
+
+        /// \brief Move-assigns a transaction guard, transferring ownership.
+        /// \param other Source transaction guard.
+        /// \return Reference to this transaction.
+        /// \warning Transfer only within the owning thread. Moving a live
+        /// transaction for use by another thread violates MDBX rules.
+        Transaction& operator=(Transaction&& other) noexcept;
         
     private:
 
@@ -80,8 +105,14 @@ namespace mdbxc {
         TransactionTracker* m_registry = nullptr;
         MDBX_env*       m_env = nullptr;            ///< Pointer to the MDBX environment handle.
         MDBX_txn*       m_txn = nullptr;            ///< MDBX transaction handle.
-        TransactionMode m_mode;                     ///< Current transaction mode.
+        TransactionMode m_mode = TransactionMode::WRITABLE; ///< Current transaction mode.
         bool            m_started = false;
+
+        /// \brief Releases any owned transaction without throwing.
+        void release() noexcept;
+
+        /// \brief Transfers ownership from another transaction object.
+        void move_from(Transaction& other) noexcept;
     }; // Transaction
 
 }; // namespace mdbxc

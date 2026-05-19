@@ -6,8 +6,8 @@
 
 **mdbx-containers** — лёгкая заголовочная библиотека C++11/17, которая соединяет
 [libmdbx](https://github.com/erthink/libmdbx) с привычными STL-подобными API.
-Она сохраняет key-value данные в MDBX и при этом предоставляет высокую
-производительность и удобные помощники для транзакций.
+Она сохраняет key-value данные в MDBX и предоставляет высокую производительность
+и удобные помощники для транзакций.
 
 > Примечание  
 > В этом проекте техническое качество важнее личных взглядов авторов.
@@ -16,9 +16,14 @@
 ## ⚙️ Особенности
 
 ### 🧱 API таблиц
-- `KeyValueTable<K, V>` — основная реализованная таблица: одно значение на ключ,
-  методы `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`,
-  `reconcile`, `operator[]` и связанные помощники.
+- `KeyValueTable<K, V>` — основная таблица: одно значение на ключ, методы
+  `insert`, `insert_or_assign`, `find`, `erase`, `clear`, `load`, `reconcile`,
+  `operator[]` и связанные помощники.
+- `HashedKeyValueStore<K, V, H, Layout>` хранит одно значение на строковый или
+  byte-vector ключ через hash-index и проверяет исходные байты ключа, чтобы
+  корректно обрабатывать коллизии.
+- `ValueTable<V>` хранит одно строго типизированное singleton-значение в
+  именованной таблице: метаданные, состояние модуля, snapshots и конфигурацию.
 - `AnyValueTable<K>` хранит значения разных типов по выбранному вызывающим кодом
   типу и поддерживает типизированные `set`, `insert`, `get`, `find`, `get_or`,
   `update`, `contains`, `erase` и `keys`.
@@ -27,23 +32,41 @@
 - `KeyMultiValueTable<K, V>` хранит несколько значений на один ключ со
   `std::multimap`-подобным API и сохраняет повторяющиеся одинаковые пары
   `(key, value)`.
-- Проверка type-tag prefix в `AnyValueTable` пока реализована не полностью, не
-  полагайтесь на неё как на полноценную runtime type safety.
+- Проверка type-tag prefix в `AnyValueTable` включается явно через
+  `set_type_tag_check(true)` и по умолчанию выключена для совместимости с уже
+  существующими raw-записями.
 
 ### 🔁 Сериализация
 - Автоматическая сериализация trivially copyable типов.
 - Пользовательские типы через `to_bytes()` / `from_bytes()`.
-- Поддержка вложенных STL-контейнеров, например `std::vector` или `std::list`.
+- Поддержка вложенных STL-контейнеров, например `std::vector` и `std::list`.
 
 ### 🔒 Транзакции и потоки
 - RAII-транзакции (`Transaction`).
-- Привязка транзакции к потоку.
-- Безопасный конкурентный доступ через `TransactionTracker` и mutex'ы.
+- Повторное использование автоматических и ручных транзакций, привязанных к
+  текущему потоку.
+- Обычная модель: один общий `Connection` на MDBX environment и не более одной
+  активной транзакции на поток.
+- `Transaction`, raw `MDBX_txn*` и курсоры MDBX нельзя передавать или
+  использовать между потоками.
+- `configure()`, `connect()`, `disconnect()` и уничтожение `Connection` — это
+  lifecycle-операции вне параллельной работы с таблицами.
+- Используйте `shutdown()` для согласованной остановки: он запрещает новые
+  транзакции, ждёт закрытия transaction handles в их потоках-владельцах и
+  затем отключает environment. Используйте `shutdown_for(timeout)`, если нужно
+  ограничить время ожидания.
+- Используйте `disconnect()` только когда все транзакции/курсоры уже завершены;
+  он возвращает ошибку `MDBX_BUSY`, а не abort'ит транзакции из других потоков.
+- Модель следует правилам MDBX для `mdbx_txn_begin()` и `mdbx_env_close_ex()`:
+  [Transactions](https://libmdbx.dqdkfa.ru/group__c__transactions.html) и
+  [Opening & Closing](https://libmdbx.dqdkfa.ru/group__c__opening.html).
 
 ### 🗄️ Структура и конфигурация
 - Несколько логических таблиц внутри одного MDBX-файла.
 - Гибкая конфигурация: `read_only`, `writemap_mode`, `readahead`, `no_subdir`,
   `sync_durable`, `max_readers`, `max_dbs`, `relative_to_exe`.
+- В режиме `read_only` wrapper'ы таблиц открывают существующие DBI через
+  read-only транзакцию и игнорируют `MDBX_CREATE`; записи всё равно падают через MDBX.
 - Подробнее см. `docs/configuration.dox`.
 
 ### 🧰 Совместимость
@@ -116,6 +139,23 @@ int main() {
 }
 ```
 
+### Hash-indexed key-value store
+
+```cpp
+#include <mdbx_containers/HashedKeyValueStore.hpp>
+
+// Layout LargeValues использует два DBI: hash-index и таблицу записей.
+mdbxc::Config config;
+config.pathname = "hashed.mdbx";
+config.max_dbs = 4;
+
+auto conn = mdbxc::Connection::create(config);
+mdbxc::HashedKeyValueStore<std::string, std::string> cache(conn, "cache");
+
+cache.insert_or_assign("url:https://example.test", "queued");
+std::string state = cache.at("url:https://example.test");
+```
+
 ### Таблица только для ключей
 
 ```cpp
@@ -127,6 +167,25 @@ keys.insert("active");
 keys.insert("archived");
 
 std::set<std::string> restored = keys.retrieve_all();
+```
+
+### Таблица одного значения
+
+```cpp
+#include <mdbx_containers/ValueTable.hpp>
+
+struct AppState {
+    int schema_version = 1;
+    int active_profiles = 0;
+
+    std::vector<uint8_t> to_bytes() const;
+    static AppState from_bytes(const void* data, size_t size);
+};
+
+mdbxc::ValueTable<AppState> state(conn, "app_state");
+state.set(AppState{});
+
+AppState loaded = state.get_or(AppState{});
 ```
 
 ### Таблица с несколькими значениями на ключ
@@ -149,11 +208,49 @@ mdbxc::Config config;
 config.pathname = "txn.mdbx";
 auto conn = mdbxc::Connection::create(config);
 mdbxc::KeyValueTable<int, std::string> table(conn, "demo");
+mdbxc::ValueTable<int> schema(conn, "schema");
 
-conn->begin(mdbxc::TransactionMode::WRITABLE);
-table.insert_or_assign(10, "ten");
-conn->commit();
+auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+table.insert_or_assign(10, "ten", txn);
+schema.set(1, txn);
+txn.commit();
 ```
+
+### Закрытие connection
+
+Используйте `disconnect()`, когда lifecycle уже чистый: все транзакции и курсоры
+закрыты.
+
+```cpp
+{
+    mdbxc::KeyValueTable<int, std::string> table(conn, "items");
+    table.insert_or_assign(1, "done");
+}
+conn->disconnect();
+```
+
+Используйте `shutdown()`, когда worker-потоки ещё могут завершать текущую
+транзакцию. Метод запрещает новые транзакции, ждёт закрытия transaction handles
+и затем отключает environment.
+
+```cpp
+stop_requested.store(true);
+conn->shutdown();
+worker.join();
+```
+
+Используйте `shutdown_for(timeout)`, когда остановка сервиса должна иметь
+ограниченное время ожидания.
+
+```cpp
+if (!conn->shutdown_for(std::chrono::seconds(2))) {
+    request_worker_stop();
+    worker.join();
+    conn->shutdown();
+}
+```
+
+Полный runnable пример находится в `examples/connection_shutdown_example.cpp`.
 
 ### Сериализация пользовательской структуры
 
@@ -182,8 +279,7 @@ table.insert_or_assign(42, MyData{42, 3.14});
 ## 📚 Документация
 
 - Больше примеров см. в каталоге `examples/`.
-- Информация об API и архитектуре находится в Doxygen-страницах
-  `docs/*.dox`.
+- Информация об API и архитектуре находится в Doxygen-страницах `docs/*.dox`.
 - Документацию можно сгенерировать через Doxygen; сгенерированные
   `docs/html/` и `docs/latex/` нельзя редактировать вручную.
 

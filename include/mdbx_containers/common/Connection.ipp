@@ -3,11 +3,14 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
-#include <filesystem>
 
 #if __cplusplus < 202002L
 # include <codecvt>
 # include <locale>
+#endif
+
+#if __cplusplus >= 201703L
+# include <filesystem>
 #endif
 
 #include <mdbx.h>
@@ -42,6 +45,7 @@ namespace mdbxc {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         if (m_env) return;
         if (!m_config) throw std::logic_error("No configuration provided.");
+        m_shutdown_requested = false;
         initialize();
     }
 
@@ -53,6 +57,7 @@ namespace mdbxc {
 #       else
         m_config.reset(new Config(config));
 #       endif
+        m_shutdown_requested = false;
         initialize();
     }
 
@@ -61,17 +66,43 @@ namespace mdbxc {
         cleanup();
     }
 
+    inline void Connection::shutdown() {
+        if (!request_shutdown()) {
+            return;
+        }
+        wait_for_no_txn_handles();
+        disconnect();
+    }
+
     inline bool Connection::is_connected() const {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         return m_env != nullptr;
     }
 
+    inline bool Connection::is_read_only() const {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        return m_config ? m_config->read_only : false;
+    }
+
     inline Transaction Connection::transaction(TransactionMode mode) {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        if (m_shutdown_requested) {
+            throw std::logic_error("Connection shutdown is in progress.");
+        }
+        if (!m_env) {
+            throw std::logic_error("Connection is not connected.");
+        }
         return Transaction(static_cast<TransactionTracker*>(this), m_env, mode);
     }
 
     inline void Connection::begin(TransactionMode mode) {
         std::lock_guard<std::mutex> lock(m_mdbx_mutex);
+        if (m_shutdown_requested) {
+            throw std::logic_error("Connection shutdown is in progress.");
+        }
+        if (!m_env) {
+            throw std::logic_error("Connection is not connected.");
+        }
         auto tid = std::this_thread::get_id();
         auto it = m_transactions.find(tid);
         if (it != m_transactions.end()) {
@@ -130,13 +161,36 @@ namespace mdbxc {
     }
 
     inline void Connection::cleanup(bool use_throw) {
+        if (has_txn_handles()) {
+            if (use_throw) {
+                throw MdbxException("Cannot disconnect while transaction handles are open.", MDBX_BUSY);
+            }
+            return;
+        }
+        m_transactions.clear();
         if (m_env) {
             int rc = mdbx_env_close(m_env);
             if (rc != MDBX_SUCCESS && use_throw) {
                 check_mdbx(rc, "Failed to close environment");
             }
-            m_env = nullptr;
+            if (rc == MDBX_SUCCESS) {
+                m_env = nullptr;
+                m_shutdown_requested = false;
+            }
         }
+    }
+
+    inline bool Connection::request_shutdown() {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        if (!m_env) {
+            m_shutdown_requested = false;
+            return false;
+        }
+        if (current_thread_has_txn_handle()) {
+            throw std::logic_error("Cannot shutdown from a thread with an open transaction handle.");
+        }
+        m_shutdown_requested = true;
+        return true;
     }
     
     inline void Connection::db_init() {
@@ -201,7 +255,9 @@ namespace mdbxc {
 #           endif
 #       endif
         }
-        create_directories(pathname);
+        if (!m_config->read_only) {
+            create_directories(pathname);
+        }
 
 #ifdef _WIN32
 #   if __cplusplus >= 201703L
