@@ -117,23 +117,22 @@ namespace mdbxc {
             MDBX_txn* txn = m_txn;
             const int rc = mdbx_txn_commit(txn);
 
-            if (rc == MDBX_SUCCESS) {
-                m_registry->unbind_txn(txn);
-                m_registry->unregister_txn_handle();
-                m_txn = nullptr;
-                m_started = false;
-                break;
-            }
-
             if (rc == MDBX_THREAD_MISMATCH) {
                 check_mdbx(rc, "Failed to commit writable transaction");
             }
 
-            m_registry->unbind_txn(txn);
-            m_registry->unregister_txn_handle();
+            // MDBX_SUCCESS or any other error: the native handle is already
+            // terminated (or we threw above for THREAD_MISMATCH). Null the
+            // wrapper state before tracker cleanup so that a tracker throw
+            // does not cause a double-abort in the destructor.
             m_txn = nullptr;
             m_started = false;
+
+            m_registry->unbind_txn(txn);
+            m_registry->unregister_txn_handle();
+
             check_mdbx(rc, "Failed to commit writable transaction");
+            break;
         }
         };
     }
