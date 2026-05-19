@@ -518,41 +518,52 @@ namespace mdbxc {
             return id;
         }
 
+        struct CursorGuard {
+            MDBX_cursor* m_cursor;
+            explicit CursorGuard(MDBX_cursor* c) : m_cursor(c) {}
+            ~CursorGuard() noexcept { close(); }
+            void close() noexcept {
+                if (m_cursor) {
+                    mdbx_cursor_close(m_cursor);
+                    m_cursor = nullptr;
+                }
+            }
+            MDBX_cursor* get() const noexcept { return m_cursor; }
+            CursorGuard(const CursorGuard&) = delete;
+            CursorGuard& operator=(const CursorGuard&) = delete;
+            CursorGuard(CursorGuard&&) = delete;
+            CursorGuard& operator=(CursorGuard&&) = delete;
+        };
+
         static MDBX_val make_key(uint64_t id, SerializeScratch& sc) {
             return serialize_key<true>(id, sc);
         }
 
         uint64_t db_append(const ValueT& value, MDBX_txn* txn) {
             uint64_t next_id = 0;
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor),
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
                        "Failed to open cursor for append");
-            try {
-                MDBX_val db_key, db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_LAST);
-                if (rc == MDBX_SUCCESS) {
-                    uint64_t last_id = read_index_key(db_key);
-                    if (last_id == std::numeric_limits<uint64_t>::max()) {
-                        mdbx_cursor_close(cursor);
-                        cursor = nullptr;
-                        throw std::overflow_error("SequenceTable::append: id overflow");
-                    }
-                    next_id = last_id + 1;
-                } else if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to seek last key in SequenceTable");
+            CursorGuard cursor(raw);
+
+            MDBX_val db_key, db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_LAST);
+            if (rc == MDBX_SUCCESS) {
+                uint64_t last_id = read_index_key(db_key);
+                if (last_id == std::numeric_limits<uint64_t>::max()) {
+                    throw std::overflow_error("SequenceTable::append: id overflow");
                 }
-                mdbx_cursor_close(cursor);
-                cursor = nullptr;
-            } catch (...) {
-                if (cursor) mdbx_cursor_close(cursor);
-                throw;
+                next_id = last_id + 1;
+            } else if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to seek last key in SequenceTable");
             }
+            cursor.close();
 
             SerializeScratch sc_key;
             SerializeScratch sc_value;
-            MDBX_val db_key = make_key(next_id, sc_key);
-            MDBX_val db_val = serialize_value(value, sc_value);
-            int rc = mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
+            db_key = make_key(next_id, sc_key);
+            db_val = serialize_value(value, sc_value);
+            rc = mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
             if (rc == MDBX_KEYEXIST) {
                 throw std::runtime_error(
                     "SequenceTable::append: computed next index already exists; "
@@ -616,94 +627,72 @@ namespace mdbxc {
         }
 
         std::pair<bool, uint64_t> db_first_index(MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor),
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
                        "Failed to open cursor for first_index");
-            try {
-                MDBX_val db_key, db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_FIRST);
-                if (rc == MDBX_SUCCESS) {
-                    uint64_t id = read_index_key(db_key);
-                    mdbx_cursor_close(cursor);
-                    return std::make_pair(true, id);
-                } else if (rc == MDBX_NOTFOUND) {
-                    mdbx_cursor_close(cursor);
-                    return std::make_pair(false, uint64_t(0));
-                }
-                check_mdbx(rc, "Failed to seek first key");
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                if (cursor) mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor(raw);
+
+            MDBX_val db_key, db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_FIRST);
+            if (rc == MDBX_SUCCESS) {
+                return std::make_pair(true, read_index_key(db_key));
+            } else if (rc == MDBX_NOTFOUND) {
+                return std::make_pair(false, uint64_t(0));
             }
+            check_mdbx(rc, "Failed to seek first key");
             return std::make_pair(false, uint64_t(0));
         }
 
         std::pair<bool, uint64_t> db_last_index(MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor),
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
                        "Failed to open cursor for last_index");
-            try {
-                MDBX_val db_key, db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_LAST);
-                if (rc == MDBX_SUCCESS) {
-                    uint64_t id = read_index_key(db_key);
-                    mdbx_cursor_close(cursor);
-                    return std::make_pair(true, id);
-                } else if (rc == MDBX_NOTFOUND) {
-                    mdbx_cursor_close(cursor);
-                    return std::make_pair(false, uint64_t(0));
-                }
-                check_mdbx(rc, "Failed to seek last key");
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                if (cursor) mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor(raw);
+
+            MDBX_val db_key, db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_LAST);
+            if (rc == MDBX_SUCCESS) {
+                return std::make_pair(true, read_index_key(db_key));
+            } else if (rc == MDBX_NOTFOUND) {
+                return std::make_pair(false, uint64_t(0));
             }
+            check_mdbx(rc, "Failed to seek last key");
             return std::make_pair(false, uint64_t(0));
         }
 
         void db_load(std::vector<ValueT>& values, MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor),
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
                        "Failed to open cursor for load");
-            try {
-                MDBX_val db_key, db_val;
-                int rc = MDBX_SUCCESS;
-                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT))
-                       == MDBX_SUCCESS) {
-                    values.push_back(deserialize_value<ValueT>(db_val));
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to iterate sequence table");
-                }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                if (cursor) mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor(raw);
+
+            MDBX_val db_key, db_val;
+            int rc = MDBX_SUCCESS;
+            while ((rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT))
+                   == MDBX_SUCCESS) {
+                values.push_back(deserialize_value<ValueT>(db_val));
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to iterate sequence table");
             }
         }
 
         void db_load_entries(std::vector<std::pair<uint64_t, ValueT>>& entries,
                              MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor),
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
                        "Failed to open cursor for load_entries");
-            try {
-                MDBX_val db_key, db_val;
-                int rc = MDBX_SUCCESS;
-                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT))
-                       == MDBX_SUCCESS) {
-                    uint64_t id = read_index_key(db_key);
-                    entries.push_back(std::make_pair(id, deserialize_value<ValueT>(db_val)));
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to iterate sequence table");
-                }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                if (cursor) mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor(raw);
+
+            MDBX_val db_key, db_val;
+            int rc = MDBX_SUCCESS;
+            while ((rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT))
+                   == MDBX_SUCCESS) {
+                uint64_t id = read_index_key(db_key);
+                entries.push_back(std::make_pair(id, deserialize_value<ValueT>(db_val)));
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to iterate sequence table");
             }
         }
 
@@ -712,27 +701,23 @@ namespace mdbxc {
             std::vector<std::pair<uint64_t, ValueT>> result;
             if (from > to) return result;
 
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor),
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
                        "Failed to open cursor for range");
-            try {
-                SerializeScratch sc_key;
-                MDBX_val db_key = make_key(from, sc_key);
-                MDBX_val db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_RANGE);
-                while (rc == MDBX_SUCCESS) {
-                    uint64_t id = read_index_key(db_key);
-                    if (id > to) break;
-                    result.push_back(std::make_pair(id, deserialize_value<ValueT>(db_val)));
-                    rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT);
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to iterate range");
-                }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                if (cursor) mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor(raw);
+
+            SerializeScratch sc_key;
+            MDBX_val db_key = make_key(from, sc_key);
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            while (rc == MDBX_SUCCESS) {
+                uint64_t id = read_index_key(db_key);
+                if (id > to) break;
+                result.push_back(std::make_pair(id, deserialize_value<ValueT>(db_val)));
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to iterate range");
             }
             return result;
         }
