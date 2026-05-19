@@ -31,13 +31,24 @@ namespace mdbxc {
         m_txn = nullptr;
         m_started = false;
 
-        if (registry && txn && was_started) {
-            registry->unbind_txn(txn);
-        }
         if (txn) {
-            mdbx_txn_abort(txn);
-            if (registry) {
+            const int rc = mdbx_txn_abort(txn);
+            (void)rc;
+        }
+
+        if (registry && txn && was_started) {
+            try {
+                registry->unbind_txn(txn);
+            } catch (...) {
+                assert(!"TransactionTracker::unbind_txn() failed in noexcept cleanup");
+            }
+        }
+
+        if (registry && txn) {
+            try {
                 registry->unregister_txn_handle();
+            } catch (...) {
+                assert(!"TransactionTracker::unregister_txn_handle() failed in noexcept cleanup");
             }
         }
     }
@@ -112,7 +123,6 @@ namespace mdbxc {
         } catch (...) {
             if (m_txn) {
                 MDBX_txn* txn = m_txn;
-                mdbx_txn_abort(txn);
                 m_registry->unbind_txn(txn);
                 m_registry->unregister_txn_handle();
                 m_txn = nullptr;

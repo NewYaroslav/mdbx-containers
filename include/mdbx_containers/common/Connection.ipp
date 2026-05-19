@@ -3,6 +3,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <cassert>
 
 #if __cplusplus < 202002L
 # include <codecvt>
@@ -23,6 +24,7 @@ namespace mdbxc {
 
     inline Connection::~Connection() {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        assert(!has_txn_handles() && "Destroying Connection with live transaction handles");
         cleanup(false);
     }
 
@@ -119,7 +121,12 @@ namespace mdbxc {
         if (it == m_transactions.end()) {
             throw std::logic_error("No transaction for this thread.");
         }
-        it->second->commit();
+        try {
+            it->second->commit();
+        } catch (...) {
+            m_transactions.erase(it);
+            throw;
+        }
         m_transactions.erase(it);
     }
 

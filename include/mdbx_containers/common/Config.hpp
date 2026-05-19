@@ -5,6 +5,8 @@
 /// \file Config.hpp
 /// \brief Configuration options used when opening an MDBX environment.
 
+#include <limits>
+
 namespace mdbxc {
 
     /// \class Config
@@ -39,10 +41,18 @@ namespace mdbxc {
         /// \brief Validate the MDBX configuration.
         /// \return True if the configuration is valid, false otherwise.
         bool validate() const {
-            const bool page_ok = (page_size == 0) || ((page_size & (page_size - 1)) == 0);
-            const bool size_ok = (size_lower <= size_now || size_now == -1) &&
-                                 (size_now <= size_upper || size_now == -1);
-            return !pathname.empty() && page_ok && size_ok;
+            const bool page_ok =
+                (page_size == 0) ||
+                (page_size >= 256 && page_size <= 65536 &&
+                 (page_size & (page_size - 1)) == 0);
+            const bool size_ok =
+                (size_lower <= size_now || size_now == -1) &&
+                (size_now <= size_upper || size_now == -1);
+            const bool readers_ok =
+                max_readers >= 0 &&
+                max_readers <= static_cast<int64_t>(std::numeric_limits<int>::max());
+            const bool dbs_ok = max_dbs >= 1;
+            return !pathname.empty() && page_ok && size_ok && readers_ok && dbs_ok;
         }
     };
 
