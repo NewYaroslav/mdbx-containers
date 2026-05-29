@@ -190,15 +190,20 @@ namespace mdbxc {
         }
 
         /// \brief Retrieves key-value pairs within an inclusive key range.
+        /// \tparam ContainerT Container type storing pairs.
         /// \param from_key Start key in MDBX key order.
         /// \param to_key End key in MDBX key order.
         /// \param txn Optional transaction handle.
-        /// \return Vector of key-value pairs in MDBX key order.
+        /// \return Container with key-value pairs from the requested range.
         /// \throws MdbxException if a database error occurs.
+        /// \note The default \c std::multimap preserves multiple values for one
+        ///       key. Use \c range_vector() to preserve every physical pair as a
+        ///       vector element.
         /// \complexity O(log n + m), where m is the number of returned pairs.
-        std::vector<value_type> range(const KeyT& from_key, const KeyT& to_key,
-                                      MDBX_txn* txn = nullptr) const {
-            std::vector<value_type> pairs;
+        template<template<class...> class ContainerT = std::multimap>
+        ContainerT<KeyT, ValueT> range(const KeyT& from_key, const KeyT& to_key,
+                                       MDBX_txn* txn = nullptr) const {
+            ContainerT<KeyT, ValueT> pairs;
             with_transaction([this, &from_key, &to_key, &pairs](MDBX_txn* t) {
                 db_range(from_key, to_key, pairs, t);
             }, TransactionMode::READ_ONLY, txn);
@@ -206,27 +211,61 @@ namespace mdbxc {
         }
 
         /// \brief Retrieves key-value pairs within an inclusive key range.
+        /// \tparam ContainerT Container type storing pairs.
         /// \param from_key Start key in MDBX key order.
         /// \param to_key End key in MDBX key order.
         /// \param txn Active transaction wrapper.
-        /// \return Vector of key-value pairs in MDBX key order.
+        /// \return Container with key-value pairs from the requested range.
         /// \throws MdbxException if a database error occurs.
         /// \complexity O(log n + m), where m is the number of returned pairs.
-        std::vector<value_type> range(const KeyT& from_key, const KeyT& to_key,
-                                      const Transaction& txn) const {
-            return range(from_key, to_key, txn.handle());
+        template<template<class...> class ContainerT = std::multimap>
+        ContainerT<KeyT, ValueT> range(const KeyT& from_key, const KeyT& to_key,
+                                       const Transaction& txn) const {
+            return range<ContainerT>(from_key, to_key, txn.handle());
         }
 
-        /// \brief Retrieves values whose keys are within an inclusive key range.
+        /// \brief Retrieves key-value pairs within an inclusive key range into a vector.
         /// \param from_key Start key in MDBX key order.
         /// \param to_key End key in MDBX key order.
         /// \param txn Optional transaction handle.
-        /// \return Vector of values in MDBX key order.
+        /// \return Vector containing every physical pair in MDBX key order.
         /// \throws MdbxException if a database error occurs.
+        /// \complexity O(log n + m), where m is the number of returned pairs.
+        std::vector<value_type> range_vector(const KeyT& from_key, const KeyT& to_key,
+                                             MDBX_txn* txn = nullptr) const {
+            std::vector<value_type> pairs;
+            with_transaction([this, &from_key, &to_key, &pairs](MDBX_txn* t) {
+                db_range(from_key, to_key, pairs, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return pairs;
+        }
+
+        /// \brief Retrieves key-value pairs within an inclusive key range into a vector.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Active transaction wrapper.
+        /// \return Vector containing every physical pair in MDBX key order.
+        /// \throws MdbxException if a database error occurs.
+        /// \complexity O(log n + m), where m is the number of returned pairs.
+        std::vector<value_type> range_vector(const KeyT& from_key, const KeyT& to_key,
+                                             const Transaction& txn) const {
+            return range_vector(from_key, to_key, txn.handle());
+        }
+
+        /// \brief Retrieves values whose keys are within an inclusive key range.
+        /// \tparam ContainerT Container type storing values.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Optional transaction handle.
+        /// \return Container with values from the requested range.
+        /// \throws MdbxException if a database error occurs.
+        /// \note The default \c std::vector preserves MDBX iteration order and
+        ///       duplicate values. Associative containers apply their own rules.
         /// \complexity O(log n + m), where m is the number of returned values.
-        std::vector<ValueT> range_values(const KeyT& from_key, const KeyT& to_key,
-                                         MDBX_txn* txn = nullptr) const {
-            std::vector<ValueT> values;
+        template<template<class...> class ContainerT = std::vector>
+        ContainerT<ValueT> range_values(const KeyT& from_key, const KeyT& to_key,
+                                        MDBX_txn* txn = nullptr) const {
+            ContainerT<ValueT> values;
             with_transaction([this, &from_key, &to_key, &values](MDBX_txn* t) {
                 db_range_values(from_key, to_key, values, t);
             }, TransactionMode::READ_ONLY, txn);
@@ -234,15 +273,17 @@ namespace mdbxc {
         }
 
         /// \brief Retrieves values whose keys are within an inclusive key range.
+        /// \tparam ContainerT Container type storing values.
         /// \param from_key Start key in MDBX key order.
         /// \param to_key End key in MDBX key order.
         /// \param txn Active transaction wrapper.
-        /// \return Vector of values in MDBX key order.
+        /// \return Container with values from the requested range.
         /// \throws MdbxException if a database error occurs.
         /// \complexity O(log n + m), where m is the number of returned values.
-        std::vector<ValueT> range_values(const KeyT& from_key, const KeyT& to_key,
-                                         const Transaction& txn) const {
-            return range_values(from_key, to_key, txn.handle());
+        template<template<class...> class ContainerT = std::vector>
+        ContainerT<ValueT> range_values(const KeyT& from_key, const KeyT& to_key,
+                                        const Transaction& txn) const {
+            return range_values<ContainerT>(from_key, to_key, txn.handle());
         }
 
         /// \brief Appends pairs to the table.
@@ -690,77 +731,62 @@ namespace mdbxc {
         }
 
         uint64_t next_sequence(const KeyT& key, MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                SerializeScratch sc_key;
-                MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
-                MDBX_val db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_KEY);
-                if (rc == MDBX_NOTFOUND) {
-                    mdbx_cursor_close(cursor);
-                    return 0;
-                }
-                check_mdbx(rc, "Failed to seek key");
-                rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_LAST_DUP);
-                check_mdbx(rc, "Failed to seek last value");
-                uint64_t last = decode_sequence(db_val);
-                if (last == std::numeric_limits<uint64_t>::max()) {
-                    throw std::overflow_error("Per-key multi-value sequence exhausted");
-                }
-                mdbx_cursor_close(cursor);
-                return last + 1;
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_KEY);
+            if (rc == MDBX_NOTFOUND) {
+                return 0;
             }
+            check_mdbx(rc, "Failed to seek key");
+            rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_LAST_DUP);
+            check_mdbx(rc, "Failed to seek last value");
+            uint64_t last = decode_sequence(db_val);
+            if (last == std::numeric_limits<uint64_t>::max()) {
+                throw std::overflow_error("Per-key multi-value sequence exhausted");
+            }
+            return last + 1;
         }
 
         template<template<class...> class ContainerT>
         void db_load(ContainerT<KeyT, ValueT>& container, MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                MDBX_val db_key, db_val;
-                int rc = MDBX_SUCCESS;
-                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
-                    KeyT key = deserialize_key<KeyT>(db_key);
-                    ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
-                    container.emplace(std::move(key), std::move(value));
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to read multi-value table");
-                }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key, db_val;
+            int rc = MDBX_SUCCESS;
+            while ((rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                KeyT key = deserialize_key<KeyT>(db_key);
+                ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
+                container.emplace(std::move(key), std::move(value));
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to read multi-value table");
             }
         }
 
         void db_load(std::vector<value_type>& container, MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                MDBX_val db_key, db_val;
-                int rc = MDBX_SUCCESS;
-                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
-                    KeyT key = deserialize_key<KeyT>(db_key);
-                    ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
-                    container.emplace_back(std::move(key), std::move(value));
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to read multi-value table");
-                }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key, db_val;
+            int rc = MDBX_SUCCESS;
+            while ((rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                KeyT key = deserialize_key<KeyT>(db_key);
+                ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
+                container.emplace_back(std::move(key), std::move(value));
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to read multi-value table");
             }
         }
 
+        template<class ContainerT>
         void db_range(const KeyT& from_key, const KeyT& to_key,
-                      std::vector<value_type>& pairs, MDBX_txn* txn) const {
+                      ContainerT& pairs, MDBX_txn* txn) const {
             SerializeScratch sc_from_key;
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
@@ -781,7 +807,7 @@ namespace mdbxc {
                 }
                 KeyT key = deserialize_key<KeyT>(db_key);
                 ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
-                pairs.emplace_back(std::move(key), std::move(value));
+                pairs.insert(pairs.end(), value_type(std::move(key), std::move(value)));
                 rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
             }
             if (!stopped_by_upper_bound && rc != MDBX_NOTFOUND) {
@@ -789,8 +815,9 @@ namespace mdbxc {
             }
         }
 
+        template<class ContainerT>
         void db_range_values(const KeyT& from_key, const KeyT& to_key,
-                             std::vector<ValueT>& values, MDBX_txn* txn) const {
+                             ContainerT& values, MDBX_txn* txn) const {
             SerializeScratch sc_from_key;
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
@@ -809,7 +836,7 @@ namespace mdbxc {
                     stopped_by_upper_bound = true;
                     break;
                 }
-                values.emplace_back(deserialize_value<ValueT>(strip_sequence(db_val)));
+                values.insert(values.end(), deserialize_value<ValueT>(strip_sequence(db_val)));
                 rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
             }
             if (!stopped_by_upper_bound && rc != MDBX_NOTFOUND) {
@@ -863,27 +890,24 @@ namespace mdbxc {
             collect_reconcile_entries(container, entries, desired);
 
             PairCountMap kept;
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
+            {
+                CursorGuard cursor;
+                check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
                 MDBX_val db_key, db_val;
                 int rc = MDBX_SUCCESS;
-                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                while ((rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
                     SerializedPairKey serialized = make_serialized_pair_key(db_key, db_val);
                     typename PairCountMap::const_iterator desired_it = desired.find(serialized);
                     if (desired_it != desired.end() && kept[serialized] < desired_it->second) {
                         ++kept[serialized];
                     } else {
-                        check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to erase surplus record");
+                        check_mdbx(mdbx_cursor_del(cursor.get(), MDBX_CURRENT), "Failed to erase surplus record");
                     }
                 }
                 if (rc != MDBX_NOTFOUND) {
                     check_mdbx(rc, "Failed to scan multi-value table");
                 }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
             }
 
             PairCountMap inserted;
@@ -917,29 +941,23 @@ namespace mdbxc {
         }
 
         void db_find(const KeyT& key, std::vector<ValueT>& values, MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                SerializeScratch sc_key;
-                MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
-                MDBX_val db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_KEY);
-                if (rc == MDBX_NOTFOUND) {
-                    mdbx_cursor_close(cursor);
-                    return;
-                }
-                check_mdbx(rc, "Failed to seek key");
-                while (rc == MDBX_SUCCESS) {
-                    values.emplace_back(deserialize_value<ValueT>(strip_sequence(db_val)));
-                    rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT_DUP);
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to read duplicate values");
-                }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_KEY);
+            if (rc == MDBX_NOTFOUND) {
+                return;
+            }
+            check_mdbx(rc, "Failed to seek key");
+            while (rc == MDBX_SUCCESS) {
+                values.emplace_back(deserialize_value<ValueT>(strip_sequence(db_val)));
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT_DUP);
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to read duplicate values");
             }
         }
 
@@ -965,59 +983,47 @@ namespace mdbxc {
         }
 
         std::size_t db_count_key(const KeyT& key, MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                SerializeScratch sc_key;
-                MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
-                MDBX_val db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_KEY);
-                if (rc == MDBX_NOTFOUND) {
-                    mdbx_cursor_close(cursor);
-                    return 0;
-                }
-                check_mdbx(rc, "Failed to seek key");
-                size_t found = 0;
-                check_mdbx(mdbx_cursor_count(cursor, &found), "Failed to count duplicate values");
-                mdbx_cursor_close(cursor);
-                return found;
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_KEY);
+            if (rc == MDBX_NOTFOUND) {
+                return 0;
             }
+            check_mdbx(rc, "Failed to seek key");
+            size_t found = 0;
+            check_mdbx(mdbx_cursor_count(cursor.get(), &found), "Failed to count duplicate values");
+            return found;
         }
 
         std::size_t db_count_pair(const KeyT& key, const ValueT& value, MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                SerializeScratch sc_key;
-                SerializeScratch sc_value;
-                MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
-                MDBX_val raw_value = make_comparable_value(value, sc_value);
-                MDBX_val db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_KEY);
-                if (rc == MDBX_NOTFOUND) {
-                    mdbx_cursor_close(cursor);
-                    return 0;
-                }
-                check_mdbx(rc, "Failed to seek key");
-                std::size_t found = 0;
-                while (rc == MDBX_SUCCESS) {
-                    if (stored_value_matches(db_val, raw_value)) {
-                        ++found;
-                    }
-                    rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT_DUP);
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to scan duplicate values");
-                }
-                mdbx_cursor_close(cursor);
-                return found;
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
+            MDBX_val raw_value = make_comparable_value(value, sc_value);
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_KEY);
+            if (rc == MDBX_NOTFOUND) {
+                return 0;
             }
+            check_mdbx(rc, "Failed to seek key");
+            std::size_t found = 0;
+            while (rc == MDBX_SUCCESS) {
+                if (stored_value_matches(db_val, raw_value)) {
+                    ++found;
+                }
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT_DUP);
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to scan duplicate values");
+            }
+            return found;
         }
 
         bool db_erase_key(const KeyT& key, MDBX_txn* txn) {
@@ -1031,38 +1037,32 @@ namespace mdbxc {
         }
 
         std::size_t db_erase_pair(const KeyT& key, const ValueT& value, MDBX_txn* txn) {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                SerializeScratch sc_key;
-                SerializeScratch sc_value;
-                MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
-                MDBX_val raw_value = make_comparable_value(value, sc_value);
-                MDBX_val db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_KEY);
-                if (rc == MDBX_NOTFOUND) {
-                    mdbx_cursor_close(cursor);
-                    return 0;
-                }
-                check_mdbx(rc, "Failed to seek key");
-                std::size_t removed = 0;
-                while (rc == MDBX_SUCCESS) {
-                    bool should_remove = stored_value_matches(db_val, raw_value);
-                    if (should_remove) {
-                        check_mdbx(mdbx_cursor_del(cursor, MDBX_CURRENT), "Failed to erase duplicate value");
-                        ++removed;
-                    }
-                    rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT_DUP);
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to scan duplicate values");
-                }
-                mdbx_cursor_close(cursor);
-                return removed;
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            SerializeScratch sc_key;
+            SerializeScratch sc_value;
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
+            MDBX_val raw_value = make_comparable_value(value, sc_value);
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_KEY);
+            if (rc == MDBX_NOTFOUND) {
+                return 0;
             }
+            check_mdbx(rc, "Failed to seek key");
+            std::size_t removed = 0;
+            while (rc == MDBX_SUCCESS) {
+                bool should_remove = stored_value_matches(db_val, raw_value);
+                if (should_remove) {
+                    check_mdbx(mdbx_cursor_del(cursor.get(), MDBX_CURRENT), "Failed to erase duplicate value");
+                    ++removed;
+                }
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT_DUP);
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to scan duplicate values");
+            }
+            return removed;
         }
 
         void db_clear(MDBX_txn* txn) {

@@ -110,19 +110,19 @@ namespace mdbxc {
 
     protected:
         struct CursorGuard {
-            MDBX_cursor* m_cursor;
+            MDBX_cursor* cursor;
 
-            CursorGuard() noexcept : m_cursor(nullptr) {}
-            explicit CursorGuard(MDBX_cursor* cursor) noexcept : m_cursor(cursor) {}
+            CursorGuard() noexcept : cursor(nullptr) {}
+            explicit CursorGuard(MDBX_cursor* cursor_handle) noexcept : cursor(cursor_handle) {}
             ~CursorGuard() noexcept { close(); }
 
-            MDBX_cursor** out() noexcept { return &m_cursor; }
-            MDBX_cursor* get() const noexcept { return m_cursor; }
+            MDBX_cursor** out() noexcept { return &cursor; }
+            MDBX_cursor* get() const noexcept { return cursor; }
 
             void close() noexcept {
-                if (m_cursor) {
-                    mdbx_cursor_close(m_cursor);
-                    m_cursor = nullptr;
+                if (cursor) {
+                    mdbx_cursor_close(cursor);
+                    cursor = nullptr;
                 }
             }
 

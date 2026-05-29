@@ -35,9 +35,11 @@ int main() {
         assert(as_vector.size() == 2);
 
         assert(table.range("alpha", "beta") ==
+               (std::set<std::string>{"alpha", "beta"}));
+        assert(table.range<std::vector>("alpha", "beta") ==
                (std::vector<std::string>{"alpha", "beta"}));
         assert(table.range("aardvark", "alpha") ==
-               (std::vector<std::string>{"alpha"}));
+               (std::set<std::string>{"alpha"}));
         assert(table.range("gamma", "omega").empty());
         assert(table.range("zeta", "alpha").empty());
 
@@ -70,7 +72,8 @@ int main() {
         auto read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
         assert(table.contains(1, read_txn));
         assert(table.count(read_txn) == 2);
-        assert(table.range(1, 2, read_txn) == (std::vector<int>{1, 2}));
+        assert(table.range(1, 2, read_txn) == (std::set<int>{1, 2}));
+        assert(table.range<std::vector>(1, 2, read_txn) == (std::vector<int>{1, 2}));
         read_txn.commit();
     }
 
@@ -82,8 +85,8 @@ int main() {
         assert(fast_table.contains(11));
         assert(fast_table.insert(12));
         assert(safe_table.contains(12));
-        assert(safe_table.range(10, 12) == (std::vector<int>{11, 12}));
-        assert(fast_table.range(12, 12) == (std::vector<int>{12}));
+        assert(safe_table.range(10, 12) == (std::set<int>{11, 12}));
+        assert(fast_table.range(12, 12) == (std::set<int>{12}));
     }
 
     std::cout << "KeyTable test passed.\n";

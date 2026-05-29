@@ -142,6 +142,22 @@ int main() {
 }
 ```
 
+### Сканирование диапазонов
+
+`range()` использует тот же стиль контейнеров, что `retrieve_all()` и
+`operator()()`: `KeyTable` по умолчанию возвращает `std::set`, `KeyValueTable`
+возвращает `std::map`, а `KeyMultiValueTable` возвращает `std::multimap`.
+Для упорядоченного результата в `KeyTable` и `KeyValueTable` используйте
+`range<std::vector>()`; для всех физических пар `KeyMultiValueTable` используйте
+`range_vector()`. `range_values()` по умолчанию возвращает `std::vector`, но
+может заполнять и другие контейнеры, например `std::set`.
+
+```cpp
+auto by_key = table.range(10, 20);
+auto ordered_pairs = table.range<std::vector>(10, 20);
+auto unique_values = table.range_values<std::set>(10, 20);
+```
+
 ### Hash-indexed key-value store
 
 ```cpp

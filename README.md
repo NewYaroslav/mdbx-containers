@@ -114,6 +114,22 @@ int main() {
 }
 ```
 
+### Range scans
+
+`range()` follows the same container style as `retrieve_all()` and `operator()()`:
+`KeyTable` defaults to `std::set`, `KeyValueTable` defaults to `std::map`, and
+`KeyMultiValueTable` defaults to `std::multimap`. Use `range<std::vector>()`
+for ordered key or key-value results in `KeyTable` and `KeyValueTable`; use
+`range_vector()` when every physical `KeyMultiValueTable` pair must remain
+visible as a vector element. `range_values()` defaults to `std::vector` and can
+also target containers such as `std::set`.
+
+```cpp
+auto by_key = table.range(10, 20);
+auto ordered_pairs = table.range<std::vector>(10, 20);
+auto unique_values = table.range_values<std::set>(10, 20);
+```
+
 ### Hash-indexed key-value store
 
 ```cpp
