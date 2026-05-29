@@ -850,15 +850,19 @@ namespace mdbxc {
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
+            bool stopped_by_upper_bound = false;
             int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
             while (rc == MDBX_SUCCESS) {
-                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) break;
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) {
+                    stopped_by_upper_bound = true;
+                    break;
+                }
                 KeyT key = deserialize_key<KeyT>(db_key);
                 ValueT value = deserialize_value<ValueT>(db_val);
                 pairs.emplace_back(std::move(key), std::move(value));
                 rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
             }
-            if (rc != MDBX_NOTFOUND) {
+            if (!stopped_by_upper_bound && rc != MDBX_NOTFOUND) {
                 check_mdbx(rc, "Failed to read key-value range");
             }
         }
@@ -876,13 +880,17 @@ namespace mdbxc {
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
+            bool stopped_by_upper_bound = false;
             int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
             while (rc == MDBX_SUCCESS) {
-                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) break;
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) {
+                    stopped_by_upper_bound = true;
+                    break;
+                }
                 values.emplace_back(deserialize_value<ValueT>(db_val));
                 rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
             }
-            if (rc != MDBX_NOTFOUND) {
+            if (!stopped_by_upper_bound && rc != MDBX_NOTFOUND) {
                 check_mdbx(rc, "Failed to read key-value range values");
             }
         }

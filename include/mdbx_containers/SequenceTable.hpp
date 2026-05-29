@@ -692,14 +692,18 @@ namespace mdbxc {
             SerializeScratch sc_key;
             MDBX_val db_key = make_key(from, sc_key);
             MDBX_val db_val;
+            bool stopped_by_upper_bound = false;
             int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
             while (rc == MDBX_SUCCESS) {
                 uint64_t id = read_index_key(db_key);
-                if (id > to) break;
+                if (id > to) {
+                    stopped_by_upper_bound = true;
+                    break;
+                }
                 result.push_back(std::make_pair(id, deserialize_value<ValueT>(db_val)));
                 rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
             }
-            if (rc != MDBX_NOTFOUND) {
+            if (!stopped_by_upper_bound && rc != MDBX_NOTFOUND) {
                 check_mdbx(rc, "Failed to iterate range");
             }
             return result;
