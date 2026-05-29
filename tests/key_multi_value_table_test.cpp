@@ -112,6 +112,26 @@ int main() {
     }
 
     {
+        mdbxc::KeyMultiValueTable<int, std::string> table(conn, "multi_key_range");
+        table.clear();
+
+        table.insert(1, "a");
+        table.insert(1, "b");
+        table.insert(2, "c");
+        table.insert(2, "d");
+        table.insert(3, "e");
+
+        std::vector<std::pair<int, std::string> > expected_pairs;
+        expected_pairs.push_back(std::make_pair(1, std::string("a")));
+        expected_pairs.push_back(std::make_pair(1, std::string("b")));
+        expected_pairs.push_back(std::make_pair(2, std::string("c")));
+        expected_pairs.push_back(std::make_pair(2, std::string("d")));
+        assert_vector_equal(table.range(1, 2), expected_pairs);
+        assert_vector_equal(table.range_values(1, 2),
+                            std::vector<std::string>{"a", "b", "c", "d"});
+    }
+
+    {
         mdbxc::KeyMultiValueTable<int, std::string> table(conn, "manual_multi_values");
         table.clear();
 
