@@ -122,6 +122,40 @@ namespace mdbxc {
             return retrieve_all<ContainerT>(txn.handle());
         }
 
+        /// \brief Retrieves keys within an inclusive key range.
+        /// \tparam ContainerT Container type storing keys.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Optional transaction handle.
+        /// \return Container with keys from the requested range.
+        /// \throws MdbxException if a database error occurs.
+        /// \note The default \c std::set preserves key-only table semantics.
+        ///       Use \c range<std::vector>() to preserve MDBX iteration order.
+        /// \complexity O(log n + m), where m is the number of returned keys.
+        template<template<class...> class ContainerT = std::set>
+        ContainerT<KeyT> range(const KeyT& from_key, const KeyT& to_key,
+                               MDBX_txn* txn = nullptr) const {
+            ContainerT<KeyT> out;
+            with_transaction([this, &from_key, &to_key, &out](MDBX_txn* t) {
+                db_range(from_key, to_key, out, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return out;
+        }
+
+        /// \brief Retrieves keys within an inclusive key range.
+        /// \tparam ContainerT Container type storing keys.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Active transaction wrapper.
+        /// \return Container with keys from the requested range.
+        /// \throws MdbxException if a database error occurs.
+        /// \complexity O(log n + m), where m is the number of returned keys.
+        template<template<class...> class ContainerT = std::set>
+        ContainerT<KeyT> range(const KeyT& from_key, const KeyT& to_key,
+                               const Transaction& txn) const {
+            return range<ContainerT>(from_key, to_key, txn.handle());
+        }
+
         /// \brief Appends keys to the table.
         /// \tparam ContainerT Container type storing keys.
         /// \param container Source keys.
@@ -307,21 +341,45 @@ namespace mdbxc {
 
         template<template<class...> class ContainerT>
         void db_load(ContainerT<KeyT>& container, MDBX_txn* txn) const {
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                MDBX_val db_key, db_val;
-                int rc = MDBX_SUCCESS;
-                while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
-                    container.insert(container.end(), deserialize_value<KeyT>(db_key));
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key, db_val;
+            int rc = MDBX_SUCCESS;
+            while ((rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
+                container.insert(container.end(), deserialize_key<KeyT>(db_key));
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to read key table");
+            }
+        }
+
+        template<class ContainerT>
+        void db_range(const KeyT& from_key, const KeyT& to_key,
+                      ContainerT& out, MDBX_txn* txn) const {
+            SerializeScratch sc_from_key;
+            SerializeScratch sc_to_key;
+            MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
+            MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key = db_from_key;
+            MDBX_val db_val;
+            bool stopped_by_upper_bound = false;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            while (rc == MDBX_SUCCESS) {
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) {
+                    stopped_by_upper_bound = true;
+                    break;
                 }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to read key table");
-                }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+                out.insert(out.end(), deserialize_key<KeyT>(db_key));
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
+            }
+            if (!stopped_by_upper_bound && rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to read key range");
             }
         }
 

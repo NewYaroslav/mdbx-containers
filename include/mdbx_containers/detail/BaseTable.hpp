@@ -109,6 +109,29 @@ namespace mdbxc {
         }
 
     protected:
+        struct CursorGuard {
+            MDBX_cursor* cursor;
+
+            CursorGuard() noexcept : cursor(nullptr) {}
+            explicit CursorGuard(MDBX_cursor* cursor_handle) noexcept : cursor(cursor_handle) {}
+            ~CursorGuard() noexcept { close(); }
+
+            MDBX_cursor** out() noexcept { return &cursor; }
+            MDBX_cursor* get() const noexcept { return cursor; }
+
+            void close() noexcept {
+                if (cursor) {
+                    mdbx_cursor_close(cursor);
+                    cursor = nullptr;
+                }
+            }
+
+            CursorGuard(const CursorGuard&) = delete;
+            CursorGuard& operator=(const CursorGuard&) = delete;
+            CursorGuard(CursorGuard&&) = delete;
+            CursorGuard& operator=(CursorGuard&&) = delete;
+        };
+
         std::shared_ptr<Connection>  m_connection;   ///< Shared connection to MDBX environment.
         MDBX_dbi                     m_dbi{};         ///< DBI handle for the opened table.
 

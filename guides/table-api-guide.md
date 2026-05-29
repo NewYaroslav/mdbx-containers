@@ -127,6 +127,12 @@ Read/meta methods:
 - `find(key)` returns `std::optional<ValueT>` in C++17.
 - `find(key)` in C++11 returns `std::pair<bool, ValueT>`.
 - `find_compat(key)` is the pair-based compatibility form.
+- `range(from_key, to_key)` returns key-value pairs inside an inclusive key
+  range using a cursor scan. It defaults to `std::map`; use
+  `range<std::vector>()` for MDBX iteration-order pairs.
+- `range_values(from_key, to_key)` returns only values for the same range. It
+  defaults to `std::vector`; use `range_values<std::set>()` when container
+  semantics should deduplicate values.
 - `contains(key)`, `count()`, `empty()`, and `erase(key)` mirror map-like
   metadata/removal operations.
 - `operator[]` returns an assignment proxy.
@@ -139,6 +145,8 @@ Restrictions and common mistakes:
   writes for the same key.
 - Retrieval into unique-key containers follows the container's own insertion
   rules.
+- `range()` and `range_values()` scan in MDBX key order before the requested
+  output container applies its own ordering or deduplication rules.
 
 Use it for:
 
@@ -160,10 +168,11 @@ hash index for lookup by default. Hash collisions do not affect correctness
 because reads, updates, and deletes compare the stored original key bytes after
 selecting the hash bucket.
 
-Write/read methods mirror `KeyValueTable`: `insert()`, `insert_or_assign()`,
-`append()`, `reconcile()`, `at()`, `try_get()`, `find()`/`find_compat()`,
-`contains()`, `erase()`, `count()`, `empty()`, `clear()`, `load()`, and
-`retrieve_all()`.
+Write/read methods mirror `KeyValueTable` for point lookups and full-table
+retrieval: `insert()`, `insert_or_assign()`, `append()`, `reconcile()`,
+`at()`, `try_get()`, `find()`/`find_compat()`, `contains()`, `erase()`,
+`count()`, `empty()`, `clear()`, `load()`, and `retrieve_all()`. It does not
+expose original-key `range()` because records are ordered by hash buckets.
 
 Restrictions and common mistakes:
 
@@ -213,6 +222,9 @@ Write methods:
 Read/meta methods:
 
 - `contains(key)` checks membership.
+- `range(from_key, to_key)` returns stored keys inside an inclusive key range
+  using a cursor scan. It defaults to `std::set`; use `range<std::vector>()`
+  for MDBX iteration-order keys.
 - `count()` returns stored key count.
 - `empty()` checks whether the table has no keys.
 - `erase(key)` removes one key.
@@ -224,6 +236,8 @@ Restrictions and common mistakes:
   is truly a set.
 - `reconcile()` is replacement-oriented and not an incremental set diff.
 - Key order follows MDBX key ordering, not insertion order.
+- `range()` scans in the same MDBX key ordering before the requested output
+  container applies its own ordering or deduplication rules.
 
 Use it for:
 
@@ -366,6 +380,12 @@ Write methods:
 Read/meta methods:
 
 - `find(key)` returns `std::vector<ValueT>` in insertion order for that key.
+- `range(from_key, to_key)` returns key-value pairs for all keys inside an
+  inclusive key range using a cursor scan. It defaults to `std::multimap`; use
+  `range_vector()` when every physical pair must remain a vector element.
+- `range_values(from_key, to_key)` returns only values for the same range. It
+  defaults to `std::vector`; use `range_values<std::set>()` when container
+  semantics should deduplicate values.
 - `contains(key)` checks whether any value exists for a key.
 - `contains(key, value)` checks whether an exact pair exists.
 - `count()` counts all stored pairs.
@@ -387,6 +407,8 @@ Restrictions and common mistakes:
   `retrieve_all_vector()`.
 - `reconcile()` avoids unnecessary writes, but it does not reorder existing
   matching records to match source iteration order.
+- `range()` and `range_values()` follow MDBX key ordering before the requested
+  output container applies its own ordering or deduplication rules.
 
 Use it for:
 

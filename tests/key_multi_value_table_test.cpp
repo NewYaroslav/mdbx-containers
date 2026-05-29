@@ -1,6 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -58,6 +59,28 @@ int main() {
         assert(!table.contains(9));
 
         assert_vector_equal(table.find(7), std::vector<std::string>{"created", "created", "sent"});
+        std::vector<std::pair<int, std::string> > range_pairs;
+        range_pairs.push_back(std::make_pair(7, std::string("created")));
+        range_pairs.push_back(std::make_pair(7, std::string("created")));
+        range_pairs.push_back(std::make_pair(7, std::string("sent")));
+        range_pairs.push_back(std::make_pair(8, std::string("queued")));
+        std::multimap<int, std::string> range_multimap = table.range(7, 8);
+        assert(range_multimap.size() == 4);
+        assert(range_multimap.count(7) == 3);
+        assert(range_multimap.count(8) == 1);
+        assert_vector_equal(table.range_vector(7, 8), range_pairs);
+        assert_vector_equal(table.range_values(7, 8),
+                            std::vector<std::string>{"created", "created", "sent", "queued"});
+        assert(table.range_values<std::set>(7, 8) ==
+               (std::set<std::string>{"created", "queued", "sent"}));
+
+        std::vector<std::pair<int, std::string> > queued_pair;
+        queued_pair.push_back(std::make_pair(8, std::string("queued")));
+        assert(table.range(8, 8).size() == 1);
+        assert_vector_equal(table.range_vector(8, 8), queued_pair);
+        assert_vector_equal(table.range_values(8, 8), std::vector<std::string>{"queued"});
+        assert(table.range(9, 10).empty());
+        assert(table.range(8, 7).empty());
 
         std::multimap<int, std::string> as_multimap;
         table.load(as_multimap);
@@ -97,6 +120,27 @@ int main() {
     }
 
     {
+        mdbxc::KeyMultiValueTable<int, std::string> table(conn, "multi_key_range");
+        table.clear();
+
+        table.insert(1, "a");
+        table.insert(1, "b");
+        table.insert(2, "c");
+        table.insert(2, "d");
+        table.insert(3, "e");
+
+        std::vector<std::pair<int, std::string> > expected_pairs;
+        expected_pairs.push_back(std::make_pair(1, std::string("a")));
+        expected_pairs.push_back(std::make_pair(1, std::string("b")));
+        expected_pairs.push_back(std::make_pair(2, std::string("c")));
+        expected_pairs.push_back(std::make_pair(2, std::string("d")));
+        assert(table.range(1, 2).size() == 4);
+        assert_vector_equal(table.range_vector(1, 2), expected_pairs);
+        assert_vector_equal(table.range_values(1, 2),
+                            std::vector<std::string>{"a", "b", "c", "d"});
+    }
+
+    {
         mdbxc::KeyMultiValueTable<int, std::string> table(conn, "manual_multi_values");
         table.clear();
 
@@ -108,6 +152,12 @@ int main() {
         auto read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
         assert(table.count(1, read_txn) == 2);
         assert(table.count(1, std::string("one"), read_txn) == 2);
+        std::vector<std::pair<int, std::string> > one_pairs;
+        one_pairs.push_back(std::make_pair(1, std::string("one")));
+        one_pairs.push_back(std::make_pair(1, std::string("one")));
+        assert(table.range(1, 1, read_txn).size() == 2);
+        assert_vector_equal(table.range_vector(1, 1, read_txn), one_pairs);
+        assert_vector_equal(table.range_values(1, 1, read_txn), std::vector<std::string>{"one", "one"});
         read_txn.commit();
     }
 

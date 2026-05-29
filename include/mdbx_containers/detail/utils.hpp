@@ -795,6 +795,114 @@ namespace mdbxc {
         return result;
     }
 
+    template<typename T>
+    typename std::enable_if<std::is_same<T, std::string>::value, T>::type
+    deserialize_key(const MDBX_val& val) {
+        return deserialize_value<T>(val);
+    }
+
+    template<typename T>
+    typename std::enable_if<
+#       if __cplusplus >= 201703L
+        std::is_same<T, std::vector<std::byte>>::value ||
+#       endif
+        std::is_same<T, std::vector<uint8_t>>::value ||
+        std::is_same<T, std::vector<char>>::value ||
+        std::is_same<T, std::vector<unsigned char>>::value, T>::type
+    deserialize_key(const MDBX_val& val) {
+        return deserialize_value<T>(val);
+    }
+
+    template<typename T>
+    typename std::enable_if<
+        std::is_integral<T>::value &&
+        (sizeof(T) <= 2), T>::type
+    deserialize_key(const MDBX_val& val) {
+        if (val.iov_len != sizeof(uint32_t)) {
+            throw std::runtime_error("deserialize_key: size mismatch");
+        }
+        uint32_t out;
+        std::memcpy(&out, val.iov_base, sizeof(uint32_t));
+        return static_cast<T>(out);
+    }
+
+    template<typename T>
+    typename std::enable_if<
+        std::is_same<T, int32_t>::value ||
+        std::is_same<T, uint32_t>::value ||
+        std::is_same<T, int64_t>::value ||
+        std::is_same<T, uint64_t>::value, T>::type
+    deserialize_key(const MDBX_val& val) {
+        return deserialize_value<T>(val);
+    }
+
+    inline float float_from_sortable_key(uint32_t key) {
+        uint32_t bits = (key & 0x80000000u) ? (key ^ 0x80000000u) : ~key;
+        float out;
+        std::memcpy(&out, &bits, sizeof(float));
+        return out;
+    }
+
+    inline double double_from_sortable_key(uint64_t key) {
+        uint64_t bits = (key & 0x8000000000000000ull)
+            ? (key ^ 0x8000000000000000ull)
+            : ~key;
+        double out;
+        std::memcpy(&out, &bits, sizeof(double));
+        return out;
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_same<T, float>::value, T>::type
+    deserialize_key(const MDBX_val& val) {
+        if (val.iov_len != sizeof(uint32_t)) {
+            throw std::runtime_error("deserialize_key: size mismatch");
+        }
+        uint32_t raw;
+        std::memcpy(&raw, val.iov_base, sizeof(uint32_t));
+        return float_from_sortable_key(raw);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_same<T, double>::value, T>::type
+    deserialize_key(const MDBX_val& val) {
+        if (val.iov_len != sizeof(uint64_t)) {
+            throw std::runtime_error("deserialize_key: size mismatch");
+        }
+        uint64_t raw;
+        std::memcpy(&raw, val.iov_base, sizeof(uint64_t));
+        return double_from_sortable_key(raw);
+    }
+
+    template <size_t N>
+    inline std::bitset<N> deserialize_key(const MDBX_val& val) {
+        const size_t num_bytes = (N + 7) / 8;
+        if (val.iov_len != num_bytes) {
+            throw std::runtime_error("deserialize_key: size mismatch");
+        }
+        const uint8_t* bytes = static_cast<const uint8_t*>(val.iov_base);
+        std::bitset<N> out;
+        for (size_t i = 0; i < N; ++i) {
+            if (bytes[i / 8] & (1u << (i % 8))) out.set(i);
+        }
+        return out;
+    }
+
+    template<typename T>
+    typename std::enable_if<
+        std::is_trivially_copyable<T>::value &&
+        !std::is_same<T, std::string>::value &&
+        !(std::is_integral<T>::value && sizeof(T) <= 2) &&
+        !std::is_same<T, int32_t>::value &&
+        !std::is_same<T, uint32_t>::value &&
+        !std::is_same<T, float>::value &&
+        !std::is_same<T, int64_t>::value &&
+        !std::is_same<T, uint64_t>::value &&
+        !std::is_same<T, double>::value, T>::type
+    deserialize_key(const MDBX_val& val) {
+        return deserialize_value<T>(val);
+    }
+
 }; // namespace mdbxc
 
 /// @}

@@ -26,7 +26,11 @@ Use \c insert() when an existing key must remain unchanged, and
 \c insert_or_assign() when the source value should replace any current value.
 \c append() upserts source keys without deleting unrelated database records.
 \c reconcile() upserts all source keys and removes database keys that are not
-present in the source.
+present in the source. \c range(from_key, to_key) returns key-value pairs whose
+keys fall inside an inclusive MDBX key-order range and defaults to
+\c std::map. Use \c range<std::vector>() when MDBX iteration order must remain
+visible. \c range_values() returns only values for the same range and defaults
+to \c std::vector.
 
 \warning Reading a missing key through \c operator[] inserts and persists a
          default-constructed value, just like \c std::map::operator[].
@@ -140,9 +144,11 @@ small.insert_or_assign("flag", 1);
 
 \ref mdbxc::KeyTable stores unique keys without user values. It mirrors the
 core \c std::set workflow with \c insert(), \c contains(), \c erase(),
-\c clear(), \c load(), and \c reconcile(). Records store the serialized key as
-the MDBX key and an empty MDBX value. Duplicate inserts use MDBX no-overwrite
-semantics and return \c false.
+\c clear(), \c load(), \c range(), and \c reconcile(). Records store the
+serialized key as the MDBX key and an empty MDBX value. Duplicate inserts use
+MDBX no-overwrite semantics and return \c false. \c range(from_key, to_key)
+defaults to \c std::set; use \c range<std::vector>() when MDBX iteration order
+must remain visible.
 
 \note \c append() inserts only missing keys. \c reconcile() currently clears the
       table and appends source keys, so it is replacement-oriented rather than
@@ -172,7 +178,11 @@ The default \c retrieve_all() container is \c std::multimap. Use
 separate element, including repeated identical pairs. Reconciliation compares
 pair multiplicity, keeps matching records, deletes surplus records, and inserts
 missing records; it does not reorder already matching records to match source
-iteration order.
+iteration order. \c range(from_key, to_key) returns key-value pairs whose keys
+fall inside an inclusive MDBX key-order range and defaults to
+\c std::multimap. Use \c range_vector() when every physical pair must remain
+visible as a vector element. \c range_values() returns only values for the same
+range and defaults to \c std::vector.
 
 ```cpp
 mdbxc::KeyMultiValueTable<int, std::string> events(conn, "events");

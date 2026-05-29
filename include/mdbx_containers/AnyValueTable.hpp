@@ -442,7 +442,7 @@ namespace mdbxc {
                 MDBX_val db_key, db_val;
                 int rc = MDBX_SUCCESS;
                 while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
-                    out.emplace_back(deserialize_value<KeyT>(db_key));
+                    out.emplace_back(deserialize_key<KeyT>(db_key));
                 }
                 if (rc != MDBX_NOTFOUND) {
                     check_mdbx(rc, "Failed to list AnyValueTable keys");
