@@ -218,6 +218,26 @@ int main() {
         ASSERT_FOUND(kv, 2, std::string("two"));
     }
 
+    std::cout << "[case] key range values\n";
+    {
+        mdbxc::KeyValueTable<int, std::string> kv(conn, "range_values");
+        kv.clear();
+
+        kv.insert_or_assign(1, "one");
+        kv.insert_or_assign(2, "two");
+        kv.insert_or_assign(4, "four");
+        kv.insert_or_assign(5, "five");
+
+        assert(kv.range(2, 4) == (std::vector<std::string>{"two", "four"}));
+        assert(kv.range(0, 1) == (std::vector<std::string>{"one"}));
+        assert(kv.range(3, 3).empty());
+        assert(kv.range(5, 2).empty());
+
+        mdbxc::Transaction read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+        assert(kv.range(1, 2, read_txn) == (std::vector<std::string>{"one", "two"}));
+        read_txn.commit();
+    }
+
     std::cout << "[case] string -> POD(SimpleStruct)\n";
     {
         mdbxc::KeyValueTable<std::string, SimpleStruct> kv(conn, "str_struct");

@@ -58,6 +58,11 @@ int main() {
         assert(!table.contains(9));
 
         assert_vector_equal(table.find(7), std::vector<std::string>{"created", "created", "sent"});
+        assert_vector_equal(table.range(7, 8),
+                            std::vector<std::string>{"created", "created", "sent", "queued"});
+        assert_vector_equal(table.range(8, 8), std::vector<std::string>{"queued"});
+        assert(table.range(9, 10).empty());
+        assert(table.range(8, 7).empty());
 
         std::multimap<int, std::string> as_multimap;
         table.load(as_multimap);
@@ -108,6 +113,7 @@ int main() {
         auto read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
         assert(table.count(1, read_txn) == 2);
         assert(table.count(1, std::string("one"), read_txn) == 2);
+        assert_vector_equal(table.range(1, 1, read_txn), std::vector<std::string>{"one", "one"});
         read_txn.commit();
     }
 

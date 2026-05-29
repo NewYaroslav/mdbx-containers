@@ -294,6 +294,34 @@ namespace mdbxc {
         }
 #endif
 
+        /// \brief Retrieves values whose keys are within an inclusive key range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Optional transaction handle.
+        /// \return Vector of values in MDBX key order.
+        /// \throws MdbxException if a database error occurs.
+        /// \complexity O(log n + m), where m is the number of returned values.
+        std::vector<ValueT> range(const KeyT& from_key, const KeyT& to_key,
+                                  MDBX_txn* txn = nullptr) const {
+            std::vector<ValueT> values;
+            with_transaction([this, &from_key, &to_key, &values](MDBX_txn* txn) {
+                db_range(from_key, to_key, values, txn);
+            }, TransactionMode::READ_ONLY, txn);
+            return values;
+        }
+
+        /// \brief Retrieves values whose keys are within an inclusive key range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Active transaction wrapper.
+        /// \return Vector of values in MDBX key order.
+        /// \throws MdbxException if a database error occurs.
+        /// \complexity O(log n + m), where m is the number of returned values.
+        std::vector<ValueT> range(const KeyT& from_key, const KeyT& to_key,
+                                  const Transaction& txn) const {
+            return range(from_key, to_key, txn.handle());
+        }
+
         /// \brief Appends data to the database.
         /// \tparam ContainerT Container type (e.g., std::map or std::unordered_map).
         /// \param container Container with content to be synchronized.
@@ -772,6 +800,35 @@ namespace mdbxc {
                 }
                 if (rc != MDBX_NOTFOUND) {
                     check_mdbx(rc, "Failed to load key-value table");
+                }
+                mdbx_cursor_close(cursor);
+            } catch (...) {
+                mdbx_cursor_close(cursor);
+                throw;
+            }
+        }
+
+        void db_range(const KeyT& from_key, const KeyT& to_key,
+                      std::vector<ValueT>& values, MDBX_txn* txn) const {
+            SerializeScratch sc_from_key;
+            SerializeScratch sc_to_key;
+            MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
+            MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
+
+            MDBX_cursor* cursor = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
+            try {
+                MDBX_val db_key = db_from_key;
+                MDBX_val db_val;
+                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_RANGE);
+                while (rc == MDBX_SUCCESS) {
+                    if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) break;
+                    values.emplace_back(deserialize_value<ValueT>(db_val));
+                    rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT);
+                }
+                if (rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "Failed to read key-value range");
                 }
                 mdbx_cursor_close(cursor);
             } catch (...) {
