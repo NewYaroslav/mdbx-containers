@@ -15,6 +15,7 @@
 #include <bitset>
 #include <utility>
 #include <stdexcept>
+#include <limits>
 
 #include <mdbx_containers/KeyValueTable.hpp>
 
@@ -248,6 +249,65 @@ int main() {
         assert(kv.range(1, 2, read_txn) == txn_pairs);
         assert(kv.range_values(1, 2, read_txn) == (std::vector<std::string>{"one", "two"}));
         read_txn.commit();
+    }
+
+    std::cout << "[case] numeric key range boundaries\n";
+    {
+        mdbxc::KeyValueTable<int, std::string> kv(conn, "range_int_boundaries");
+        kv.clear();
+
+        kv.insert_or_assign(-2, "minus-two");
+        kv.insert_or_assign(-1, "minus-one");
+        kv.insert_or_assign(0, "zero");
+        kv.insert_or_assign(1, "one");
+
+        std::vector<std::pair<int, std::string> > negative_pairs;
+        negative_pairs.push_back(std::make_pair(-2, std::string("minus-two")));
+        negative_pairs.push_back(std::make_pair(-1, std::string("minus-one")));
+        assert(kv.range(-2, -1) == negative_pairs);
+        assert(kv.range_values(-2, -1) ==
+               (std::vector<std::string>{"minus-two", "minus-one"}));
+
+        std::vector<std::pair<int, std::string> > nonnegative_pairs;
+        nonnegative_pairs.push_back(std::make_pair(0, std::string("zero")));
+        nonnegative_pairs.push_back(std::make_pair(1, std::string("one")));
+        assert(kv.range(0, 1) == nonnegative_pairs);
+        assert(kv.range_values(0, 1) == (std::vector<std::string>{"zero", "one"}));
+    }
+
+    {
+        mdbxc::KeyValueTable<uint64_t, std::string> kv(conn, "range_u64_boundaries");
+        kv.clear();
+
+        const uint64_t max_key = std::numeric_limits<uint64_t>::max();
+        kv.insert_or_assign(0u, "zero");
+        kv.insert_or_assign(1u, "one");
+        kv.insert_or_assign(max_key, "max");
+
+        std::vector<std::pair<uint64_t, std::string> > all_pairs;
+        all_pairs.push_back(std::make_pair(uint64_t(0), std::string("zero")));
+        all_pairs.push_back(std::make_pair(uint64_t(1), std::string("one")));
+        all_pairs.push_back(std::make_pair(max_key, std::string("max")));
+        assert(kv.range(0u, max_key) == all_pairs);
+        assert(kv.range_values(0u, max_key) ==
+               (std::vector<std::string>{"zero", "one", "max"}));
+    }
+
+    {
+        mdbxc::KeyValueTable<double, std::string> kv(conn, "range_double_boundaries");
+        kv.clear();
+
+        kv.insert_or_assign(-1.0, "minus-one");
+        kv.insert_or_assign(0.0, "zero");
+        kv.insert_or_assign(1.0, "one");
+
+        std::vector<std::pair<double, std::string> > all_pairs;
+        all_pairs.push_back(std::make_pair(-1.0, std::string("minus-one")));
+        all_pairs.push_back(std::make_pair(0.0, std::string("zero")));
+        all_pairs.push_back(std::make_pair(1.0, std::string("one")));
+        assert(kv.range(-1.0, 1.0) == all_pairs);
+        assert(kv.range_values(-1.0, 1.0) ==
+               (std::vector<std::string>{"minus-one", "zero", "one"}));
     }
 
     std::cout << "[case] string -> POD(SimpleStruct)\n";

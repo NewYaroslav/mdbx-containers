@@ -724,7 +724,7 @@ namespace mdbxc {
                 MDBX_val db_key, db_val;
                 int rc = MDBX_SUCCESS;
                 while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
-                    KeyT key = deserialize_value<KeyT>(db_key);
+                    KeyT key = deserialize_key<KeyT>(db_key);
                     ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
                     container.emplace(std::move(key), std::move(value));
                 }
@@ -745,7 +745,7 @@ namespace mdbxc {
                 MDBX_val db_key, db_val;
                 int rc = MDBX_SUCCESS;
                 while ((rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
-                    KeyT key = deserialize_value<KeyT>(db_key);
+                    KeyT key = deserialize_key<KeyT>(db_key);
                     ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
                     container.emplace_back(std::move(key), std::move(value));
                 }
@@ -775,7 +775,7 @@ namespace mdbxc {
                 int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_RANGE);
                 while (rc == MDBX_SUCCESS) {
                     if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) break;
-                    KeyT key = deserialize_value<KeyT>(db_key);
+                    KeyT key = deserialize_key<KeyT>(db_key);
                     ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
                     pairs.emplace_back(std::move(key), std::move(value));
                     rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT);
