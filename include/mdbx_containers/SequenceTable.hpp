@@ -518,23 +518,6 @@ namespace mdbxc {
             return id;
         }
 
-        struct CursorGuard {
-            MDBX_cursor* m_cursor;
-            explicit CursorGuard(MDBX_cursor* c) : m_cursor(c) {}
-            ~CursorGuard() noexcept { close(); }
-            void close() noexcept {
-                if (m_cursor) {
-                    mdbx_cursor_close(m_cursor);
-                    m_cursor = nullptr;
-                }
-            }
-            MDBX_cursor* get() const noexcept { return m_cursor; }
-            CursorGuard(const CursorGuard&) = delete;
-            CursorGuard& operator=(const CursorGuard&) = delete;
-            CursorGuard(CursorGuard&&) = delete;
-            CursorGuard& operator=(CursorGuard&&) = delete;
-        };
-
         static MDBX_val make_key(uint64_t id, SerializeScratch& sc) {
             return serialize_key<true>(id, sc);
         }

@@ -767,26 +767,21 @@ namespace mdbxc {
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
             if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                MDBX_val db_key = db_from_key;
-                MDBX_val db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_RANGE);
-                while (rc == MDBX_SUCCESS) {
-                    if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) break;
-                    KeyT key = deserialize_key<KeyT>(db_key);
-                    ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
-                    pairs.emplace_back(std::move(key), std::move(value));
-                    rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT);
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to read multi-value key range");
-                }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key = db_from_key;
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            while (rc == MDBX_SUCCESS) {
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) break;
+                KeyT key = deserialize_key<KeyT>(db_key);
+                ValueT value = deserialize_value<ValueT>(strip_sequence(db_val));
+                pairs.emplace_back(std::move(key), std::move(value));
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to read multi-value key range");
             }
         }
 
@@ -798,24 +793,19 @@ namespace mdbxc {
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
             if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
-            MDBX_cursor* cursor = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &cursor), "Failed to open MDBX cursor");
-            try {
-                MDBX_val db_key = db_from_key;
-                MDBX_val db_val;
-                int rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_SET_RANGE);
-                while (rc == MDBX_SUCCESS) {
-                    if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) break;
-                    values.emplace_back(deserialize_value<ValueT>(strip_sequence(db_val)));
-                    rc = mdbx_cursor_get(cursor, &db_key, &db_val, MDBX_NEXT);
-                }
-                if (rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "Failed to read multi-value key range values");
-                }
-                mdbx_cursor_close(cursor);
-            } catch (...) {
-                mdbx_cursor_close(cursor);
-                throw;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key = db_from_key;
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            while (rc == MDBX_SUCCESS) {
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) break;
+                values.emplace_back(deserialize_value<ValueT>(strip_sequence(db_val)));
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to read multi-value key range values");
             }
         }
 
