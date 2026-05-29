@@ -17,7 +17,7 @@
 
 ### 🧱 API таблиц
 - `KeyValueTable<K, V>` — основная таблица: одно значение на ключ, методы
-  `insert`, `insert_or_assign`, `find`, `range`, `erase`, `clear`, `load`, `reconcile`,
+  `insert`, `insert_or_assign`, `find`, `range`, `range_values`, `erase`, `clear`, `load`, `reconcile`,
   `operator[]` и связанные помощники.
 - `HashedKeyValueStore<K, V, H, Layout>` хранит одно значение на строковый или
   byte-vector ключ через hash-index и проверяет исходные байты ключа, чтобы
@@ -30,7 +30,7 @@
 - `KeyTable<K>` хранит уникальные ключи со `std::set`-подобным API: `insert`,
   `contains`, `range`, `erase`, `clear`, `load`, `reconcile` и связанные помощники.
 - `KeyMultiValueTable<K, V>` хранит несколько значений на один ключ со
-  `std::multimap`-подобным API, диапазонами по ключам и сохраняет повторяющиеся одинаковые пары
+  `std::multimap`-подобным API, `range`/`range_values` по диапазонам ключей и сохраняет повторяющиеся одинаковые пары
   `(key, value)`.
 - `SequenceTable<ValueT>` хранит значения по стабильному uint64_t id с
   append-only семантикой и разреженными индексами. Append возвращает

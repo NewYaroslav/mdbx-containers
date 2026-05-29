@@ -26,8 +26,9 @@ Use \c insert() when an existing key must remain unchanged, and
 \c insert_or_assign() when the source value should replace any current value.
 \c append() upserts source keys without deleting unrelated database records.
 \c reconcile() upserts all source keys and removes database keys that are not
-present in the source. \c range(from_key, to_key) returns values whose keys fall
-inside an inclusive MDBX key-order range.
+present in the source. \c range(from_key, to_key) returns key-value pairs whose
+keys fall inside an inclusive MDBX key-order range; \c range_values() returns
+only values for the same range.
 
 \warning Reading a missing key through \c operator[] inserts and persists a
          default-constructed value, just like \c std::map::operator[].
@@ -173,8 +174,9 @@ The default \c retrieve_all() container is \c std::multimap. Use
 separate element, including repeated identical pairs. Reconciliation compares
 pair multiplicity, keeps matching records, deletes surplus records, and inserts
 missing records; it does not reorder already matching records to match source
-iteration order. \c range(from_key, to_key) returns values whose keys fall
-inside an inclusive MDBX key-order range.
+iteration order. \c range(from_key, to_key) returns key-value pairs whose keys
+fall inside an inclusive MDBX key-order range; \c range_values() returns only
+values for the same range.
 
 ```cpp
 mdbxc::KeyMultiValueTable<int, std::string> events(conn, "events");

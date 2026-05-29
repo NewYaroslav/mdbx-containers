@@ -13,12 +13,12 @@
 ## ⚙️ Features
 
 ### 🧱 Table APIs
-- `KeyValueTable<K, V>` is the main implemented table: one value per key with `insert`, `insert_or_assign`, `find`, `range`, `erase`, `clear`, `load`, `reconcile`, `operator[]`, and related helpers.
+- `KeyValueTable<K, V>` is the main implemented table: one value per key with `insert`, `insert_or_assign`, `find`, `range`, `range_values`, `erase`, `clear`, `load`, `reconcile`, `operator[]`, and related helpers.
 - `HashedKeyValueStore<K, V, H, Layout>` stores one value per string or byte-vector key through a hash index and verifies original key bytes to handle collisions.
 - `ValueTable<V>` stores one strongly typed singleton value per named table for metadata, module state, snapshots, and single-object configuration records.
 - `AnyValueTable<K>` stores heterogeneous values by caller-selected type and supports typed `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, and `keys`.
 - `KeyTable<K>` stores unique keys with a `std::set`-like API: `insert`, `contains`, `range`, `erase`, `clear`, `load`, `reconcile`, and related helpers.
-- `KeyMultiValueTable<K, V>` stores multiple values per key with a `std::multimap`-like API, key-range scans, and repeated identical `(key, value)` pair preservation.
+- `KeyMultiValueTable<K, V>` stores multiple values per key with a `std::multimap`-like API, `range`/`range_values` key-range scans, and repeated identical `(key, value)` pair preservation.
 - `SequenceTable<ValueT>` stores values by stable uint64_t id with append-only semantics and sparse index support. Append returns a stable id; erase does not reindex following records.
 - `AnyValueTable` type-tag prefix verification is opt-in via `set_type_tag_check(true)` and is disabled by default for compatibility with existing raw records.
 

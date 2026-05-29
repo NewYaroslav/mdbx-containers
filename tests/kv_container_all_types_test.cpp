@@ -228,13 +228,25 @@ int main() {
         kv.insert_or_assign(4, "four");
         kv.insert_or_assign(5, "five");
 
-        assert(kv.range(2, 4) == (std::vector<std::string>{"two", "four"}));
-        assert(kv.range(0, 1) == (std::vector<std::string>{"one"}));
+        std::vector<std::pair<int, std::string> > middle_pairs;
+        middle_pairs.push_back(std::make_pair(2, std::string("two")));
+        middle_pairs.push_back(std::make_pair(4, std::string("four")));
+        assert(kv.range(2, 4) == middle_pairs);
+        assert(kv.range_values(2, 4) == (std::vector<std::string>{"two", "four"}));
+
+        std::vector<std::pair<int, std::string> > first_pair;
+        first_pair.push_back(std::make_pair(1, std::string("one")));
+        assert(kv.range(0, 1) == first_pair);
+        assert(kv.range_values(0, 1) == (std::vector<std::string>{"one"}));
         assert(kv.range(3, 3).empty());
         assert(kv.range(5, 2).empty());
 
         mdbxc::Transaction read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
-        assert(kv.range(1, 2, read_txn) == (std::vector<std::string>{"one", "two"}));
+        std::vector<std::pair<int, std::string> > txn_pairs;
+        txn_pairs.push_back(std::make_pair(1, std::string("one")));
+        txn_pairs.push_back(std::make_pair(2, std::string("two")));
+        assert(kv.range(1, 2, read_txn) == txn_pairs);
+        assert(kv.range_values(1, 2, read_txn) == (std::vector<std::string>{"one", "two"}));
         read_txn.commit();
     }
 
