@@ -21,6 +21,8 @@
 - `KeyMultiValueTable<K, V>` stores multiple values per key with a `std::multimap`-like API, streaming and materialized key-range scans, reverse scans, range erasure, and repeated identical `(key, value)` pair preservation.
 - `SequenceTable<ValueT>` stores values by stable uint64_t id with append-only semantics and sparse index support. Append returns a stable id; erase does not reindex following records.
 - `AnyValueTable` type-tag prefix verification is opt-in via `set_type_tag_check(true)` and is disabled by default for compatibility with existing raw records.
+- `VectorStore` is an MVP embedded vector store for local RAG: persistent MDBX
+  storage with an exact in-memory `FlatVectorIndex`.
 
 ### 🔁 Serialization
 - Automatic serialization of trivially copyable types.
@@ -134,6 +136,39 @@ Ordered key-based tables also provide `for_each_range()` for streaming scans,
 `filter_range()` as a thin collecting helper, `lower_bound()`/`upper_bound()`,
 `first()`/`last()`, `min_key()`/`max_key()`, `range_reverse()`,
 `contains_range()`, `count_range()`, and `erase_range()`.
+
+### Embedded vector store
+
+`VectorStore` persists embeddings, text, and metadata in MDBX tables and rebuilds
+an exact RAM index on open. It is intended as a local RAG MVP: search is exact
+`O(N * dim)`, all embeddings are loaded into RAM, and ANN/HNSW, metadata
+filtering, and generated embeddings are out of scope.
+
+```cpp
+#include <mdbx_containers/vector.hpp>
+#include <iostream>
+
+mdbxc::Config cfg;
+cfg.pathname = "rag.mdbx";
+cfg.max_dbs = 8;
+
+mdbxc::VectorStore store(cfg, "docs");
+
+mdbxc::Embedding e1;
+e1.dim = 3;
+e1.values = {1.0f, 0.0f, 0.0f};
+
+uint64_t id = store.add(e1, "Hello world", "{\"source\":\"test\"}");
+
+mdbxc::Embedding query;
+query.dim = 3;
+query.values = {1.0f, 0.1f, 0.0f};
+
+auto results = store.search(query, 5);
+for (const auto& r : results) {
+    std::cout << r.id << " " << r.score << " " << r.text << "\n";
+}
+```
 
 ### Hash-indexed key-value store
 

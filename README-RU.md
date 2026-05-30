@@ -40,6 +40,8 @@
 - Проверка type-tag prefix в `AnyValueTable` включается явно через
   `set_type_tag_check(true)` и по умолчанию выключена для совместимости с уже
   существующими raw-записями.
+- `VectorStore` — MVP embedded vector store для локального RAG: persistent
+  MDBX-хранилище с точным in-memory `FlatVectorIndex`.
 
 ### 🔁 Сериализация
 - Автоматическая сериализация trivially copyable типов.
@@ -164,6 +166,39 @@ auto unique_values = table.range_values<std::set>(10, 20);
 `filter_range()` как тонкий collecting-helper, `lower_bound()`/`upper_bound()`,
 `first()`/`last()`, `min_key()`/`max_key()`, `range_reverse()`,
 `contains_range()`, `count_range()` и `erase_range()`.
+
+### Embedded vector store
+
+`VectorStore` сохраняет embeddings, text и metadata в MDBX-таблицах и
+пересобирает точный RAM-индекс при открытии. Это MVP для локального RAG: поиск
+точный `O(N * dim)`, все embeddings загружаются в RAM, а ANN/HNSW,
+metadata filtering и генерация embeddings не входят в область MVP.
+
+```cpp
+#include <mdbx_containers/vector.hpp>
+#include <iostream>
+
+mdbxc::Config cfg;
+cfg.pathname = "rag.mdbx";
+cfg.max_dbs = 8;
+
+mdbxc::VectorStore store(cfg, "docs");
+
+mdbxc::Embedding e1;
+e1.dim = 3;
+e1.values = {1.0f, 0.0f, 0.0f};
+
+uint64_t id = store.add(e1, "Hello world", "{\"source\":\"test\"}");
+
+mdbxc::Embedding query;
+query.dim = 3;
+query.values = {1.0f, 0.1f, 0.0f};
+
+auto results = store.search(query, 5);
+for (const auto& r : results) {
+    std::cout << r.id << " " << r.score << " " << r.text << "\n";
+}
+```
 
 ### Hash-indexed key-value store
 

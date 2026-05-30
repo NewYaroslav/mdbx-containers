@@ -1,0 +1,66 @@
+/*! \page vector_store_page Embedded Vector Store
+\tableofcontents
+
+The vector module provides an MVP local RAG storage layer on top of
+mdbx-containers. Include it with:
+
+```cpp
+#include <mdbx_containers/vector.hpp>
+```
+
+\ref mdbxc::VectorStore persists embeddings, text, and metadata in MDBX tables
+and rebuilds an exact in-memory \ref mdbxc::FlatVectorIndex when opened. The
+MDBX tables are named from the sanitized collection name, for example
+`vectors_default_embeddings`, `vectors_default_texts`, and
+`vectors_default_metadata`.
+
+## Example
+
+```cpp
+mdbxc::Config cfg;
+cfg.pathname = "rag.mdbx";
+cfg.max_dbs = 8;
+
+mdbxc::VectorStore store(cfg, "docs");
+
+mdbxc::Embedding e1;
+e1.dim = 3;
+e1.values = {1.0f, 0.0f, 0.0f};
+
+uint64_t id = store.add(e1, "Hello world", "{\"source\":\"test\"}");
+
+mdbxc::Embedding query;
+query.dim = 3;
+query.values = {1.0f, 0.1f, 0.0f};
+
+std::vector<mdbxc::SearchResult> results = store.search(query, 5);
+```
+
+## Data Model
+
+\ref mdbxc::Embedding stores a dense `std::vector<float>` with an explicit
+dimension. It serializes as:
+
+```text
+uint32_t dim
+uint32_t reserved = 0
+float[dim]
+```
+
+\ref mdbxc::VectorStore stores each logical record across separate typed
+tables: `id -> Embedding`, `id -> text`, and `id -> metadata_json`.
+\ref mdbxc::SequenceTable is used only as the id allocator; embeddings are the
+source of truth for `count()` and index rebuild.
+
+## Search
+
+\ref mdbxc::FlatVectorIndex supports \ref mdbxc::VectorMetric::COSINE,
+\ref mdbxc::VectorMetric::DOT, and \ref mdbxc::VectorMetric::L2. L2 search
+returns negative squared distance so larger scores are always better.
+
+\warning Search is exact \c O(N*dim), all embeddings are loaded into RAM, and
+mutable index synchronization is caller-managed.
+
+\note The MVP does not include ANN/HNSW, quantization, metadata filters,
+distributed mode, HTTP APIs, embedding generation, or automatic chunking.
+*/

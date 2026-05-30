@@ -20,6 +20,8 @@ Key features:
   helpers, reverse scans, range metadata, and range erasure.
 - `KeyValueTable` includes read-modify-write `update()` and batch point lookup
   helpers.
+- `VectorStore` provides persistent local vector storage with an exact
+  in-memory index for MVP RAG workflows.
 - Automatic serialization of trivially copyable types and custom `to_bytes()`/`from_bytes()` support.
 - Multiple logical tables inside one MDBX environment.
 - Read-only configuration for inspecting existing DBIs without creating tables.
@@ -165,6 +167,26 @@ mdbxc::ValueTable<int> schema_version(conn, "schema_version");
 schema_version.set(1);
 int version = schema_version.get_or(0);
 ```
+
+\subsection ex_vector_store Embedded vector store
+```cpp
+mdbxc::Config cfg; cfg.pathname = "rag.mdbx"; cfg.max_dbs = 8;
+mdbxc::VectorStore store(cfg, "docs");
+
+mdbxc::Embedding emb;
+emb.dim = 3;
+emb.values = {1.0f, 0.0f, 0.0f};
+uint64_t id = store.add(emb, "Hello world", "{\"source\":\"test\"}");
+
+mdbxc::Embedding query;
+query.dim = 3;
+query.values = {1.0f, 0.1f, 0.0f};
+std::vector<mdbxc::SearchResult> results = store.search(query, 5);
+```
+
+\note Vector search is exact \c O(N*dim), the index is held in RAM, and ANN,
+metadata filtering, embedding generation, and automatic chunking are not part
+of the MVP. See \subpage vector_store_page.
 
 \section build_sec Building
 Use CMake or simply include the headers and link with libmdbx.
