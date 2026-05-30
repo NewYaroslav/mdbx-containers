@@ -59,6 +59,8 @@ namespace mdbxc {
         VectorMetric m_metric;
         uint32_t m_dim = 0;
         std::vector<uint64_t> m_ids;
+        /// \brief Contiguous row-major vector storage: [id0 dim floats][id1 dim floats]...
+        /// This layout is intentionally compatible with Eigen::Map and future SIMD backends.
         std::vector<float> m_vectors;
 
         void check_dim(const Embedding& embedding);
