@@ -1,3 +1,6 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <iostream>
 #include <map>
@@ -246,6 +249,123 @@ int main() {
             table.insert(1, large);
         });
     }
+
+    // --- Range API extension tests ---
+    {
+        mdbxc::KeyMultiValueTable<int, std::string> table(conn, "multi_range_api");
+        table.clear();
+        table.insert(1, "a");
+        table.insert(1, "b");
+        table.insert(2, "c");
+        table.insert(3, "d");
+        table.insert(3, "e");
+        table.insert(3, "f");
+
+        // for_each_range visits every physical pair
+        std::vector<std::pair<int, std::string>> collected;
+        bool completed = table.for_each_range(1, 3, [&collected](const int& k, const std::string& v) -> bool {
+            collected.push_back(std::make_pair(k, v));
+            return true;
+        });
+        assert(completed);
+        assert(collected.size() == 6);
+
+        // filter_range
+        std::vector<std::pair<int, std::string>> filtered = table.filter_range(1, 3, [](const int&, const std::string& v) -> bool {
+            return v >= "d";
+        });
+        assert(filtered.size() == 3); // d, e, f
+
+        // reverse range
+        std::vector<std::pair<int, std::string>> rev = table.range_reverse(1, 3);
+        assert(rev.size() == 6);
+        assert(rev[0] == std::make_pair(3, std::string("f")));
+        assert(rev[5] == std::make_pair(1, std::string("a")));
+
+        // reverse range limit
+        std::vector<std::pair<int, std::string>> rev_limit = table.range_reverse(1, 3, 2);
+        assert(rev_limit.size() == 2);
+        assert(rev_limit[0] == std::make_pair(3, std::string("f")));
+        assert(rev_limit[1] == std::make_pair(3, std::string("e")));
+
+        // contains_range / count_range / erase_range
+        assert(table.contains_range(2, 3));
+        assert(table.count_range(2, 3) == 4); // c + d,e,f
+        std::size_t erased = table.erase_range(2, 3);
+        assert(erased == 4);
+        assert(table.count() == 2);
+
+    }
+
+#if __cplusplus >= 201703L
+    {
+        mdbxc::KeyMultiValueTable<int, std::string> table(conn, "multi_range_api_opt");
+        table.clear();
+        table.insert(10, "x");
+        table.insert(10, "z");
+        table.insert(20, "y");
+
+        auto lb = table.lower_bound(10);
+        if (!lb.has_value() || lb->first != 10 || lb->second != "x") {
+            throw std::runtime_error("lower_bound failed for KeyMultiValueTable");
+        }
+        auto ub = table.upper_bound(10);
+        if (!ub.has_value() || ub->first != 20 || ub->second != "y") {
+            throw std::runtime_error("upper_bound skipped to duplicate instead of next key");
+        }
+        auto fr = table.first();
+        if (!fr.has_value() || fr->first != 10) {
+            throw std::runtime_error("first failed for KeyMultiValueTable");
+        }
+        auto la = table.last();
+        if (!la.has_value() || la->first != 20) {
+            throw std::runtime_error("last failed for KeyMultiValueTable");
+        }
+        auto min_key = table.min_key();
+        if (!min_key.has_value() || min_key.value() != 10) {
+            throw std::runtime_error("min_key failed for KeyMultiValueTable");
+        }
+        auto max_key = table.max_key();
+        if (!max_key.has_value() || max_key.value() != 20) {
+            throw std::runtime_error("max_key failed for KeyMultiValueTable");
+        }
+    }
+#endif
+
+#if __cplusplus < 201703L
+    {
+        mdbxc::KeyMultiValueTable<int, std::string> bounds_table(conn, "multi_range_api_bounds");
+        bounds_table.clear();
+        bounds_table.insert(1, "a");
+        bounds_table.insert(1, "b");
+        bounds_table.insert(2, "c");
+        bounds_table.insert(3, "d");
+        std::pair<bool, std::pair<int, std::string>> lb = bounds_table.lower_bound_compat(1);
+        if (!lb.first || lb.second != std::make_pair(1, std::string("a"))) {
+            throw std::runtime_error("lower_bound_compat failed for KeyMultiValueTable");
+        }
+        std::pair<bool, std::pair<int, std::string>> ub = bounds_table.upper_bound_compat(1);
+        if (!ub.first || ub.second != std::make_pair(2, std::string("c"))) {
+            throw std::runtime_error("upper_bound_compat skipped to duplicate instead of next key");
+        }
+        std::pair<bool, std::pair<int, std::string>> named_ub = bounds_table.upper_bound(1);
+        if (!named_ub.first || named_ub.second != std::make_pair(2, std::string("c"))) {
+            throw std::runtime_error("upper_bound skipped to duplicate instead of next key in C++11");
+        }
+        std::pair<bool, int> min_key = bounds_table.min_key_compat();
+        if (!min_key.first || min_key.second != 1) {
+            throw std::runtime_error("min_key_compat failed for KeyMultiValueTable");
+        }
+        std::pair<bool, int> max_key = bounds_table.max_key_compat();
+        if (!max_key.first || max_key.second != 3) {
+            throw std::runtime_error("max_key_compat failed for KeyMultiValueTable");
+        }
+        std::pair<bool, int> named_max_key = bounds_table.max_key();
+        if (!named_max_key.first || named_max_key.second != 3) {
+            throw std::runtime_error("max_key failed for KeyMultiValueTable C++11");
+        }
+    }
+#endif
 
     std::cout << "KeyMultiValueTable test passed.\n";
     return 0;

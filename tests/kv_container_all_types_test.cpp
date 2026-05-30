@@ -1,3 +1,6 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -578,6 +581,181 @@ int main() {
         }
 
         std::cout << "[concurrency] ok\n";
+    }
+
+    // --- Range API extension tests ---
+    std::cout << "[case] range api extensions\n";
+    {
+        mdbxc::KeyValueTable<int, std::string> kv(conn, "kv_range_api");
+        kv.clear();
+        kv.insert_or_assign(1, "one");
+        kv.insert_or_assign(2, "two");
+        kv.insert_or_assign(3, "three");
+        kv.insert_or_assign(4, "four");
+        kv.insert_or_assign(5, "five");
+
+        // for_each_range
+        std::vector<std::pair<int, std::string>> collected;
+        bool completed = kv.for_each_range(1, 5, [&collected](const int& k, const std::string& v) -> bool {
+            collected.push_back(std::make_pair(k, v));
+            return true;
+        });
+        assert(completed);
+        assert(collected.size() == 5);
+
+        // filter_range
+        std::vector<std::pair<int, std::string>> evens = kv.filter_range(1, 5, [](const int& k, const std::string&) -> bool {
+            return k % 2 == 0;
+        });
+        assert(evens.size() == 2);
+        assert(evens[0].first == 2);
+        assert(evens[1].first == 4);
+
+        // reverse range
+        std::vector<std::pair<int, std::string>> rev = kv.range_reverse(1, 5);
+        assert(rev.size() == 5);
+        assert(rev[0].first == 5);
+        assert(rev[4].first == 1);
+
+        // reverse range limit
+        std::vector<std::pair<int, std::string>> rev_limit = kv.range_reverse(1, 5, 2);
+        assert(rev_limit.size() == 2);
+        assert(rev_limit[0].first == 5);
+
+        // contains_range / count_range / erase_range
+        assert(kv.contains_range(2, 4));
+        assert(kv.count_range(2, 4) == 3);
+        std::size_t erased = kv.erase_range(2, 4);
+        assert(erased == 3);
+        assert(kv.count() == 2);
+
+        // update existing
+        bool updated = kv.update(1, [](std::string& v) {
+            v = "ONE";
+        });
+        assert(updated);
+        ASSERT_FOUND(kv, 1, std::string("ONE"));
+
+        // update missing
+        bool missing_updated = kv.update(99, [](std::string& v) {
+            v = "X";
+        });
+        assert(!missing_updated);
+
+        // update rollback when mutator throws
+        bool update_threw = false;
+        try {
+            kv.update(1, [](std::string& v) {
+                v = "BAD";
+                throw std::runtime_error("update failure");
+            });
+        } catch (const std::runtime_error&) {
+            update_threw = true;
+        }
+        assert(update_threw);
+        ASSERT_FOUND(kv, 1, std::string("ONE"));
+
+        // find_many
+        kv.insert_or_assign(2, "two");
+        kv.insert_or_assign(3, "three");
+        std::map<int, std::string> many = kv.find_many(std::vector<int>{1, 2, 99});
+        assert(many.size() == 2);
+        assert(many[1] == "ONE");
+        assert(many[2] == "two");
+
+        // find_many_vector preserves order, skips missing
+        std::vector<std::pair<int, std::string>> many_vec = kv.find_many_vector(std::vector<int>{99, 3, 1});
+        assert(many_vec.size() == 2);
+        assert(many_vec[0].first == 3);
+        assert(many_vec[1].first == 1);
+
+        // bounds compat (C++11 only)
+#if __cplusplus < 201703L
+        std::pair<bool, std::pair<int, std::string>> lb = kv.lower_bound_compat(2);
+        assert(lb.first && lb.second.first == 2);
+        std::pair<bool, std::pair<int, std::string>> lb_named = kv.lower_bound(2);
+        if (!lb_named.first || lb_named.second.first != 2) {
+            throw std::runtime_error("lower_bound failed for KeyValueTable C++11");
+        }
+        std::pair<bool, std::pair<int, std::string>> f = kv.first_compat();
+        assert(f.first && f.second.first == 1);
+        std::pair<bool, std::pair<int, std::string>> l = kv.last_compat();
+        if (!l.first || l.second.first != 5) {
+            throw std::runtime_error("last_compat failed for KeyValueTable");
+        }
+        std::pair<bool, int> min_key = kv.min_key_compat();
+        if (!min_key.first || min_key.second != 1) {
+            throw std::runtime_error("min_key_compat failed for KeyValueTable");
+        }
+        std::pair<bool, int> max_key = kv.max_key_compat();
+        if (!max_key.first || max_key.second != 5) {
+            throw std::runtime_error("max_key_compat failed for KeyValueTable");
+        }
+        std::pair<bool, int> named_max_key = kv.max_key();
+        if (!named_max_key.first || named_max_key.second != 5) {
+            throw std::runtime_error("max_key failed for KeyValueTable C++11");
+        }
+#endif
+    }
+
+#if __cplusplus >= 201703L
+    {
+        mdbxc::KeyValueTable<int, std::string> kv(conn, "kv_range_api_opt");
+        kv.clear();
+        kv.insert_or_assign(1, "a");
+        kv.insert_or_assign(3, "c");
+        kv.insert_or_assign(2, "b");
+
+        auto lb = kv.lower_bound(1);
+        if (!lb.has_value() || lb->first != 1) {
+            throw std::runtime_error("lower_bound failed for KeyValueTable");
+        }
+        auto ub = kv.upper_bound(1);
+        if (!ub.has_value() || ub->first != 2) {
+            throw std::runtime_error("upper_bound failed for KeyValueTable");
+        }
+        auto fr = kv.first();
+        if (!fr.has_value() || fr->first != 1) {
+            throw std::runtime_error("first failed for KeyValueTable");
+        }
+        auto la = kv.last();
+        if (!la.has_value() || la->first != 3) {
+            throw std::runtime_error("last failed for KeyValueTable");
+        }
+        auto min_key = kv.min_key();
+        if (!min_key.has_value() || min_key.value() != 1) {
+            throw std::runtime_error("min_key failed for KeyValueTable");
+        }
+        auto max_key = kv.max_key();
+        if (!max_key.has_value() || max_key.value() != 3) {
+            throw std::runtime_error("max_key failed for KeyValueTable");
+        }
+
+        mdbxc::Transaction read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+        auto txn_bound = kv.lower_bound(2, read_txn);
+        if (!txn_bound.has_value() || txn_bound->first != 2) {
+            throw std::runtime_error("transaction lower_bound failed for KeyValueTable");
+        }
+        read_txn.commit();
+    }
+#endif
+
+    {
+        mdbxc::KeyValueTable<std::string, int> kv(conn, "kv_range_api_string_bounds");
+        kv.clear();
+        kv.insert_or_assign("alpha", 1);
+        kv.insert_or_assign("beta", 2);
+#if __cplusplus >= 201703L
+        auto ub = kv.upper_bound(std::string("alpha"));
+        if (!ub.has_value() || ub->first != "beta") {
+            throw std::runtime_error("string upper_bound failed for KeyValueTable");
+        }
+#else
+        std::pair<bool, std::pair<std::string, int>> ub = kv.upper_bound_compat(std::string("alpha"));
+        if (!ub.first || ub.second.first != "beta") {
+            throw std::runtime_error("string upper_bound_compat failed for KeyValueTable");
+        }
+#endif
     }
 
     std::cout << "[result] all tests passed\n";

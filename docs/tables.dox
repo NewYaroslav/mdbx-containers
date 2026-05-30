@@ -47,6 +47,22 @@ if (v.first) std::cout << v.second;
 #endif
 ```
 
+\c for_each_range(from_key, to_key, callback) streams every pair in an inclusive
+MDBX key-order range and stops early when the callback returns \c false.
+\c filter_range() collects pairs matching a predicate as a
+\c std::vector<std::pair<KeyT,ValueT>>.
+\c lower_bound(), \c upper_bound(), \c first(), and \c last() return optional
+edge pairs (or \c std::pair<bool,T> in C++11). \c min_key() and \c max_key()
+return only edge keys without deserializing values.
+\c range_reverse() returns a vector in descending key order; an overload with
+\c limit caps the result size. \c contains_range() and \c count_range() report
+range metadata without deserializing values. \c erase_range() removes every
+pair in the range and returns the deleted count.
+\c update(key, fn) mutates an existing value in place and returns \c false
+when the key is missing. \c find_many(keys) returns a \c std::map of found
+pairs; \c find_many_vector(keys) preserves input order in a vector and omits
+missing keys.
+
 ### Loading and synchronization
 
 Loading into an existing container appends/inserts records into that container;
@@ -161,6 +177,17 @@ tags.insert("archived");
 std::set<std::string> all_tags = tags.retrieve_all();
 ```
 
+\c for_each_range(from_key, to_key, callback) streams keys in an inclusive
+range and stops early when the callback returns \c false.
+\c filter_range() collects keys matching a predicate as a \c std::vector<KeyT>.
+\c lower_bound(), \c upper_bound(), \c first(), and \c last() return optional
+edge keys (or \c std::pair<bool,KeyT> in C++11). \c min_key() and \c max_key()
+are aliases for \c first() and \c last().
+\c range_reverse() returns a vector in descending key order; an overload with
+\c limit caps the result size. \c contains_range() and \c count_range() report
+range metadata without deserializing values. \c erase_range() removes every key
+in the range and returns the deleted count.
+
 ## Multi-value tables
 
 \ref mdbxc::KeyMultiValueTable stores multiple values for the same key. Repeated
@@ -191,6 +218,18 @@ events.insert(7, "created");
 events.insert(7, "sent");
 std::vector<std::string> values = events.find(7);
 ```
+
+\c for_each_range(from_key, to_key, callback) streams every physical pair
+in an inclusive key range and stops early when the callback returns \c false.
+\c filter_range() collects pairs matching a predicate as a
+\c std::vector<std::pair<KeyT,ValueT>>.
+\c lower_bound() and \c upper_bound() return physical pairs at the lower or
+upper key bound. \c first() and \c last() return the edge pairs. \c min_key()
+and \c max_key() return only edge keys without deserializing duplicate values.
+\c range_reverse() iterates in descending MDBX order; for an exact upper key
+it starts from the last duplicate value. A \c limit overload caps the result.
+\c contains_range(), \c count_range(), and \c erase_range() operate on the
+inclusive key range; duplicates are counted and removed individually.
 
 ## Heterogeneous values
 
