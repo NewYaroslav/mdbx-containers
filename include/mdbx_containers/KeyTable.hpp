@@ -1114,14 +1114,21 @@ namespace mdbxc {
             if (rc == MDBX_NOTFOUND) return;
             check_mdbx(rc, "Failed to seek reverse range start");
 
-            while (rc == MDBX_SUCCESS && out.size() < limit) {
+            bool stopped_by_limit = false;
+            bool stopped_by_lower_bound = false;
+            while (rc == MDBX_SUCCESS) {
                 if (mdbx_cmp(txn, m_dbi, &db_key, &db_from_key) < 0) {
+                    stopped_by_lower_bound = true;
                     break;
                 }
                 out.push_back(deserialize_key<KeyT>(db_key));
+                if (out.size() >= limit) {
+                    stopped_by_limit = true;
+                    break;
+                }
                 rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_PREV);
             }
-            if (rc != MDBX_NOTFOUND) {
+            if (!stopped_by_limit && !stopped_by_lower_bound && rc != MDBX_NOTFOUND) {
                 check_mdbx(rc, "Failed to iterate reverse key range");
             }
         }

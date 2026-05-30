@@ -411,7 +411,8 @@ namespace mdbxc {
         }
 
         /// \brief Collects key-value pairs matching a predicate within an inclusive range.
-        /// \tparam ContainerT Container type storing key-value pairs (default \c std::vector<std::pair<KeyT,ValueT>>).
+        /// \tparam ContainerT Pair-associative container template such as \c std::map or
+        /// \c std::multimap, or \c std::vector for \c std::vector<std::pair<KeyT,ValueT>>.
         /// \param from_key Start key in MDBX key order.
         /// \param to_key End key in MDBX key order.
         /// \param pred Predicate invoked as \c pred(const KeyT&, const ValueT&). Return \c true to collect.
@@ -434,7 +435,8 @@ namespace mdbxc {
         }
 
         /// \brief Collects key-value pairs matching a predicate within an inclusive range.
-        /// \tparam ContainerT Container type storing key-value pairs (default \c std::vector<std::pair<KeyT,ValueT>>).
+        /// \tparam ContainerT Pair-associative container template such as \c std::map or
+        /// \c std::multimap, or \c std::vector for \c std::vector<std::pair<KeyT,ValueT>>.
         /// \param from_key Start key in MDBX key order.
         /// \param to_key End key in MDBX key order.
         /// \param pred Predicate invoked as \c pred(const KeyT&, const ValueT&). Return \c true to collect.
@@ -1207,7 +1209,8 @@ namespace mdbxc {
         /// \param txn Optional transaction handle.
         /// \return \c true if the key existed and was updated, \c false if the key was missing.
         /// \throws MdbxException if a database error occurs.
-        /// \note If \c fn throws, the active transaction is rolled back.
+        /// \note If \c txn is \c nullptr and \c fn throws, the internally created
+        /// transaction is rolled back. Caller-owned transactions remain caller-managed.
         template<typename Fn>
         bool update(const KeyT& key, Fn fn, MDBX_txn* txn = nullptr) {
             bool result = false;
@@ -1223,6 +1226,8 @@ namespace mdbxc {
         /// \param txn Active transaction wrapper.
         /// \return \c true if the key existed and was updated, \c false if the key was missing.
         /// \throws MdbxException if a database error occurs.
+        /// \note This overload uses a caller-owned transaction. If \c fn throws,
+        /// transaction rollback remains caller-managed.
         template<typename Fn>
         bool update(const KeyT& key, Fn fn, const Transaction& txn) {
             return update(key, fn, txn.handle());
@@ -1805,14 +1810,21 @@ namespace mdbxc {
             if (rc == MDBX_NOTFOUND) return;
             check_mdbx(rc, "Failed to seek reverse range start");
 
-            while (rc == MDBX_SUCCESS && out.size() < limit) {
+            bool stopped_by_limit = false;
+            bool stopped_by_lower_bound = false;
+            while (rc == MDBX_SUCCESS) {
                 if (mdbx_cmp(txn, m_dbi, &db_key, &db_from_key) < 0) {
+                    stopped_by_lower_bound = true;
                     break;
                 }
                 out.push_back(value_type(deserialize_key<KeyT>(db_key), deserialize_value<ValueT>(db_val)));
+                if (out.size() >= limit) {
+                    stopped_by_limit = true;
+                    break;
+                }
                 rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_PREV);
             }
-            if (rc != MDBX_NOTFOUND) {
+            if (!stopped_by_limit && !stopped_by_lower_bound && rc != MDBX_NOTFOUND) {
                 check_mdbx(rc, "Failed to iterate reverse key-value range");
             }
         }

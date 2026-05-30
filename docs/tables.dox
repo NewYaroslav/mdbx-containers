@@ -50,7 +50,9 @@ if (v.first) std::cout << v.second;
 \c for_each_range(from_key, to_key, callback) streams every pair in an inclusive
 MDBX key-order range and stops early when the callback returns \c false.
 \c filter_range() collects pairs matching a predicate as a
-\c std::vector<std::pair<KeyT,ValueT>>.
+\c std::vector<std::pair<KeyT,ValueT>> by default. Its container template
+parameter accepts pair-associative containers such as \c std::map and
+\c std::multimap, with \c std::vector handled as a vector of pairs.
 \c lower_bound(), \c upper_bound(), \c first(), and \c last() return optional
 edge pairs (or \c std::pair<bool,T> in C++11). \c min_key() and \c max_key()
 return only edge keys without deserializing values.
@@ -222,7 +224,9 @@ std::vector<std::string> values = events.find(7);
 \c for_each_range(from_key, to_key, callback) streams every physical pair
 in an inclusive key range and stops early when the callback returns \c false.
 \c filter_range() collects pairs matching a predicate as a
-\c std::vector<std::pair<KeyT,ValueT>>.
+\c std::vector<std::pair<KeyT,ValueT>> by default. Unlike \c range(), its
+container template parameter is a single-value container over
+\c std::pair<KeyT,ValueT>, such as \c std::vector or \c std::set.
 \c lower_bound() and \c upper_bound() return physical pairs at the lower or
 upper key bound. \c first() and \c last() return the edge pairs. \c min_key()
 and \c max_key() return only edge keys without deserializing duplicate values.
