@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_assert.hpp"
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -48,14 +48,14 @@ int main() {
         mdbxc::ValueTable<int> table(conn, "integer_state");
         table.clear();
 
-        assert(table.empty());
-        assert(!table.has_value());
-        assert(table.count() == 0);
-        assert(table.get_or(7) == 7);
+        MDBXC_TEST_ASSERT(table.empty());
+        MDBXC_TEST_ASSERT(!table.has_value());
+        MDBXC_TEST_ASSERT(table.count() == 0);
+        MDBXC_TEST_ASSERT(table.get_or(7) == 7);
 
         int out = 0;
-        assert(!table.try_get(out));
-        assert(!table.erase());
+        MDBXC_TEST_ASSERT(!table.try_get(out));
+        MDBXC_TEST_ASSERT(!table.erase());
 
         bool threw = false;
         try {
@@ -63,42 +63,42 @@ int main() {
         } catch (const std::out_of_range&) {
             threw = true;
         }
-        assert(threw);
+        MDBXC_TEST_ASSERT(threw);
 
-        assert(table.insert(10));
-        assert(!table.insert(20));
-        assert(table.has_value());
-        assert(!table.empty());
-        assert(table.count() == 1);
-        assert(table.get() == 10);
-        assert(table.try_get(out) && out == 10);
+        MDBXC_TEST_ASSERT(table.insert(10));
+        MDBXC_TEST_ASSERT(!table.insert(20));
+        MDBXC_TEST_ASSERT(table.has_value());
+        MDBXC_TEST_ASSERT(!table.empty());
+        MDBXC_TEST_ASSERT(table.count() == 1);
+        MDBXC_TEST_ASSERT(table.get() == 10);
+        MDBXC_TEST_ASSERT(table.try_get(out) && out == 10);
 
         table.set(30);
-        assert(table.get() == 30);
+        MDBXC_TEST_ASSERT(table.get() == 30);
 
         bool updated = table.update([](int& value) {
             value += 1;
         });
-        assert(updated);
-        assert(table.get() == 31);
+        MDBXC_TEST_ASSERT(updated);
+        MDBXC_TEST_ASSERT(table.get() == 31);
 
 #if __cplusplus >= 201703L
         auto found = table.find();
-        assert(found && *found == 31);
+        MDBXC_TEST_ASSERT(found && *found == 31);
 #else
         auto found = table.find();
-        assert(found.first && found.second == 31);
+        MDBXC_TEST_ASSERT(found.first && found.second == 31);
 #endif
 
         std::pair<bool, int> compat = table.find_compat();
-        assert(compat.first && compat.second == 31);
+        MDBXC_TEST_ASSERT(compat.first && compat.second == 31);
 
-        assert(table.erase());
-        assert(!table.erase());
-        assert(!table.update([](int& value) {
+        MDBXC_TEST_ASSERT(table.erase());
+        MDBXC_TEST_ASSERT(!table.erase());
+        MDBXC_TEST_ASSERT(!table.update([](int& value) {
             value += 1;
         }));
-        assert(table.count() == 0);
+        MDBXC_TEST_ASSERT(table.count() == 0);
     }
 
     {
@@ -111,19 +111,19 @@ int main() {
         table.set(expected);
 
         StoredState loaded = table.get();
-        assert(loaded == expected);
+        MDBXC_TEST_ASSERT(loaded == expected);
 
-        assert(table.update([](StoredState& value) {
+        MDBXC_TEST_ASSERT(table.update([](StoredState& value) {
             value.id += 1;
             value.score += 0.5;
         }));
 
         StoredState changed = table.get();
-        assert(changed.id == 43);
-        assert(changed.score == 4.0);
+        MDBXC_TEST_ASSERT(changed.id == 43);
+        MDBXC_TEST_ASSERT(changed.score == 4.0);
 
         table.clear();
-        assert(!table.has_value());
+        MDBXC_TEST_ASSERT(!table.has_value());
     }
 
     {
@@ -131,22 +131,22 @@ int main() {
         table.clear();
 
         auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
-        assert(table.insert(5, txn));
+        MDBXC_TEST_ASSERT(table.insert(5, txn));
         txn.commit();
 
         auto read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
-        assert(table.has_value(read_txn));
-        assert(table.count(read_txn) == 1);
-        assert(table.get(read_txn) == 5);
+        MDBXC_TEST_ASSERT(table.has_value(read_txn));
+        MDBXC_TEST_ASSERT(table.count(read_txn) == 1);
+        MDBXC_TEST_ASSERT(table.get(read_txn) == 5);
         read_txn.commit();
 
         auto update_txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
-        assert(table.update([](int& value) {
+        MDBXC_TEST_ASSERT(table.update([](int& value) {
             value *= 2;
         }, update_txn));
         update_txn.commit();
 
-        assert(table.get() == 10);
+        MDBXC_TEST_ASSERT(table.get() == 10);
     }
 
     {
@@ -159,7 +159,7 @@ int main() {
         mdbxc::ValueTable<std::string> table(standalone_cfg, "config_value");
         table.clear();
         table.set("ready");
-        assert(table.get() == "ready");
+        MDBXC_TEST_ASSERT(table.get() == "ready");
     }
 
     std::cout << "ValueTable test passed.\n";

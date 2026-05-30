@@ -1,7 +1,4 @@
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-#include <cassert>
+#include "test_assert.hpp"
 #include <iostream>
 #include <map>
 #include <set>
@@ -15,9 +12,9 @@ namespace {
 
 template <class T>
 void assert_vector_equal(const std::vector<T>& actual, const std::vector<T>& expected) {
-    assert(actual.size() == expected.size());
+    MDBXC_TEST_ASSERT(actual.size() == expected.size());
     for (std::size_t i = 0; i < actual.size(); ++i) {
-        assert(actual[i] == expected[i]);
+        MDBXC_TEST_ASSERT(actual[i] == expected[i]);
     }
 }
 
@@ -29,7 +26,7 @@ void assert_throws_length_error(Fn fn) {
     } catch (const std::length_error&) {
         thrown = true;
     }
-    assert(thrown);
+    MDBXC_TEST_ASSERT(thrown);
 }
 
 } // namespace
@@ -47,19 +44,19 @@ int main() {
         mdbxc::KeyMultiValueTable<int, std::string> table(conn, "multi_values");
         table.clear();
 
-        assert(table.empty());
+        MDBXC_TEST_ASSERT(table.empty());
         table.insert(7, "created");
         table.insert(7, "created");
         table.insert(7, "sent");
         table.insert(8, "queued");
 
-        assert(table.count() == 4);
-        assert(table.count(7) == 3);
-        assert(table.count(7, std::string("created")) == 2);
-        assert(table.count(7, std::string("missing")) == 0);
-        assert(table.contains(7));
-        assert(table.contains(7, std::string("sent")));
-        assert(!table.contains(9));
+        MDBXC_TEST_ASSERT(table.count() == 4);
+        MDBXC_TEST_ASSERT(table.count(7) == 3);
+        MDBXC_TEST_ASSERT(table.count(7, std::string("created")) == 2);
+        MDBXC_TEST_ASSERT(table.count(7, std::string("missing")) == 0);
+        MDBXC_TEST_ASSERT(table.contains(7));
+        MDBXC_TEST_ASSERT(table.contains(7, std::string("sent")));
+        MDBXC_TEST_ASSERT(!table.contains(9));
 
         assert_vector_equal(table.find(7), std::vector<std::string>{"created", "created", "sent"});
         std::vector<std::pair<int, std::string> > range_pairs;
@@ -68,58 +65,58 @@ int main() {
         range_pairs.push_back(std::make_pair(7, std::string("sent")));
         range_pairs.push_back(std::make_pair(8, std::string("queued")));
         std::multimap<int, std::string> range_multimap = table.range(7, 8);
-        assert(range_multimap.size() == 4);
-        assert(range_multimap.count(7) == 3);
-        assert(range_multimap.count(8) == 1);
+        MDBXC_TEST_ASSERT(range_multimap.size() == 4);
+        MDBXC_TEST_ASSERT(range_multimap.count(7) == 3);
+        MDBXC_TEST_ASSERT(range_multimap.count(8) == 1);
         assert_vector_equal(table.range_vector(7, 8), range_pairs);
         assert_vector_equal(table.range_values(7, 8),
                             std::vector<std::string>{"created", "created", "sent", "queued"});
-        assert(table.range_values<std::set>(7, 8) ==
+        MDBXC_TEST_ASSERT(table.range_values<std::set>(7, 8) ==
                (std::set<std::string>{"created", "queued", "sent"}));
 
         std::vector<std::pair<int, std::string> > queued_pair;
         queued_pair.push_back(std::make_pair(8, std::string("queued")));
-        assert(table.range(8, 8).size() == 1);
+        MDBXC_TEST_ASSERT(table.range(8, 8).size() == 1);
         assert_vector_equal(table.range_vector(8, 8), queued_pair);
         assert_vector_equal(table.range_values(8, 8), std::vector<std::string>{"queued"});
-        assert(table.range(9, 10).empty());
-        assert(table.range(8, 7).empty());
+        MDBXC_TEST_ASSERT(table.range(9, 10).empty());
+        MDBXC_TEST_ASSERT(table.range(8, 7).empty());
 
         std::multimap<int, std::string> as_multimap;
         table.load(as_multimap);
-        assert(as_multimap.size() == 4);
-        assert(as_multimap.count(7) == 3);
+        MDBXC_TEST_ASSERT(as_multimap.size() == 4);
+        MDBXC_TEST_ASSERT(as_multimap.count(7) == 3);
 
         std::vector<std::pair<int, std::string> > as_vector;
         table.load(as_vector);
-        assert(as_vector.size() == 4);
-        assert(as_vector[0] == std::make_pair(7, std::string("created")));
-        assert(as_vector[1] == std::make_pair(7, std::string("created")));
-        assert(as_vector[2] == std::make_pair(7, std::string("sent")));
-        assert(as_vector[3] == std::make_pair(8, std::string("queued")));
+        MDBXC_TEST_ASSERT(as_vector.size() == 4);
+        MDBXC_TEST_ASSERT(as_vector[0] == std::make_pair(7, std::string("created")));
+        MDBXC_TEST_ASSERT(as_vector[1] == std::make_pair(7, std::string("created")));
+        MDBXC_TEST_ASSERT(as_vector[2] == std::make_pair(7, std::string("sent")));
+        MDBXC_TEST_ASSERT(as_vector[3] == std::make_pair(8, std::string("queued")));
 
-        assert(table.erase(7, std::string("created")) == 2);
+        MDBXC_TEST_ASSERT(table.erase(7, std::string("created")) == 2);
         assert_vector_equal(table.find(7), std::vector<std::string>{"sent"});
-        assert(table.erase(7));
-        assert(!table.contains(7));
-        assert(table.count() == 1);
+        MDBXC_TEST_ASSERT(table.erase(7));
+        MDBXC_TEST_ASSERT(!table.contains(7));
+        MDBXC_TEST_ASSERT(table.count() == 1);
 
         std::vector<std::pair<int, std::string> > replacement;
         replacement.push_back(std::make_pair(3, std::string("a")));
         replacement.push_back(std::make_pair(3, std::string("a")));
         replacement.push_back(std::make_pair(3, std::string("b")));
         table.reconcile(replacement);
-        assert(table.count() == 3);
-        assert(table.count(3, std::string("a")) == 2);
+        MDBXC_TEST_ASSERT(table.count() == 3);
+        MDBXC_TEST_ASSERT(table.count(3, std::string("a")) == 2);
         assert_vector_equal(table.find(3), std::vector<std::string>{"a", "a", "b"});
 
         std::multimap<int, std::string> assigned;
         assigned.emplace(4, "x");
         assigned.emplace(4, "x");
         table = assigned;
-        assert(table.count() == 2);
-        assert(table.count(4, std::string("x")) == 2);
-        assert(!table.contains(3));
+        MDBXC_TEST_ASSERT(table.count() == 2);
+        MDBXC_TEST_ASSERT(table.count(4, std::string("x")) == 2);
+        MDBXC_TEST_ASSERT(!table.contains(3));
     }
 
     {
@@ -137,7 +134,7 @@ int main() {
         expected_pairs.push_back(std::make_pair(1, std::string("b")));
         expected_pairs.push_back(std::make_pair(2, std::string("c")));
         expected_pairs.push_back(std::make_pair(2, std::string("d")));
-        assert(table.range(1, 2).size() == 4);
+        MDBXC_TEST_ASSERT(table.range(1, 2).size() == 4);
         assert_vector_equal(table.range_vector(1, 2), expected_pairs);
         assert_vector_equal(table.range_values(1, 2),
                             std::vector<std::string>{"a", "b", "c", "d"});
@@ -153,12 +150,12 @@ int main() {
         txn.commit();
 
         auto read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
-        assert(table.count(1, read_txn) == 2);
-        assert(table.count(1, std::string("one"), read_txn) == 2);
+        MDBXC_TEST_ASSERT(table.count(1, read_txn) == 2);
+        MDBXC_TEST_ASSERT(table.count(1, std::string("one"), read_txn) == 2);
         std::vector<std::pair<int, std::string> > one_pairs;
         one_pairs.push_back(std::make_pair(1, std::string("one")));
         one_pairs.push_back(std::make_pair(1, std::string("one")));
-        assert(table.range(1, 1, read_txn).size() == 2);
+        MDBXC_TEST_ASSERT(table.range(1, 1, read_txn).size() == 2);
         assert_vector_equal(table.range_vector(1, 1, read_txn), one_pairs);
         assert_vector_equal(table.range_values(1, 1, read_txn), std::vector<std::string>{"one", "one"});
         read_txn.commit();
@@ -179,15 +176,15 @@ int main() {
         same_multiset_reordered.push_back(std::make_pair(1, std::string("a")));
         same_multiset_reordered.push_back(std::make_pair(2, std::string("old")));
         table.reconcile(same_multiset_reordered);
-        assert(table.count() == 4);
+        MDBXC_TEST_ASSERT(table.count() == 4);
         assert_vector_equal(table.find(1), std::vector<std::string>{"a", "b", "a"});
 
         std::vector<std::pair<int, std::string> > fewer_duplicates;
         fewer_duplicates.push_back(std::make_pair(1, std::string("a")));
         table.reconcile(fewer_duplicates);
-        assert(table.count() == 1);
-        assert(table.count(1, std::string("a")) == 1);
-        assert(!table.contains(2));
+        MDBXC_TEST_ASSERT(table.count() == 1);
+        MDBXC_TEST_ASSERT(table.count(1, std::string("a")) == 1);
+        MDBXC_TEST_ASSERT(!table.contains(2));
         assert_vector_equal(table.find(1), std::vector<std::string>{"a"});
 
         std::vector<std::pair<int, std::string> > more_and_changed;
@@ -196,10 +193,10 @@ int main() {
         more_and_changed.push_back(std::make_pair(1, std::string("c")));
         more_and_changed.push_back(std::make_pair(3, std::string("z")));
         table.reconcile(more_and_changed);
-        assert(table.count() == 4);
-        assert(table.count(1, std::string("a")) == 2);
-        assert(table.count(1, std::string("c")) == 1);
-        assert(table.count(3, std::string("z")) == 1);
+        MDBXC_TEST_ASSERT(table.count() == 4);
+        MDBXC_TEST_ASSERT(table.count(1, std::string("a")) == 2);
+        MDBXC_TEST_ASSERT(table.count(1, std::string("c")) == 1);
+        MDBXC_TEST_ASSERT(table.count(3, std::string("z")) == 1);
         assert_vector_equal(table.find(1), std::vector<std::string>{"a", "a", "c"});
 
         std::multimap<int, std::string> multimap_source;
@@ -207,10 +204,10 @@ int main() {
         multimap_source.insert(std::make_pair(4, std::string("x")));
         multimap_source.insert(std::make_pair(4, std::string("y")));
         table.reconcile(multimap_source);
-        assert(table.count() == 3);
-        assert(table.count(4, std::string("x")) == 2);
-        assert(table.count(4, std::string("y")) == 1);
-        assert(!table.contains(1));
+        MDBXC_TEST_ASSERT(table.count() == 3);
+        MDBXC_TEST_ASSERT(table.count(4, std::string("x")) == 2);
+        MDBXC_TEST_ASSERT(table.count(4, std::string("y")) == 1);
+        MDBXC_TEST_ASSERT(!table.contains(1));
 
         auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
         std::vector<std::pair<int, std::string> > txn_source;
@@ -218,9 +215,9 @@ int main() {
         txn_source.push_back(std::make_pair(5, std::string("txn")));
         table.reconcile(txn_source, txn);
         txn.commit();
-        assert(table.count() == 2);
-        assert(table.count(5, std::string("txn")) == 2);
-        assert(!table.contains(4));
+        MDBXC_TEST_ASSERT(table.count() == 2);
+        MDBXC_TEST_ASSERT(table.count(5, std::string("txn")) == 2);
+        MDBXC_TEST_ASSERT(!table.contains(4));
     }
 
     {
@@ -229,8 +226,8 @@ int main() {
         safe_table.clear();
         safe_table.insert(11, "safe");
         fast_table.insert(12, "fast");
-        assert(fast_table.count(11, std::string("safe")) == 1);
-        assert(safe_table.count(12, std::string("fast")) == 1);
+        MDBXC_TEST_ASSERT(fast_table.count(11, std::string("safe")) == 1);
+        MDBXC_TEST_ASSERT(safe_table.count(12, std::string("fast")) == 1);
     }
 
     {
@@ -267,33 +264,33 @@ int main() {
             collected.push_back(std::make_pair(k, v));
             return true;
         });
-        assert(completed);
-        assert(collected.size() == 6);
+        MDBXC_TEST_ASSERT(completed);
+        MDBXC_TEST_ASSERT(collected.size() == 6);
 
         // filter_range
         std::vector<std::pair<int, std::string>> filtered = table.filter_range(1, 3, [](const int&, const std::string& v) -> bool {
             return v >= "d";
         });
-        assert(filtered.size() == 3); // d, e, f
+        MDBXC_TEST_ASSERT(filtered.size() == 3); // d, e, f
 
         // reverse range
         std::vector<std::pair<int, std::string>> rev = table.range_reverse(1, 3);
-        assert(rev.size() == 6);
-        assert(rev[0] == std::make_pair(3, std::string("f")));
-        assert(rev[5] == std::make_pair(1, std::string("a")));
+        MDBXC_TEST_ASSERT(rev.size() == 6);
+        MDBXC_TEST_ASSERT(rev[0] == std::make_pair(3, std::string("f")));
+        MDBXC_TEST_ASSERT(rev[5] == std::make_pair(1, std::string("a")));
 
         // reverse range limit
         std::vector<std::pair<int, std::string>> rev_limit = table.range_reverse(1, 3, 2);
-        assert(rev_limit.size() == 2);
-        assert(rev_limit[0] == std::make_pair(3, std::string("f")));
-        assert(rev_limit[1] == std::make_pair(3, std::string("e")));
+        MDBXC_TEST_ASSERT(rev_limit.size() == 2);
+        MDBXC_TEST_ASSERT(rev_limit[0] == std::make_pair(3, std::string("f")));
+        MDBXC_TEST_ASSERT(rev_limit[1] == std::make_pair(3, std::string("e")));
 
         // contains_range / count_range / erase_range
-        assert(table.contains_range(2, 3));
-        assert(table.count_range(2, 3) == 4); // c + d,e,f
+        MDBXC_TEST_ASSERT(table.contains_range(2, 3));
+        MDBXC_TEST_ASSERT(table.count_range(2, 3) == 4); // c + d,e,f
         std::size_t erased = table.erase_range(2, 3);
-        assert(erased == 4);
-        assert(table.count() == 2);
+        MDBXC_TEST_ASSERT(erased == 4);
+        MDBXC_TEST_ASSERT(table.count() == 2);
 
     }
 

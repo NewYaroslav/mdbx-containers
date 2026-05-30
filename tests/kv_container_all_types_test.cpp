@@ -1,13 +1,10 @@
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
 #include <iostream>
 #include <sstream>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
-#include <cassert>
+#include "test_assert.hpp"
 #include <chrono>
 #include <vector>
 #include <deque>
@@ -236,25 +233,25 @@ int main() {
         std::vector<std::pair<int, std::string> > middle_pairs;
         middle_pairs.push_back(std::make_pair(2, std::string("two")));
         middle_pairs.push_back(std::make_pair(4, std::string("four")));
-        assert((kv.range(2, 4) == std::map<int, std::string>(middle_pairs.begin(), middle_pairs.end())));
-        assert(kv.range<std::vector>(2, 4) == middle_pairs);
-        assert(kv.range_values(2, 4) == (std::vector<std::string>{"two", "four"}));
-        assert(kv.range_values<std::set>(2, 4) == (std::set<std::string>{"four", "two"}));
+        MDBXC_TEST_ASSERT((kv.range(2, 4) == std::map<int, std::string>(middle_pairs.begin(), middle_pairs.end())));
+        MDBXC_TEST_ASSERT(kv.range<std::vector>(2, 4) == middle_pairs);
+        MDBXC_TEST_ASSERT(kv.range_values(2, 4) == (std::vector<std::string>{"two", "four"}));
+        MDBXC_TEST_ASSERT(kv.range_values<std::set>(2, 4) == (std::set<std::string>{"four", "two"}));
 
         std::vector<std::pair<int, std::string> > first_pair;
         first_pair.push_back(std::make_pair(1, std::string("one")));
-        assert((kv.range(0, 1) == std::map<int, std::string>(first_pair.begin(), first_pair.end())));
-        assert(kv.range_values(0, 1) == (std::vector<std::string>{"one"}));
-        assert(kv.range(3, 3).empty());
-        assert(kv.range(5, 2).empty());
+        MDBXC_TEST_ASSERT((kv.range(0, 1) == std::map<int, std::string>(first_pair.begin(), first_pair.end())));
+        MDBXC_TEST_ASSERT(kv.range_values(0, 1) == (std::vector<std::string>{"one"}));
+        MDBXC_TEST_ASSERT(kv.range(3, 3).empty());
+        MDBXC_TEST_ASSERT(kv.range(5, 2).empty());
 
         mdbxc::Transaction read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
         std::vector<std::pair<int, std::string> > txn_pairs;
         txn_pairs.push_back(std::make_pair(1, std::string("one")));
         txn_pairs.push_back(std::make_pair(2, std::string("two")));
-        assert((kv.range(1, 2, read_txn) == std::map<int, std::string>(txn_pairs.begin(), txn_pairs.end())));
-        assert(kv.range<std::vector>(1, 2, read_txn) == txn_pairs);
-        assert(kv.range_values(1, 2, read_txn) == (std::vector<std::string>{"one", "two"}));
+        MDBXC_TEST_ASSERT((kv.range(1, 2, read_txn) == std::map<int, std::string>(txn_pairs.begin(), txn_pairs.end())));
+        MDBXC_TEST_ASSERT(kv.range<std::vector>(1, 2, read_txn) == txn_pairs);
+        MDBXC_TEST_ASSERT(kv.range_values(1, 2, read_txn) == (std::vector<std::string>{"one", "two"}));
         read_txn.commit();
     }
 
@@ -271,16 +268,16 @@ int main() {
         std::vector<std::pair<int, std::string> > negative_pairs;
         negative_pairs.push_back(std::make_pair(-2, std::string("minus-two")));
         negative_pairs.push_back(std::make_pair(-1, std::string("minus-one")));
-        assert((kv.range(-2, -1) == std::map<int, std::string>(negative_pairs.begin(), negative_pairs.end())));
-        assert(kv.range<std::vector>(-2, -1) == negative_pairs);
-        assert(kv.range_values(-2, -1) ==
+        MDBXC_TEST_ASSERT((kv.range(-2, -1) == std::map<int, std::string>(negative_pairs.begin(), negative_pairs.end())));
+        MDBXC_TEST_ASSERT(kv.range<std::vector>(-2, -1) == negative_pairs);
+        MDBXC_TEST_ASSERT(kv.range_values(-2, -1) ==
                (std::vector<std::string>{"minus-two", "minus-one"}));
 
         std::vector<std::pair<int, std::string> > nonnegative_pairs;
         nonnegative_pairs.push_back(std::make_pair(0, std::string("zero")));
         nonnegative_pairs.push_back(std::make_pair(1, std::string("one")));
-        assert((kv.range(0, 1) == std::map<int, std::string>(nonnegative_pairs.begin(), nonnegative_pairs.end())));
-        assert(kv.range_values(0, 1) == (std::vector<std::string>{"zero", "one"}));
+        MDBXC_TEST_ASSERT((kv.range(0, 1) == std::map<int, std::string>(nonnegative_pairs.begin(), nonnegative_pairs.end())));
+        MDBXC_TEST_ASSERT(kv.range_values(0, 1) == (std::vector<std::string>{"zero", "one"}));
     }
 
     {
@@ -296,10 +293,10 @@ int main() {
         all_pairs.push_back(std::make_pair(uint64_t(0), std::string("zero")));
         all_pairs.push_back(std::make_pair(uint64_t(1), std::string("one")));
         all_pairs.push_back(std::make_pair(max_key, std::string("max")));
-        assert((kv.range(0u, max_key) ==
+        MDBXC_TEST_ASSERT((kv.range(0u, max_key) ==
                 std::map<uint64_t, std::string>(all_pairs.begin(), all_pairs.end())));
-        assert(kv.range<std::vector>(0u, max_key) == all_pairs);
-        assert(kv.range_values(0u, max_key) ==
+        MDBXC_TEST_ASSERT(kv.range<std::vector>(0u, max_key) == all_pairs);
+        MDBXC_TEST_ASSERT(kv.range_values(0u, max_key) ==
                (std::vector<std::string>{"zero", "one", "max"}));
     }
 
@@ -315,10 +312,10 @@ int main() {
         all_pairs.push_back(std::make_pair(-1.0, std::string("minus-one")));
         all_pairs.push_back(std::make_pair(0.0, std::string("zero")));
         all_pairs.push_back(std::make_pair(1.0, std::string("one")));
-        assert((kv.range(-1.0, 1.0) ==
+        MDBXC_TEST_ASSERT((kv.range(-1.0, 1.0) ==
                 std::map<double, std::string>(all_pairs.begin(), all_pairs.end())));
-        assert(kv.range<std::vector>(-1.0, 1.0) == all_pairs);
-        assert(kv.range_values(-1.0, 1.0) ==
+        MDBXC_TEST_ASSERT(kv.range<std::vector>(-1.0, 1.0) == all_pairs);
+        MDBXC_TEST_ASSERT(kv.range_values(-1.0, 1.0) ==
                (std::vector<std::string>{"minus-one", "zero", "one"}));
     }
 
@@ -600,47 +597,47 @@ int main() {
             collected.push_back(std::make_pair(k, v));
             return true;
         });
-        assert(completed);
-        assert(collected.size() == 5);
+        MDBXC_TEST_ASSERT(completed);
+        MDBXC_TEST_ASSERT(collected.size() == 5);
 
         // filter_range
         std::vector<std::pair<int, std::string>> evens = kv.filter_range(1, 5, [](const int& k, const std::string&) -> bool {
             return k % 2 == 0;
         });
-        assert(evens.size() == 2);
-        assert(evens[0].first == 2);
-        assert(evens[1].first == 4);
+        MDBXC_TEST_ASSERT(evens.size() == 2);
+        MDBXC_TEST_ASSERT(evens[0].first == 2);
+        MDBXC_TEST_ASSERT(evens[1].first == 4);
 
         // reverse range
         std::vector<std::pair<int, std::string>> rev = kv.range_reverse(1, 5);
-        assert(rev.size() == 5);
-        assert(rev[0].first == 5);
-        assert(rev[4].first == 1);
+        MDBXC_TEST_ASSERT(rev.size() == 5);
+        MDBXC_TEST_ASSERT(rev[0].first == 5);
+        MDBXC_TEST_ASSERT(rev[4].first == 1);
 
         // reverse range limit
         std::vector<std::pair<int, std::string>> rev_limit = kv.range_reverse(1, 5, 2);
-        assert(rev_limit.size() == 2);
-        assert(rev_limit[0].first == 5);
+        MDBXC_TEST_ASSERT(rev_limit.size() == 2);
+        MDBXC_TEST_ASSERT(rev_limit[0].first == 5);
 
         // contains_range / count_range / erase_range
-        assert(kv.contains_range(2, 4));
-        assert(kv.count_range(2, 4) == 3);
+        MDBXC_TEST_ASSERT(kv.contains_range(2, 4));
+        MDBXC_TEST_ASSERT(kv.count_range(2, 4) == 3);
         std::size_t erased = kv.erase_range(2, 4);
-        assert(erased == 3);
-        assert(kv.count() == 2);
+        MDBXC_TEST_ASSERT(erased == 3);
+        MDBXC_TEST_ASSERT(kv.count() == 2);
 
         // update existing
         bool updated = kv.update(1, [](std::string& v) {
             v = "ONE";
         });
-        assert(updated);
+        MDBXC_TEST_ASSERT(updated);
         ASSERT_FOUND(kv, 1, std::string("ONE"));
 
         // update missing
         bool missing_updated = kv.update(99, [](std::string& v) {
             v = "X";
         });
-        assert(!missing_updated);
+        MDBXC_TEST_ASSERT(!missing_updated);
 
         // update rollback when mutator throws
         bool update_threw = false;
@@ -652,33 +649,33 @@ int main() {
         } catch (const std::runtime_error&) {
             update_threw = true;
         }
-        assert(update_threw);
+        MDBXC_TEST_ASSERT(update_threw);
         ASSERT_FOUND(kv, 1, std::string("ONE"));
 
         // find_many
         kv.insert_or_assign(2, "two");
         kv.insert_or_assign(3, "three");
         std::map<int, std::string> many = kv.find_many(std::vector<int>{1, 2, 99});
-        assert(many.size() == 2);
-        assert(many[1] == "ONE");
-        assert(many[2] == "two");
+        MDBXC_TEST_ASSERT(many.size() == 2);
+        MDBXC_TEST_ASSERT(many[1] == "ONE");
+        MDBXC_TEST_ASSERT(many[2] == "two");
 
         // find_many_vector preserves order, skips missing
         std::vector<std::pair<int, std::string>> many_vec = kv.find_many_vector(std::vector<int>{99, 3, 1});
-        assert(many_vec.size() == 2);
-        assert(many_vec[0].first == 3);
-        assert(many_vec[1].first == 1);
+        MDBXC_TEST_ASSERT(many_vec.size() == 2);
+        MDBXC_TEST_ASSERT(many_vec[0].first == 3);
+        MDBXC_TEST_ASSERT(many_vec[1].first == 1);
 
         // bounds compat (C++11 only)
 #if __cplusplus < 201703L
         std::pair<bool, std::pair<int, std::string>> lb = kv.lower_bound_compat(2);
-        assert(lb.first && lb.second.first == 2);
+        MDBXC_TEST_ASSERT(lb.first && lb.second.first == 2);
         std::pair<bool, std::pair<int, std::string>> lb_named = kv.lower_bound(2);
         if (!lb_named.first || lb_named.second.first != 2) {
             throw std::runtime_error("lower_bound failed for KeyValueTable C++11");
         }
         std::pair<bool, std::pair<int, std::string>> f = kv.first_compat();
-        assert(f.first && f.second.first == 1);
+        MDBXC_TEST_ASSERT(f.first && f.second.first == 1);
         std::pair<bool, std::pair<int, std::string>> l = kv.last_compat();
         if (!l.first || l.second.first != 5) {
             throw std::runtime_error("last_compat failed for KeyValueTable");
