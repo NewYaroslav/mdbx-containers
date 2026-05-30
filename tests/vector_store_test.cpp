@@ -205,7 +205,37 @@ int main() {
         MDBXC_TEST_ASSERT(l2_index.dim() == 0);
     }
 
-    // --- 9. Embedding serialization validation ---
+    // --- 9. Failed add does not persist ---
+    {
+        mdbxc::Config cfg;
+        cfg.pathname = "data/vector_store_test_9.mdbx";
+        cfg.max_dbs = 10;
+        cfg.no_subdir = true;
+        cfg.relative_to_exe = true;
+
+        {
+            mdbxc::VectorStore store(cfg, "failed_add");
+            store.clear();
+            store.add(make_embedding({1.0f, 0.0f, 0.0f}), "dim3");
+            bool threw = false;
+            try {
+                store.add(make_embedding({1.0f, 0.0f}), "dim2");
+            } catch (const std::invalid_argument&) {
+                threw = true;
+            }
+            MDBXC_TEST_ASSERT(threw);
+            MDBXC_TEST_ASSERT(store.count() == 1);
+        }
+        {
+            mdbxc::VectorStore store(cfg, "failed_add");
+            mdbxc::Embedding query = make_embedding({1.0f, 0.0f, 0.0f});
+            auto results = store.search(query, 1);
+            MDBXC_TEST_ASSERT(results.size() == 1);
+            MDBXC_TEST_ASSERT(results[0].text == "dim3");
+        }
+    }
+
+    // --- 10. Embedding serialization validation ---
     {
         mdbxc::Embedding embedding = make_embedding({1.0f, 2.0f});
         std::vector<uint8_t> bytes = embedding.to_bytes();

@@ -20,6 +20,9 @@ namespace mdbxc {
     ///
     /// \warning Search is exact \c O(N*dim), all embeddings are loaded into RAM,
     /// and mutable index synchronization is caller-managed.
+    ///
+    /// \note Non-empty collections have a single active dimension established by
+    /// the first successfully added embedding.
     class VectorStore {
     public:
         /// \brief Opens a vector store using a new MDBX connection.
@@ -94,8 +97,6 @@ namespace mdbxc {
 
 } // namespace mdbxc
 
-#ifdef MDBX_CONTAINERS_HEADER_ONLY
 #include "VectorStore.ipp"
-#endif
 
 #endif // _MDBX_CONTAINERS_VECTOR_VECTOR_STORE_HPP_INCLUDED

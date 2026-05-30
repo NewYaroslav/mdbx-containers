@@ -67,8 +67,6 @@ namespace mdbxc {
 
 } // namespace mdbxc
 
-#ifdef MDBX_CONTAINERS_HEADER_ONLY
 #include "FlatVectorIndex.ipp"
-#endif
 
 #endif // _MDBX_CONTAINERS_VECTOR_FLAT_VECTOR_INDEX_HPP_INCLUDED

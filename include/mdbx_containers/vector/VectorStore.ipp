@@ -73,6 +73,9 @@ namespace mdbxc {
                                        const std::string& text,
                                        const std::string& metadata_json) {
         embedding.validate();
+        if (m_index.dim() != 0 && embedding.dim != m_index.dim()) {
+            throw std::invalid_argument("Embedding dimension does not match index dimension");
+        }
 
         auto txn = m_connection->transaction(TransactionMode::WRITABLE);
         uint64_t id = m_ids.append(uint64_t(0), txn);
