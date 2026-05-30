@@ -9,6 +9,7 @@
 /// \c std::set -like workflow over an MDBX table.
 
 #include "common.hpp"
+#include <vector>
 
 namespace mdbxc {
 
@@ -155,6 +156,490 @@ namespace mdbxc {
                                const Transaction& txn) const {
             return range<ContainerT>(from_key, to_key, txn.handle());
         }
+
+        // --- Streaming and range helpers ---
+
+        /// \brief Calls a callback for every key in an inclusive range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param callback Invoked as \c callback(const KeyT&). Return \c true to continue.
+        /// \param txn Optional transaction handle.
+        /// \return \c true if every key was visited, \c false if the callback stopped early.
+        /// \throws MdbxException if a database error occurs.
+        template<typename CallbackT>
+        bool for_each_range(const KeyT& from_key, const KeyT& to_key,
+                            CallbackT callback, MDBX_txn* txn = nullptr) const {
+            bool completed = false;
+            with_transaction([this, &from_key, &to_key, &callback, &completed](MDBX_txn* t) {
+                completed = db_for_each_range(from_key, to_key, callback, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return completed;
+        }
+
+        /// \brief Calls a callback for every key in an inclusive range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param callback Invoked as \c callback(const KeyT&). Return \c true to continue.
+        /// \param txn Active transaction wrapper.
+        /// \return \c true if every key was visited, \c false if the callback stopped early.
+        /// \throws MdbxException if a database error occurs.
+        template<typename CallbackT>
+        bool for_each_range(const KeyT& from_key, const KeyT& to_key,
+                            CallbackT callback, const Transaction& txn) const {
+            return for_each_range(from_key, to_key, callback, txn.handle());
+        }
+
+        /// \brief Collects keys matching a predicate within an inclusive range.
+        /// \tparam ContainerT Container type storing keys (default \c std::vector).
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param pred Predicate invoked as \c pred(const KeyT&). Return \c true to collect.
+        /// \param txn Optional transaction handle.
+        /// \return Container with matching keys in MDBX order.
+        /// \throws MdbxException if a database error occurs.
+        template<template<class...> class ContainerT = std::vector, typename PredicateT>
+        ContainerT<KeyT> filter_range(const KeyT& from_key, const KeyT& to_key,
+                                      PredicateT pred, MDBX_txn* txn = nullptr) const {
+            ContainerT<KeyT> out;
+            for_each_range(from_key, to_key, [&out, &pred](const KeyT& key) -> bool {
+                if (pred(key)) {
+                    out.insert(out.end(), key);
+                }
+                return true;
+            }, txn);
+            return out;
+        }
+
+        /// \brief Collects keys matching a predicate within an inclusive range.
+        /// \tparam ContainerT Container type storing keys (default \c std::vector).
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param pred Predicate invoked as \c pred(const KeyT&). Return \c true to collect.
+        /// \param txn Active transaction wrapper.
+        /// \return Container with matching keys in MDBX order.
+        /// \throws MdbxException if a database error occurs.
+        template<template<class...> class ContainerT = std::vector, typename PredicateT>
+        ContainerT<KeyT> filter_range(const KeyT& from_key, const KeyT& to_key,
+                                      PredicateT pred, const Transaction& txn) const {
+            return filter_range<ContainerT>(from_key, to_key, pred, txn.handle());
+        }
+
+        // --- Bounds / edges ---
+
+#if __cplusplus >= 201703L
+        /// \brief Finds the first key not less than the given key.
+        /// \param key Key to bound.
+        /// \param txn Optional transaction handle.
+        /// \return \c std::optional<KeyT> with the lower-bound key, or empty if none.
+        std::optional<KeyT> lower_bound(const KeyT& key, MDBX_txn* txn = nullptr) const {
+            std::optional<KeyT> result;
+            with_transaction([this, &key, &result](MDBX_txn* t) {
+                result = db_lower_bound(key, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Finds the first key not less than the given key.
+        /// \param key Key to bound.
+        /// \param txn Active transaction wrapper.
+        /// \return \c std::optional<KeyT> with the lower-bound key, or empty if none.
+        std::optional<KeyT> lower_bound(const KeyT& key, const Transaction& txn) const {
+            return lower_bound(key, txn.handle());
+        }
+
+        /// \brief Finds the first key strictly greater than the given key.
+        /// \param key Key to bound.
+        /// \param txn Optional transaction handle.
+        /// \return \c std::optional<KeyT> with the upper-bound key, or empty if none.
+        std::optional<KeyT> upper_bound(const KeyT& key, MDBX_txn* txn = nullptr) const {
+            std::optional<KeyT> result;
+            with_transaction([this, &key, &result](MDBX_txn* t) {
+                result = db_upper_bound(key, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Finds the first key strictly greater than the given key.
+        /// \param key Key to bound.
+        /// \param txn Active transaction wrapper.
+        /// \return \c std::optional<KeyT> with the upper-bound key, or empty if none.
+        std::optional<KeyT> upper_bound(const KeyT& key, const Transaction& txn) const {
+            return upper_bound(key, txn.handle());
+        }
+
+        /// \brief Retrieves the smallest key.
+        /// \param txn Optional transaction handle.
+        /// \return \c std::optional<KeyT> with the minimum key, or empty if the table is empty.
+        std::optional<KeyT> first(MDBX_txn* txn = nullptr) const {
+            std::optional<KeyT> result;
+            with_transaction([this, &result](MDBX_txn* t) {
+                result = db_first(t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Retrieves the smallest key.
+        /// \param txn Active transaction wrapper.
+        /// \return \c std::optional<KeyT> with the minimum key, or empty if the table is empty.
+        std::optional<KeyT> first(const Transaction& txn) const {
+            return first(txn.handle());
+        }
+
+        /// \brief Retrieves the largest key.
+        /// \param txn Optional transaction handle.
+        /// \return \c std::optional<KeyT> with the maximum key, or empty if the table is empty.
+        std::optional<KeyT> last(MDBX_txn* txn = nullptr) const {
+            std::optional<KeyT> result;
+            with_transaction([this, &result](MDBX_txn* t) {
+                result = db_last(t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Retrieves the largest key.
+        /// \param txn Active transaction wrapper.
+        /// \return \c std::optional<KeyT> with the maximum key, or empty if the table is empty.
+        std::optional<KeyT> last(const Transaction& txn) const {
+            return last(txn.handle());
+        }
+
+        /// \brief Retrieves the smallest key.
+        /// \param txn Optional transaction handle.
+        /// \return \c std::optional<KeyT> with the minimum key, or empty if the table is empty.
+        std::optional<KeyT> min_key(MDBX_txn* txn = nullptr) const { return first(txn); }
+        /// \brief Retrieves the smallest key.
+        /// \param txn Active transaction wrapper.
+        /// \return \c std::optional<KeyT> with the minimum key, or empty if the table is empty.
+        std::optional<KeyT> min_key(const Transaction& txn) const { return first(txn); }
+        /// \brief Retrieves the largest key.
+        /// \param txn Optional transaction handle.
+        /// \return \c std::optional<KeyT> with the maximum key, or empty if the table is empty.
+        std::optional<KeyT> max_key(MDBX_txn* txn = nullptr) const { return last(txn); }
+        /// \brief Retrieves the largest key.
+        /// \param txn Active transaction wrapper.
+        /// \return \c std::optional<KeyT> with the maximum key, or empty if the table is empty.
+        std::optional<KeyT> max_key(const Transaction& txn) const { return last(txn); }
+#else
+        /// \brief Finds the first key not less than the given key.
+        /// \param key Key to bound.
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> lower_bound(const KeyT& key, MDBX_txn* txn = nullptr) const {
+            return lower_bound_compat(key, txn);
+        }
+
+        /// \brief Finds the first key not less than the given key.
+        /// \param key Key to bound.
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> lower_bound(const KeyT& key, const Transaction& txn) const {
+            return lower_bound(key, txn.handle());
+        }
+
+        /// \brief Finds the first key not less than the given key (C++11-compatible).
+        /// \param key Key to bound.
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> lower_bound_compat(const KeyT& key, MDBX_txn* txn = nullptr) const {
+            std::pair<bool, KeyT> result(false, KeyT());
+            with_transaction([this, &key, &result](MDBX_txn* t) {
+                result = db_lower_bound_compat(key, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Finds the first key not less than the given key (C++11-compatible).
+        /// \param key Key to bound.
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> lower_bound_compat(const KeyT& key, const Transaction& txn) const {
+            return lower_bound_compat(key, txn.handle());
+        }
+
+        /// \brief Finds the first key strictly greater than the given key.
+        /// \param key Key to bound.
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> upper_bound(const KeyT& key, MDBX_txn* txn = nullptr) const {
+            return upper_bound_compat(key, txn);
+        }
+
+        /// \brief Finds the first key strictly greater than the given key.
+        /// \param key Key to bound.
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> upper_bound(const KeyT& key, const Transaction& txn) const {
+            return upper_bound(key, txn.handle());
+        }
+
+        /// \brief Finds the first key strictly greater than the given key (C++11-compatible).
+        /// \param key Key to bound.
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> upper_bound_compat(const KeyT& key, MDBX_txn* txn = nullptr) const {
+            std::pair<bool, KeyT> result(false, KeyT());
+            with_transaction([this, &key, &result](MDBX_txn* t) {
+                result = db_upper_bound_compat(key, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Finds the first key strictly greater than the given key (C++11-compatible).
+        /// \param key Key to bound.
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> upper_bound_compat(const KeyT& key, const Transaction& txn) const {
+            return upper_bound_compat(key, txn.handle());
+        }
+
+        /// \brief Retrieves the smallest key.
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> first(MDBX_txn* txn = nullptr) const {
+            return first_compat(txn);
+        }
+
+        /// \brief Retrieves the smallest key.
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> first(const Transaction& txn) const {
+            return first(txn.handle());
+        }
+
+        /// \brief Retrieves the smallest key (C++11-compatible).
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> first_compat(MDBX_txn* txn = nullptr) const {
+            std::pair<bool, KeyT> result(false, KeyT());
+            with_transaction([this, &result](MDBX_txn* t) {
+                result = db_first_compat(t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Retrieves the smallest key (C++11-compatible).
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> first_compat(const Transaction& txn) const {
+            return first_compat(txn.handle());
+        }
+
+        /// \brief Retrieves the largest key.
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> last(MDBX_txn* txn = nullptr) const {
+            return last_compat(txn);
+        }
+
+        /// \brief Retrieves the largest key.
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> last(const Transaction& txn) const {
+            return last(txn.handle());
+        }
+
+        /// \brief Retrieves the largest key (C++11-compatible).
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> last_compat(MDBX_txn* txn = nullptr) const {
+            std::pair<bool, KeyT> result(false, KeyT());
+            with_transaction([this, &result](MDBX_txn* t) {
+                result = db_last_compat(t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Retrieves the largest key (C++11-compatible).
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> last_compat(const Transaction& txn) const {
+            return last_compat(txn.handle());
+        }
+
+        /// \brief Retrieves the smallest key.
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> min_key(MDBX_txn* txn = nullptr) const {
+            return min_key_compat(txn);
+        }
+
+        /// \brief Retrieves the smallest key.
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> min_key(const Transaction& txn) const {
+            return min_key(txn.handle());
+        }
+
+        /// \brief Retrieves the smallest key (C++11-compatible).
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> min_key_compat(MDBX_txn* txn = nullptr) const { return first_compat(txn); }
+        /// \brief Retrieves the smallest key (C++11-compatible).
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> min_key_compat(const Transaction& txn) const { return first_compat(txn); }
+        /// \brief Retrieves the largest key.
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> max_key(MDBX_txn* txn = nullptr) const {
+            return max_key_compat(txn);
+        }
+
+        /// \brief Retrieves the largest key.
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> max_key(const Transaction& txn) const {
+            return max_key(txn.handle());
+        }
+
+        /// \brief Retrieves the largest key (C++11-compatible).
+        /// \param txn Optional transaction handle.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> max_key_compat(MDBX_txn* txn = nullptr) const { return last_compat(txn); }
+        /// \brief Retrieves the largest key (C++11-compatible).
+        /// \param txn Active transaction wrapper.
+        /// \return Pair of success flag and key.
+        std::pair<bool, KeyT> max_key_compat(const Transaction& txn) const { return last_compat(txn); }
+#endif
+
+        // --- Reverse scan ---
+
+        /// \brief Retrieves keys within an inclusive range in reverse MDBX order.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Optional transaction handle.
+        /// \return Vector with keys from the requested range in descending order.
+        /// \throws MdbxException if a database error occurs.
+        std::vector<KeyT> range_reverse(const KeyT& from_key, const KeyT& to_key,
+                                        MDBX_txn* txn = nullptr) const {
+            std::vector<KeyT> out;
+            with_transaction([this, &from_key, &to_key, &out](MDBX_txn* t) {
+                db_range_reverse(from_key, to_key, out, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return out;
+        }
+
+        /// \brief Retrieves keys within an inclusive range in reverse MDBX order.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Active transaction wrapper.
+        /// \return Vector with keys from the requested range in descending order.
+        /// \throws MdbxException if a database error occurs.
+        std::vector<KeyT> range_reverse(const KeyT& from_key, const KeyT& to_key,
+                                        const Transaction& txn) const {
+            return range_reverse(from_key, to_key, txn.handle());
+        }
+
+        /// \brief Retrieves up to \p limit keys within an inclusive range in reverse MDBX order.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param limit Maximum number of keys to return.
+        /// \param txn Optional transaction handle.
+        /// \return Vector with keys from the requested range in descending order.
+        /// \throws MdbxException if a database error occurs.
+        /// \note \c limit == 0 returns an empty vector.
+        std::vector<KeyT> range_reverse(const KeyT& from_key, const KeyT& to_key,
+                                        std::size_t limit, MDBX_txn* txn = nullptr) const {
+            std::vector<KeyT> out;
+            with_transaction([this, &from_key, &to_key, &limit, &out](MDBX_txn* t) {
+                db_range_reverse(from_key, to_key, limit, out, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return out;
+        }
+
+        /// \brief Retrieves up to \p limit keys within an inclusive range in reverse MDBX order.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param limit Maximum number of keys to return.
+        /// \param txn Active transaction wrapper.
+        /// \return Vector with keys from the requested range in descending order.
+        /// \throws MdbxException if a database error occurs.
+        std::vector<KeyT> range_reverse(const KeyT& from_key, const KeyT& to_key,
+                                        std::size_t limit, const Transaction& txn) const {
+            return range_reverse(from_key, to_key, limit, txn.handle());
+        }
+
+        // --- Range metadata and removal ---
+
+        /// \brief Checks whether the table contains any key within an inclusive range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Optional transaction handle.
+        /// \return \c true if at least one key exists in the range.
+        /// \throws MdbxException if a database error occurs.
+        bool contains_range(const KeyT& from_key, const KeyT& to_key,
+                            MDBX_txn* txn = nullptr) const {
+            bool result = false;
+            with_transaction([this, &from_key, &to_key, &result](MDBX_txn* t) {
+                result = db_contains_range(from_key, to_key, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Checks whether the table contains any key within an inclusive range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Active transaction wrapper.
+        /// \return \c true if at least one key exists in the range.
+        /// \throws MdbxException if a database error occurs.
+        bool contains_range(const KeyT& from_key, const KeyT& to_key,
+                            const Transaction& txn) const {
+            return contains_range(from_key, to_key, txn.handle());
+        }
+
+        /// \brief Counts keys within an inclusive range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Optional transaction handle.
+        /// \return Number of keys in the requested range.
+        /// \throws MdbxException if a database error occurs.
+        std::size_t count_range(const KeyT& from_key, const KeyT& to_key,
+                                MDBX_txn* txn = nullptr) const {
+            std::size_t result = 0;
+            with_transaction([this, &from_key, &to_key, &result](MDBX_txn* t) {
+                result = db_count_range(from_key, to_key, t);
+            }, TransactionMode::READ_ONLY, txn);
+            return result;
+        }
+
+        /// \brief Counts keys within an inclusive range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Active transaction wrapper.
+        /// \return Number of keys in the requested range.
+        /// \throws MdbxException if a database error occurs.
+        std::size_t count_range(const KeyT& from_key, const KeyT& to_key,
+                                const Transaction& txn) const {
+            return count_range(from_key, to_key, txn.handle());
+        }
+
+        /// \brief Removes all keys within an inclusive range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Optional transaction handle.
+        /// \return Number of deleted records.
+        /// \throws MdbxException if a database error occurs.
+        std::size_t erase_range(const KeyT& from_key, const KeyT& to_key,
+                                MDBX_txn* txn = nullptr) {
+            std::size_t result = 0;
+            with_transaction([this, &from_key, &to_key, &result](MDBX_txn* t) {
+                result = db_erase_range(from_key, to_key, t);
+            }, TransactionMode::WRITABLE, txn);
+            return result;
+        }
+
+        /// \brief Removes all keys within an inclusive range.
+        /// \param from_key Start key in MDBX key order.
+        /// \param to_key End key in MDBX key order.
+        /// \param txn Active transaction wrapper.
+        /// \return Number of deleted records.
+        /// \throws MdbxException if a database error occurs.
+        std::size_t erase_range(const KeyT& from_key, const KeyT& to_key,
+                                const Transaction& txn) {
+            return erase_range(from_key, to_key, txn.handle());
+        }
+
+        // --- Existing bulk / point API ---
 
         /// \brief Appends keys to the table.
         /// \tparam ContainerT Container type storing keys.
@@ -382,6 +867,352 @@ namespace mdbxc {
                 check_mdbx(rc, "Failed to read key range");
             }
         }
+
+        // --- Streaming / range helpers ---
+
+        template<typename CallbackT>
+        bool db_for_each_range(const KeyT& from_key, const KeyT& to_key,
+                               CallbackT& callback, MDBX_txn* txn) const {
+            SerializeScratch sc_from_key;
+            SerializeScratch sc_to_key;
+            MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
+            MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) {
+                return true;
+            }
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key = db_from_key;
+            MDBX_val db_val;
+            bool stopped_by_upper_bound = false;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            while (rc == MDBX_SUCCESS) {
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) {
+                    stopped_by_upper_bound = true;
+                    break;
+                }
+                if (!callback(deserialize_key<KeyT>(db_key))) {
+                    return false;
+                }
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
+            }
+            if (!stopped_by_upper_bound && rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to iterate key range");
+            }
+            return true;
+        }
+
+        // --- Bounds ---
+
+#if __cplusplus >= 201703L
+        std::optional<KeyT> db_lower_bound(const KeyT& key, MDBX_txn* txn) const {
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
+            MDBX_val db_val;
+            int rc = mdbx_get(txn, m_dbi, &db_key, &db_val);
+            if (rc == MDBX_SUCCESS) {
+                return deserialize_key<KeyT>(db_key);
+            }
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            if (rc == MDBX_SUCCESS) {
+                return deserialize_key<KeyT>(db_key);
+            }
+            if (rc == MDBX_NOTFOUND) {
+                return std::nullopt;
+            }
+            check_mdbx(rc, "Failed to seek lower bound");
+            return std::nullopt;
+        }
+
+        std::optional<KeyT> db_upper_bound(const KeyT& key, MDBX_txn* txn) const {
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
+            MDBX_val db_key_exact = db_key;
+            MDBX_val db_val;
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            if (rc == MDBX_NOTFOUND) {
+                return std::nullopt;
+            }
+            check_mdbx(rc, "Failed to seek upper bound");
+
+            // If exact match found, move to next distinct key
+            if (mdbx_cmp(txn, m_dbi, &db_key, &db_key_exact) == 0) {
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
+                if (rc == MDBX_NOTFOUND) {
+                    return std::nullopt;
+                }
+                check_mdbx(rc, "Failed to seek next key for upper bound");
+            }
+            return deserialize_key<KeyT>(db_key);
+        }
+
+        std::optional<KeyT> db_first(MDBX_txn* txn) const {
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            MDBX_val db_key, db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_FIRST);
+            if (rc == MDBX_NOTFOUND) {
+                return std::nullopt;
+            }
+            check_mdbx(rc, "Failed to seek first key");
+            return deserialize_key<KeyT>(db_key);
+        }
+
+        std::optional<KeyT> db_last(MDBX_txn* txn) const {
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            MDBX_val db_key, db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_LAST);
+            if (rc == MDBX_NOTFOUND) {
+                return std::nullopt;
+            }
+            check_mdbx(rc, "Failed to seek last key");
+            return deserialize_key<KeyT>(db_key);
+        }
+#else
+        std::pair<bool, KeyT> db_lower_bound_compat(const KeyT& key, MDBX_txn* txn) const {
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
+            MDBX_val db_val;
+            int rc = mdbx_get(txn, m_dbi, &db_key, &db_val);
+            if (rc == MDBX_SUCCESS) {
+                return std::make_pair(true, deserialize_key<KeyT>(db_key));
+            }
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            if (rc == MDBX_SUCCESS) {
+                return std::make_pair(true, deserialize_key<KeyT>(db_key));
+            }
+            if (rc == MDBX_NOTFOUND) {
+                return std::make_pair(false, KeyT());
+            }
+            check_mdbx(rc, "Failed to seek lower bound");
+            return std::make_pair(false, KeyT());
+        }
+
+        std::pair<bool, KeyT> db_upper_bound_compat(const KeyT& key, MDBX_txn* txn) const {
+            SerializeScratch sc_key;
+            MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
+            MDBX_val db_key_exact = db_key;
+            MDBX_val db_val;
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            if (rc == MDBX_NOTFOUND) {
+                return std::make_pair(false, KeyT());
+            }
+            check_mdbx(rc, "Failed to seek upper bound");
+
+            if (mdbx_cmp(txn, m_dbi, &db_key, &db_key_exact) == 0) {
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
+                if (rc == MDBX_NOTFOUND) {
+                    return std::make_pair(false, KeyT());
+                }
+                check_mdbx(rc, "Failed to seek next key for upper bound");
+            }
+            return std::make_pair(true, deserialize_key<KeyT>(db_key));
+        }
+
+        std::pair<bool, KeyT> db_first_compat(MDBX_txn* txn) const {
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            MDBX_val db_key, db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_FIRST);
+            if (rc == MDBX_NOTFOUND) {
+                return std::make_pair(false, KeyT());
+            }
+            check_mdbx(rc, "Failed to seek first key");
+            return std::make_pair(true, deserialize_key<KeyT>(db_key));
+        }
+
+        std::pair<bool, KeyT> db_last_compat(MDBX_txn* txn) const {
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            MDBX_val db_key, db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_LAST);
+            if (rc == MDBX_NOTFOUND) {
+                return std::make_pair(false, KeyT());
+            }
+            check_mdbx(rc, "Failed to seek last key");
+            return std::make_pair(true, deserialize_key<KeyT>(db_key));
+        }
+#endif
+
+        // --- Reverse scan ---
+
+        void db_range_reverse(const KeyT& from_key, const KeyT& to_key,
+                              std::vector<KeyT>& out, MDBX_txn* txn) const {
+            SerializeScratch sc_from_key;
+            SerializeScratch sc_to_key;
+            MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
+            MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key = db_to_key;
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            if (rc == MDBX_NOTFOUND) {
+                // All keys are less than to_key; seek to last and walk backward
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_LAST);
+            } else if (rc == MDBX_SUCCESS) {
+                // If the found key is greater than to_key, step back once
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) {
+                    rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_PREV);
+                }
+            }
+            if (rc == MDBX_NOTFOUND) return;
+            check_mdbx(rc, "Failed to seek reverse range start");
+
+            while (rc == MDBX_SUCCESS) {
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_from_key) < 0) {
+                    break;
+                }
+                out.push_back(deserialize_key<KeyT>(db_key));
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_PREV);
+            }
+            if (rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to iterate reverse key range");
+            }
+        }
+
+        void db_range_reverse(const KeyT& from_key, const KeyT& to_key,
+                              std::size_t limit, std::vector<KeyT>& out, MDBX_txn* txn) const {
+            if (limit == 0) return;
+            SerializeScratch sc_from_key;
+            SerializeScratch sc_to_key;
+            MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
+            MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key = db_to_key;
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            if (rc == MDBX_NOTFOUND) {
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_LAST);
+            } else if (rc == MDBX_SUCCESS) {
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) {
+                    rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_PREV);
+                }
+            }
+            if (rc == MDBX_NOTFOUND) return;
+            check_mdbx(rc, "Failed to seek reverse range start");
+
+            bool stopped_by_limit = false;
+            bool stopped_by_lower_bound = false;
+            while (rc == MDBX_SUCCESS) {
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_from_key) < 0) {
+                    stopped_by_lower_bound = true;
+                    break;
+                }
+                out.push_back(deserialize_key<KeyT>(db_key));
+                if (out.size() >= limit) {
+                    stopped_by_limit = true;
+                    break;
+                }
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_PREV);
+            }
+            if (!stopped_by_limit && !stopped_by_lower_bound && rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to iterate reverse key range");
+            }
+        }
+
+        // --- Range metadata and removal ---
+
+        bool db_contains_range(const KeyT& from_key, const KeyT& to_key, MDBX_txn* txn) const {
+            SerializeScratch sc_from_key;
+            SerializeScratch sc_to_key;
+            MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
+            MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return false;
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key = db_from_key;
+            MDBX_val db_val;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            if (rc == MDBX_NOTFOUND) return false;
+            check_mdbx(rc, "Failed to seek range for contains");
+            return mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) <= 0;
+        }
+
+        std::size_t db_count_range(const KeyT& from_key, const KeyT& to_key, MDBX_txn* txn) const {
+            SerializeScratch sc_from_key;
+            SerializeScratch sc_to_key;
+            MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
+            MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
+
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key = db_from_key;
+            MDBX_val db_val;
+            std::size_t count = 0;
+            bool stopped_by_upper_bound = false;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            while (rc == MDBX_SUCCESS) {
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) {
+                    stopped_by_upper_bound = true;
+                    break;
+                }
+                ++count;
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
+            }
+            if (!stopped_by_upper_bound && rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to count key range");
+            }
+            return count;
+        }
+
+        std::size_t db_erase_range(const KeyT& from_key, const KeyT& to_key, MDBX_txn* txn) const {
+            SerializeScratch sc_from_key;
+            SerializeScratch sc_to_key;
+            MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
+            MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
+
+            std::size_t removed = 0;
+            CursorGuard cursor;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+
+            MDBX_val db_key = db_from_key;
+            MDBX_val db_val;
+            bool stopped_by_upper_bound = false;
+            int rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_SET_RANGE);
+            while (rc == MDBX_SUCCESS) {
+                if (mdbx_cmp(txn, m_dbi, &db_key, &db_to_key) > 0) {
+                    stopped_by_upper_bound = true;
+                    break;
+                }
+                check_mdbx(mdbx_cursor_del(cursor.get(), MDBX_CURRENT), "Failed to erase key in range");
+                ++removed;
+                rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
+            }
+            if (!stopped_by_upper_bound && rc != MDBX_NOTFOUND) {
+                check_mdbx(rc, "Failed to erase key range");
+            }
+            return removed;
+        }
+
+        // --- Existing private helpers ---
 
         template<template<class...> class ContainerT>
         void db_append(const ContainerT<KeyT>& container, MDBX_txn* txn) {

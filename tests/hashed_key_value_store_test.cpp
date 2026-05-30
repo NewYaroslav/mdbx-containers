@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_assert.hpp"
 #include <iostream>
 #include <map>
 #include <stdexcept>
@@ -23,12 +23,12 @@ template<class Store, class Key, class Value>
 void assert_found(const Store& store, const Key& key, const Value& expected) {
 #if __cplusplus >= 201703L
     std::optional<Value> found = store.find(key);
-    assert(found.has_value());
-    assert(*found == expected);
+    MDBXC_TEST_ASSERT(found.has_value());
+    MDBXC_TEST_ASSERT(*found == expected);
 #else
     std::pair<bool, Value> found = store.find_compat(key);
-    assert(found.first);
-    assert(found.second == expected);
+    MDBXC_TEST_ASSERT(found.first);
+    MDBXC_TEST_ASSERT(found.second == expected);
 #endif
 }
 
@@ -40,7 +40,7 @@ void assert_throws_length_error(Fn fn) {
     } catch (const std::length_error&) {
         thrown = true;
     }
-    assert(thrown);
+    MDBXC_TEST_ASSERT(thrown);
 }
 
 template<class Fn>
@@ -51,7 +51,7 @@ void assert_throws_any(Fn fn) {
     } catch (const std::exception&) {
         thrown = true;
     }
-    assert(thrown);
+    MDBXC_TEST_ASSERT(thrown);
 }
 
 } // namespace
@@ -69,38 +69,38 @@ int main() {
         mdbxc::HashedKeyValueStore<std::string, int> store(conn, "hashed_strings");
         store.clear();
 
-        assert(store.empty());
-        assert(store.insert("alpha", 1));
-        assert(!store.insert("alpha", 11));
+        MDBXC_TEST_ASSERT(store.empty());
+        MDBXC_TEST_ASSERT(store.insert("alpha", 1));
+        MDBXC_TEST_ASSERT(!store.insert("alpha", 11));
         store.insert_or_assign("beta", 2);
         assert_found<decltype(store), std::string, int>(store, "alpha", 1);
-        assert(store.at("beta") == 2);
+        MDBXC_TEST_ASSERT(store.at("beta") == 2);
 
         int out = 0;
-        assert(store.try_get("alpha", out));
-        assert(out == 1);
-        assert(!store.try_get("missing", out));
-        assert(store.contains("alpha"));
-        assert(!store.contains("missing"));
+        MDBXC_TEST_ASSERT(store.try_get("alpha", out));
+        MDBXC_TEST_ASSERT(out == 1);
+        MDBXC_TEST_ASSERT(!store.try_get("missing", out));
+        MDBXC_TEST_ASSERT(store.contains("alpha"));
+        MDBXC_TEST_ASSERT(!store.contains("missing"));
 
         store["gamma"] = 3;
-        assert(static_cast<int>(store["gamma"]) == 3);
-        assert(static_cast<int>(store["defaulted"]) == 0);
-        assert(store.count() == 4);
+        MDBXC_TEST_ASSERT(static_cast<int>(store["gamma"]) == 3);
+        MDBXC_TEST_ASSERT(static_cast<int>(store["defaulted"]) == 0);
+        MDBXC_TEST_ASSERT(store.count() == 4);
 
         std::map<std::string, int> as_map;
         store.load(as_map);
-        assert(as_map["alpha"] == 1);
-        assert(as_map["beta"] == 2);
-        assert(as_map["gamma"] == 3);
+        MDBXC_TEST_ASSERT(as_map["alpha"] == 1);
+        MDBXC_TEST_ASSERT(as_map["beta"] == 2);
+        MDBXC_TEST_ASSERT(as_map["gamma"] == 3);
 
         std::vector<std::pair<std::string, int> > as_vector = store.retrieve_all<std::vector>();
-        assert(as_vector.size() == 4);
+        MDBXC_TEST_ASSERT(as_vector.size() == 4);
 
-        assert(store.erase("alpha"));
-        assert(!store.erase("alpha"));
-        assert(!store.contains("alpha"));
-        assert(store.count() == 3);
+        MDBXC_TEST_ASSERT(store.erase("alpha"));
+        MDBXC_TEST_ASSERT(!store.erase("alpha"));
+        MDBXC_TEST_ASSERT(!store.contains("alpha"));
+        MDBXC_TEST_ASSERT(store.count() == 3);
     }
 
     {
@@ -111,25 +111,25 @@ int main() {
         source["one"] = 1;
         source["two"] = 2;
         store.reconcile(source);
-        assert(store.count() == 2);
+        MDBXC_TEST_ASSERT(store.count() == 2);
 
         std::vector<std::pair<std::string, int> > additions;
         additions.push_back(std::make_pair(std::string("two"), 20));
         additions.push_back(std::make_pair(std::string("three"), 3));
         store.append(additions);
-        assert(store.at("two") == 20);
-        assert(store.at("three") == 3);
+        MDBXC_TEST_ASSERT(store.at("two") == 20);
+        MDBXC_TEST_ASSERT(store.at("three") == 3);
 
         std::vector<std::pair<std::string, int> > replacement;
         replacement.push_back(std::make_pair(std::string("two"), 200));
         replacement.push_back(std::make_pair(std::string("two"), 201));
         replacement.push_back(std::make_pair(std::string("four"), 4));
         store = replacement;
-        assert(store.count() == 2);
-        assert(store.at("two") == 201);
-        assert(store.at("four") == 4);
-        assert(!store.contains("one"));
-        assert(!store.contains("three"));
+        MDBXC_TEST_ASSERT(store.count() == 2);
+        MDBXC_TEST_ASSERT(store.at("two") == 201);
+        MDBXC_TEST_ASSERT(store.at("four") == 4);
+        MDBXC_TEST_ASSERT(!store.contains("one"));
+        MDBXC_TEST_ASSERT(!store.contains("three"));
     }
 
     {
@@ -140,18 +140,18 @@ int main() {
         );
         store.clear();
 
-        assert(store.insert("alpha", "one"));
-        assert(store.insert("beta", "two"));
-        assert(store.insert("gamma", "three"));
+        MDBXC_TEST_ASSERT(store.insert("alpha", "one"));
+        MDBXC_TEST_ASSERT(store.insert("beta", "two"));
+        MDBXC_TEST_ASSERT(store.insert("gamma", "three"));
         store.insert_or_assign("beta", "TWO");
 
         assert_found<decltype(store), std::string, std::string>(store, "alpha", "one");
         assert_found<decltype(store), std::string, std::string>(store, "beta", "TWO");
         assert_found<decltype(store), std::string, std::string>(store, "gamma", "three");
-        assert(store.erase("alpha"));
-        assert(!store.contains("alpha"));
-        assert(store.contains("beta"));
-        assert(store.count() == 2);
+        MDBXC_TEST_ASSERT(store.erase("alpha"));
+        MDBXC_TEST_ASSERT(!store.contains("alpha"));
+        MDBXC_TEST_ASSERT(store.contains("beta"));
+        MDBXC_TEST_ASSERT(store.count() == 2);
     }
 
     {
@@ -169,14 +169,14 @@ int main() {
         second.push_back(1);
         second.push_back(3);
 
-        assert(store.insert(first, "first"));
+        MDBXC_TEST_ASSERT(store.insert(first, "first"));
         store.insert_or_assign(second, "second");
         assert_found<decltype(store), Bytes, std::string>(store, first, "first");
         assert_found<decltype(store), Bytes, std::string>(store, second, "second");
 
         std::map<Bytes, std::string> as_map = store.retrieve_all();
-        assert(as_map[first] == "first");
-        assert(as_map[second] == "second");
+        MDBXC_TEST_ASSERT(as_map[first] == "first");
+        MDBXC_TEST_ASSERT(as_map[second] == "second");
     }
 
     {
@@ -208,7 +208,7 @@ int main() {
         assert_found<decltype(store), StdBytes, std::string>(store, key, "byte-key");
 
         std::map<StdBytes, std::string> as_map = store.retrieve_all();
-        assert(as_map[key] == "byte-key");
+        MDBXC_TEST_ASSERT(as_map[key] == "byte-key");
     }
 #endif
 
@@ -223,16 +223,16 @@ int main() {
             "hashed_sip",
             mdbxc::SipHashHasher(UINT64_C(0x0706050403020100), UINT64_C(0x0f0e0d0c0b0a0908))
         );
-        assert(reopened.contains("token"));
-        assert(reopened.at("token") == 123);
+        MDBXC_TEST_ASSERT(reopened.contains("token"));
+        MDBXC_TEST_ASSERT(reopened.at("token") == 123);
 
         mdbxc::HashedKeyValueStore<std::string, int, mdbxc::SipHashHasher> wrong_key(
             conn,
             "hashed_sip",
             mdbxc::SipHashHasher(1, 2)
         );
-        assert(wrong_key.count() == 1);
-        assert(!wrong_key.contains("token"));
+        MDBXC_TEST_ASSERT(wrong_key.count() == 1);
+        MDBXC_TEST_ASSERT(!wrong_key.contains("token"));
     }
 
     {
@@ -240,14 +240,14 @@ int main() {
         store.clear();
 
         auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
-        assert(store.insert("one", "1", txn));
+        MDBXC_TEST_ASSERT(store.insert("one", "1", txn));
         store.insert_or_assign("two", "2", txn);
         txn.commit();
 
         auto read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
-        assert(store.count(read_txn) == 2);
-        assert(store.at("one", read_txn) == "1");
-        assert(store.contains("two", read_txn));
+        MDBXC_TEST_ASSERT(store.count(read_txn) == 2);
+        MDBXC_TEST_ASSERT(store.at("one", read_txn) == "1");
+        MDBXC_TEST_ASSERT(store.contains("two", read_txn));
         read_txn.commit();
     }
 
@@ -259,7 +259,7 @@ int main() {
         large[0] = 'A';
         large[large.size() - 1] = 'Z';
         store.insert_or_assign("large", large);
-        assert(store.at("large") == large);
+        MDBXC_TEST_ASSERT(store.at("large") == large);
     }
 
     {
@@ -285,8 +285,8 @@ int main() {
             read_conn,
             "hashed_large_read_only"
         );
-        assert(read_store.at("alpha") == "one");
-        assert(read_store.contains("alpha"));
+        MDBXC_TEST_ASSERT(read_store.at("alpha") == "one");
+        MDBXC_TEST_ASSERT(read_store.contains("alpha"));
 
         bool write_failed = false;
         try {
@@ -294,8 +294,8 @@ int main() {
         } catch (const mdbxc::MdbxException&) {
             write_failed = true;
         }
-        assert(write_failed);
-        assert(!read_store.contains("beta"));
+        MDBXC_TEST_ASSERT(write_failed);
+        MDBXC_TEST_ASSERT(!read_store.contains("beta"));
     }
 
     {
@@ -307,30 +307,30 @@ int main() {
         SmallStore store(conn, "hashed_small_values");
         store.clear();
 
-        assert(store.empty());
-        assert(store.insert("a", 1));
-        assert(!store.insert("a", 11));
+        MDBXC_TEST_ASSERT(store.empty());
+        MDBXC_TEST_ASSERT(store.insert("a", 1));
+        MDBXC_TEST_ASSERT(!store.insert("a", 11));
         store.insert_or_assign("b", 2);
         store.insert_or_assign("b", 22);
         assert_found<SmallStore, std::string, int>(store, "a", 1);
         assert_found<SmallStore, std::string, int>(store, "b", 22);
-        assert(store.contains("a"));
-        assert(store.count() == 2);
+        MDBXC_TEST_ASSERT(store.contains("a"));
+        MDBXC_TEST_ASSERT(store.count() == 2);
 
         std::map<std::string, int> as_map;
         store.load(as_map);
-        assert(as_map["a"] == 1);
-        assert(as_map["b"] == 22);
+        MDBXC_TEST_ASSERT(as_map["a"] == 1);
+        MDBXC_TEST_ASSERT(as_map["b"] == 22);
 
         std::vector<std::pair<std::string, int> > replacement;
         replacement.push_back(std::make_pair(std::string("b"), 200));
         replacement.push_back(std::make_pair(std::string("b"), 201));
         replacement.push_back(std::make_pair(std::string("c"), 3));
         store.reconcile(replacement);
-        assert(store.count() == 2);
-        assert(store.at("b") == 201);
-        assert(store.at("c") == 3);
-        assert(!store.contains("a"));
+        MDBXC_TEST_ASSERT(store.count() == 2);
+        MDBXC_TEST_ASSERT(store.at("b") == 201);
+        MDBXC_TEST_ASSERT(store.at("c") == 3);
+        MDBXC_TEST_ASSERT(!store.contains("a"));
     }
 
     {
@@ -342,19 +342,19 @@ int main() {
         SmallCollisionStore store(conn, "hashed_small_collisions", ConstantHasher());
         store.clear();
 
-        assert(store.insert("alpha", "one"));
-        assert(store.insert("beta", "two"));
-        assert(store.insert("gamma", "three"));
+        MDBXC_TEST_ASSERT(store.insert("alpha", "one"));
+        MDBXC_TEST_ASSERT(store.insert("beta", "two"));
+        MDBXC_TEST_ASSERT(store.insert("gamma", "three"));
         store.insert_or_assign("beta", "TWO");
 
         assert_found<SmallCollisionStore, std::string, std::string>(store, "alpha", "one");
         assert_found<SmallCollisionStore, std::string, std::string>(store, "beta", "TWO");
         assert_found<SmallCollisionStore, std::string, std::string>(store, "gamma", "three");
-        assert(store.erase("beta"));
-        assert(!store.contains("beta"));
-        assert(store.contains("alpha"));
-        assert(store.contains("gamma"));
-        assert(store.count() == 2);
+        MDBXC_TEST_ASSERT(store.erase("beta"));
+        MDBXC_TEST_ASSERT(!store.contains("beta"));
+        MDBXC_TEST_ASSERT(store.contains("alpha"));
+        MDBXC_TEST_ASSERT(store.contains("gamma"));
+        MDBXC_TEST_ASSERT(store.count() == 2);
     }
 
     {
@@ -395,7 +395,7 @@ int main() {
         SmallStore store(small_conn, "one_dbi_small");
         store.clear();
         store.insert_or_assign("ok", 7);
-        assert(store.at("ok") == 7);
+        MDBXC_TEST_ASSERT(store.at("ok") == 7);
     }
 
     {

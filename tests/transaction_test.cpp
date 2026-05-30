@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_assert.hpp"
 #include <chrono>
 #include <condition_variable>
 #include <iostream>
@@ -41,18 +41,18 @@ int main() {
         version.set(1, txn);
         txn.commit();
 
-        assert(names.at(1) == "one");
-        assert(version.get() == 1);
+        MDBXC_TEST_ASSERT(names.at(1) == "one");
+        MDBXC_TEST_ASSERT(version.get() == 1);
     }
 
     {
         auto read_txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
-        assert(names.at(1, read_txn) == "one");
-        assert(version.get(read_txn) == 1);
+        MDBXC_TEST_ASSERT(names.at(1, read_txn) == "one");
+        MDBXC_TEST_ASSERT(version.get(read_txn) == 1);
         read_txn.commit();
 
         names.insert_or_assign(2, "two");
-        assert(names.at(2) == "two");
+        MDBXC_TEST_ASSERT(names.at(2) == "two");
     }
 
     {
@@ -66,7 +66,7 @@ int main() {
 
         names.insert_or_assign(key, "rolled back");
         names.rollback();
-        assert(!names.contains(key));
+        MDBXC_TEST_ASSERT(!names.contains(key));
     }
 
     {
@@ -77,7 +77,7 @@ int main() {
         txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
         names.insert_or_assign(key, "rolled back");
         txn.rollback();
-        assert(!names.contains(key));
+        MDBXC_TEST_ASSERT(!names.contains(key));
     }
 
     {
@@ -97,8 +97,8 @@ int main() {
         read_only_cfg.read_only = true;
         auto read_conn = mdbxc::Connection::create(read_only_cfg);
         mdbxc::KeyValueTable<int, std::string> read_table(read_conn, "readonly_names");
-        assert(read_table.at(1) == "one");
-        assert(read_table.contains(1));
+        MDBXC_TEST_ASSERT(read_table.at(1) == "one");
+        MDBXC_TEST_ASSERT(read_table.contains(1));
 
         bool write_failed = false;
         try {
@@ -106,8 +106,8 @@ int main() {
         } catch (const mdbxc::MdbxException&) {
             write_failed = true;
         }
-        assert(write_failed);
-        assert(!read_table.contains(2));
+        MDBXC_TEST_ASSERT(write_failed);
+        MDBXC_TEST_ASSERT(!read_table.contains(2));
     }
 
     {
@@ -120,8 +120,8 @@ int main() {
         auto cleanup_conn = mdbxc::Connection::create(cleanup_cfg);
         cleanup_conn->begin(mdbxc::TransactionMode::WRITABLE);
         std::shared_ptr<mdbxc::Transaction> held_txn = cleanup_conn->current_txn();
-        assert(held_txn);
-        assert(held_txn->handle());
+        MDBXC_TEST_ASSERT(held_txn);
+        MDBXC_TEST_ASSERT(held_txn->handle());
 
         bool disconnect_failed = false;
         try {
@@ -129,17 +129,17 @@ int main() {
         } catch (const mdbxc::MdbxException& ex) {
             disconnect_failed = ex.error_code() == MDBX_BUSY;
         }
-        assert(disconnect_failed);
-        assert(cleanup_conn->is_connected());
-        assert(held_txn->handle());
+        MDBXC_TEST_ASSERT(disconnect_failed);
+        MDBXC_TEST_ASSERT(cleanup_conn->is_connected());
+        MDBXC_TEST_ASSERT(held_txn->handle());
 
         cleanup_conn->rollback();
-        assert(!held_txn->handle());
+        MDBXC_TEST_ASSERT(!held_txn->handle());
         cleanup_conn->disconnect();
-        assert(!cleanup_conn->is_connected());
+        MDBXC_TEST_ASSERT(!cleanup_conn->is_connected());
 
         cleanup_conn->connect();
-        assert(cleanup_conn->is_connected());
+        MDBXC_TEST_ASSERT(cleanup_conn->is_connected());
         cleanup_conn->disconnect();
     }
 
@@ -156,9 +156,9 @@ int main() {
 
         {
             auto read_txn = reset_read_conn->transaction(mdbxc::TransactionMode::READ_ONLY);
-            assert(reset_read_table.at(1, read_txn) == "one");
+            MDBXC_TEST_ASSERT(reset_read_table.at(1, read_txn) == "one");
             read_txn.commit();
-            assert(read_txn.handle());
+            MDBXC_TEST_ASSERT(read_txn.handle());
 
             bool disconnect_failed = false;
             try {
@@ -166,7 +166,7 @@ int main() {
             } catch (const mdbxc::MdbxException& ex) {
                 disconnect_failed = ex.error_code() == MDBX_BUSY;
             }
-            assert(disconnect_failed);
+            MDBXC_TEST_ASSERT(disconnect_failed);
 
             bool shutdown_failed = false;
             try {
@@ -174,11 +174,11 @@ int main() {
             } catch (const std::logic_error&) {
                 shutdown_failed = true;
             }
-            assert(shutdown_failed);
+            MDBXC_TEST_ASSERT(shutdown_failed);
         }
 
         reset_read_conn->disconnect();
-        assert(!reset_read_conn->is_connected());
+        MDBXC_TEST_ASSERT(!reset_read_conn->is_connected());
     }
 
     {
@@ -229,8 +229,8 @@ int main() {
         }
 
         bool closed = shutdown_conn->shutdown_for(std::chrono::milliseconds(50));
-        assert(!closed);
-        assert(shutdown_conn->is_connected());
+        MDBXC_TEST_ASSERT(!closed);
+        MDBXC_TEST_ASSERT(shutdown_conn->is_connected());
 
         bool new_txn_blocked = false;
         try {
@@ -239,7 +239,7 @@ int main() {
         } catch (const std::logic_error&) {
             new_txn_blocked = true;
         }
-        assert(new_txn_blocked);
+        MDBXC_TEST_ASSERT(new_txn_blocked);
 
         {
             std::lock_guard<std::mutex> lock(sync_mutex);
@@ -256,13 +256,13 @@ int main() {
         worker.join();
 
         closed = shutdown_conn->shutdown_for(std::chrono::seconds(2));
-        assert(closed);
-        assert(!shutdown_conn->is_connected());
+        MDBXC_TEST_ASSERT(closed);
+        MDBXC_TEST_ASSERT(!shutdown_conn->is_connected());
 
         shutdown_conn->connect();
-        assert(shutdown_conn->is_connected());
+        MDBXC_TEST_ASSERT(shutdown_conn->is_connected());
         shutdown_conn->shutdown();
-        assert(!shutdown_conn->is_connected());
+        MDBXC_TEST_ASSERT(!shutdown_conn->is_connected());
     }
 
     std::cout << "Transaction test passed.\n";

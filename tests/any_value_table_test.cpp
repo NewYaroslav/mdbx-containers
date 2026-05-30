@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_assert.hpp"
 #include <mdbx_containers/AnyValueTable.hpp>
 #include <vector>
 #include <string>
@@ -100,41 +100,41 @@ int main() {
     MyStruct expected{7, 3.5};
     table.set<MyStruct>("object", expected);
 
-    assert(table.get<int>("answer") == 42);
+    MDBXC_TEST_ASSERT(table.get<int>("answer") == 42);
 #if __cplusplus >= 201703L
-    assert(table.find<std::string>("greeting").value() == "hello");
+    MDBXC_TEST_ASSERT(table.find<std::string>("greeting").value() == "hello");
 #else
     {
         auto res = table.find_compat<std::string>("greeting");
-        assert(res.first && res.second == "hello");
+        MDBXC_TEST_ASSERT(res.first && res.second == "hello");
     }
 #endif
-    assert(table.get<MyStruct>("object") == expected);
-    assert(table.contains("answer"));
-    assert(!table.contains("missing"));
+    MDBXC_TEST_ASSERT(table.get<MyStruct>("object") == expected);
+    MDBXC_TEST_ASSERT(table.contains("answer"));
+    MDBXC_TEST_ASSERT(!table.contains("missing"));
 
     auto ks = table.keys();
-    assert(ks.size() == 3);
+    MDBXC_TEST_ASSERT(ks.size() == 3);
 
     mdbxc::AnyValueTable<int> safe_int_table(conn, "test_any_int_options");
     mdbxc::AnyValueTable<int, mdbxc::FastIntegerKeyOptions> fast_int_table(conn, "test_any_int_options");
     safe_int_table.set<std::string>(11, "safe");
     fast_int_table.set<int>(12, 99);
-    assert(fast_int_table.get<std::string>(11) == "safe");
-    assert(safe_int_table.get<int>(12) == 99);
+    MDBXC_TEST_ASSERT(fast_int_table.get<std::string>(11) == "safe");
+    MDBXC_TEST_ASSERT(safe_int_table.get<int>(12) == 99);
 
     mdbxc::AnyValueTable<std::string> tagged(conn, "test_any_tagged");
     tagged.erase("answer");
     tagged.erase("stable");
     tagged.set_type_tag_check(true);
     tagged.set<int>("answer", 42);
-    assert(tagged.get<int>("answer") == 42);
-    assert(tagged.contains("answer"));
+    MDBXC_TEST_ASSERT(tagged.get<int>("answer") == 42);
+    MDBXC_TEST_ASSERT(tagged.contains("answer"));
 
     tagged.update<int>("answer", [](int& value) {
         value += 1;
     });
-    assert(tagged.get<int>("answer") == 43);
+    MDBXC_TEST_ASSERT(tagged.get<int>("answer") == 43);
 
     bool bad_cast_thrown = false;
     try {
@@ -142,29 +142,29 @@ int main() {
     } catch (const std::bad_cast&) {
         bad_cast_thrown = true;
     }
-    assert(bad_cast_thrown);
+    MDBXC_TEST_ASSERT(bad_cast_thrown);
 
 #if __cplusplus >= 201703L
-    assert(!tagged.find<std::string>("answer").has_value());
+    MDBXC_TEST_ASSERT(!tagged.find<std::string>("answer").has_value());
 #else
     {
         auto mismatch = tagged.find_compat<std::string>("answer");
-        assert(!mismatch.first);
+        MDBXC_TEST_ASSERT(!mismatch.first);
     }
 #endif
-    assert(tagged.get_or<std::string>("answer", std::string("fallback")) == "fallback");
+    MDBXC_TEST_ASSERT(tagged.get_or<std::string>("answer", std::string("fallback")) == "fallback");
 
     StableTagged stable{};
     stable.value = 77;
     tagged.set<StableTagged>("stable", stable);
     StableTaggedAlias alias = tagged.get<StableTaggedAlias>("stable");
-    assert(alias.value == stable.value);
-    assert(std::string(mdbxc::AnyValueTypeTag<StableTagged>::value()) == "tests.StableTagged.v1");
+    MDBXC_TEST_ASSERT(alias.value == stable.value);
+    MDBXC_TEST_ASSERT(std::string(mdbxc::AnyValueTypeTag<StableTagged>::value()) == "tests.StableTagged.v1");
 
     mdbxc::AnyValueTable<std::string> legacy(conn, "test_any_legacy_raw");
     legacy.erase("legacy");
     legacy.set<int>("legacy", 7);
-    assert(legacy.get<int>("legacy") == 7);
+    MDBXC_TEST_ASSERT(legacy.get<int>("legacy") == 7);
     legacy.set_type_tag_check(true);
     bool legacy_bad_cast = false;
     try {
@@ -172,14 +172,14 @@ int main() {
     } catch (const std::bad_cast&) {
         legacy_bad_cast = true;
     }
-    assert(legacy_bad_cast);
+    MDBXC_TEST_ASSERT(legacy_bad_cast);
 
 #if __cplusplus >= 201703L
-    assert(!legacy.find<int>("legacy").has_value());
+    MDBXC_TEST_ASSERT(!legacy.find<int>("legacy").has_value());
 #else
     {
         auto legacy_lookup = legacy.find_compat<int>("legacy");
-        assert(!legacy_lookup.first);
+        MDBXC_TEST_ASSERT(!legacy_lookup.first);
     }
 #endif
 

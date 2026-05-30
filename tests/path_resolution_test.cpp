@@ -13,7 +13,7 @@ int main() {
 //
 // Тестирует политику разрешения путей и работу no_subdir.
 
-#include <cassert>
+#include "test_assert.hpp"
 #include <cstdint>
 #include <iostream>
 #include <fstream>
@@ -80,7 +80,7 @@ static void assert_read_only_does_not_create_parent(const fs::path& db_path,
                                                     bool no_subdir) {
     fs::path parent = db_path.parent_path();
     fs::remove_all(parent);
-    assert(!fs::exists(parent));
+    MDBXC_TEST_ASSERT(!fs::exists(parent));
 
     mdbxc::Config cfg;
     cfg.pathname = db_path.u8string();
@@ -97,8 +97,8 @@ static void assert_read_only_does_not_create_parent(const fs::path& db_path,
         failed = true;
     }
 
-    assert(failed);
-    assert(!fs::exists(parent));
+    MDBXC_TEST_ASSERT(failed);
+    MDBXC_TEST_ASSERT(!fs::exists(parent));
 }
 
 // Правило разрешения пути, которое должна соблюдать библиотека.
@@ -160,13 +160,13 @@ static void run_case(const std::string& case_name,
     // проверки на ФС
     if (!no_subdir) {
         // директория БД должна существовать и быть не пустой
-        assert(fs::exists(expect));
-        assert(fs::is_directory(expect));
-        assert(dir_nonempty(expect));
+        MDBXC_TEST_ASSERT(fs::exists(expect));
+        MDBXC_TEST_ASSERT(fs::is_directory(expect));
+        MDBXC_TEST_ASSERT(dir_nonempty(expect));
     } else {
         // файл БД должен существовать (lock-файл может быть рядом)
-        assert(fs::exists(expect));
-        assert(fs::is_regular_file(expect));
+        MDBXC_TEST_ASSERT(fs::exists(expect));
+        MDBXC_TEST_ASSERT(fs::is_regular_file(expect));
     }
 }
 
@@ -196,10 +196,10 @@ int main() try {
                  kv.insert_or_assign(1, (int8_t)42);
 #if __cplusplus >= 201703L
                  auto v = kv.find(1);
-                 assert(v && *v == (int8_t)42);
+                 MDBXC_TEST_ASSERT(v && *v == (int8_t)42);
 #else
                  auto v = kv.find_compat(1);
-                 assert(v.first && v.second == (int8_t)42);
+                 MDBXC_TEST_ASSERT(v.first && v.second == (int8_t)42);
 #endif
              });
 
@@ -213,10 +213,10 @@ int main() try {
                  kv.insert_or_assign(1, (int8_t)7);
 #if __cplusplus >= 201703L
                  auto v = kv.find(1);
-                 assert(v && *v == (int8_t)7);
+                 MDBXC_TEST_ASSERT(v && *v == (int8_t)7);
 #else
                  auto v = kv.find_compat(1);
-                 assert(v.first && v.second == (int8_t)7);
+                 MDBXC_TEST_ASSERT(v.first && v.second == (int8_t)7);
 #endif
              });
 
@@ -230,10 +230,10 @@ int main() try {
                  kv.insert_or_assign(1, (int8_t)-5);
 #if __cplusplus >= 201703L
                  auto v = kv.find(1);
-                 assert(v && *v == (int8_t)-5);
+                 MDBXC_TEST_ASSERT(v && *v == (int8_t)-5);
 #else
                  auto v = kv.find_compat(1);
-                 assert(v.first && v.second == (int8_t)-5);
+                 MDBXC_TEST_ASSERT(v.first && v.second == (int8_t)-5);
 #endif
              });
 
@@ -250,10 +250,10 @@ int main() try {
                  kv.insert_or_assign(1, (int8_t)11);
 #if __cplusplus >= 201703L
                  auto v = kv.find(1);
-                 assert(v && *v == (int8_t)11);
+                 MDBXC_TEST_ASSERT(v && *v == (int8_t)11);
 #else
                  auto v = kv.find_compat(1);
-                 assert(v.first && v.second == (int8_t)11);
+                 MDBXC_TEST_ASSERT(v.first && v.second == (int8_t)11);
 #endif
              });
 
@@ -267,10 +267,10 @@ int main() try {
                  kv.insert_or_assign(1, (int8_t)12);
 #if __cplusplus >= 201703L
                  auto v = kv.find(1);
-                 assert(v && *v == (int8_t)12);
+                 MDBXC_TEST_ASSERT(v && *v == (int8_t)12);
 #else
                  auto v = kv.find_compat(1);
-                 assert(v.first && v.second == (int8_t)12);
+                 MDBXC_TEST_ASSERT(v.first && v.second == (int8_t)12);
 #endif
              });
 
@@ -284,10 +284,10 @@ int main() try {
                  kv.insert_or_assign(1, (int8_t)13);
 #if __cplusplus >= 201703L
                  auto v = kv.find(1);
-                 assert(v && *v == (int8_t)13);
+                 MDBXC_TEST_ASSERT(v && *v == (int8_t)13);
 #else
                  auto v = kv.find_compat(1);
-                 assert(v.first && v.second == (int8_t)13);
+                 MDBXC_TEST_ASSERT(v.first && v.second == (int8_t)13);
 #endif
              });
 

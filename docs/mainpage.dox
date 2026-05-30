@@ -16,6 +16,10 @@ Key features:
 - Implemented `KeyTable` API for set-like key storage.
 - Implemented `KeyMultiValueTable` API for multimap-like storage with repeated
   identical pairs preserved.
+- Ordered key-based tables provide streaming range scans, bounds and edge
+  helpers, reverse scans, range metadata, and range erasure.
+- `KeyValueTable` includes read-modify-write `update()` and batch point lookup
+  helpers.
 - Automatic serialization of trivially copyable types and custom `to_bytes()`/`from_bytes()` support.
 - Multiple logical tables inside one MDBX environment.
 - Read-only configuration for inspecting existing DBIs without creating tables.

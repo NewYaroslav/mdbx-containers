@@ -1,3 +1,4 @@
+#include "test_assert.hpp"
 #include <iostream>
 #include <mdbx_containers/common.hpp>
 
@@ -13,7 +14,7 @@ MDBX_val empty_value() {
 template<typename T>
 void assert_deserializes_empty() {
     T out = mdbxc::deserialize_value<T>(empty_value());
-    assert(out.empty());
+    MDBXC_TEST_ASSERT(out.empty());
 }
 
 template<typename T>
@@ -32,7 +33,7 @@ void assert_rejects_oversized_string_length() {
     } catch (const std::runtime_error&) {
         thrown = true;
     }
-    assert(thrown);
+    MDBXC_TEST_ASSERT(thrown);
 }
 
 template<typename T>
@@ -50,20 +51,20 @@ T deserialize_unaligned_uint32_values() {
 
 template<typename T>
 void assert_ordered_uint32_values(const T& out) {
-    assert(out.size() == 3);
+    MDBXC_TEST_ASSERT(out.size() == 3);
     typename T::const_iterator it = out.begin();
-    assert(*it == 1u);
+    MDBXC_TEST_ASSERT(*it == 1u);
     ++it;
-    assert(*it == 2u);
+    MDBXC_TEST_ASSERT(*it == 2u);
     ++it;
-    assert(*it == 3u);
+    MDBXC_TEST_ASSERT(*it == 3u);
 }
 
 void assert_unordered_uint32_values(const std::unordered_set<std::uint32_t>& out) {
-    assert(out.size() == 3);
-    assert(out.find(1u) != out.end());
-    assert(out.find(2u) != out.end());
-    assert(out.find(3u) != out.end());
+    MDBXC_TEST_ASSERT(out.size() == 3);
+    MDBXC_TEST_ASSERT(out.find(1u) != out.end());
+    MDBXC_TEST_ASSERT(out.find(2u) != out.end());
+    MDBXC_TEST_ASSERT(out.find(3u) != out.end());
 }
 
 } // namespace
