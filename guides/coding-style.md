@@ -21,6 +21,23 @@ Getter methods may omit `get_` when they behave like property accessors, such as
 `size()` or `empty()`. Use `get_` when the method performs computation or when
 omitting the prefix would be misleading.
 
+## Semantic Values And Literals
+
+- Avoid magic numbers: name non-obvious numeric values, including byte values
+  such as `0xD0`, when the domain meaning is not self-evident.
+- Avoid magic literals: name non-obvious strings, bytes, characters, regular
+  expressions, paths, flags, and test payloads.
+- Use intention-revealing names: prefer names that explain the role of a value,
+  for example `invalid_utf8_leading_byte` rather than `byte`.
+- Make invalid and edge cases explicit: test data for failure paths should state
+  which failure condition it represents.
+- Prefer named constants for semantic values: if a value has project or domain
+  meaning, bind that meaning to a local constant.
+- Separate data meaning from representation: `0xD0` is a representation;
+  "truncated UTF-8 leading byte" is the meaning.
+- Follow the Principle of Least Astonishment: readers should not need to infer
+  why a particular byte, flag, or literal was chosen.
+
 ## File Names
 
 - If a file contains one primary class, use `CamelCase`, for example

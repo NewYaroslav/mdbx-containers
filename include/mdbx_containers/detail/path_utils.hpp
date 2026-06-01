@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <cstring>
 #if __cplusplus >= 201703L
 #include <filesystem>
 #else
@@ -19,10 +20,6 @@
 // For Windows systems
 #include <direct.h>
 #include <windows.h>
-#if __cplusplus < 202002L
-#include <locale>
-#include <codecvt>
-#endif
 #include <errno.h>
 #else
 // For POSIX systems
@@ -47,6 +44,46 @@ namespace mdbxc {
     /// \brief Converts a UTF-8 string with char8_t characters to std::string.
     inline std::string u8string_to_string(const std::u8string& s) {
         return std::string(s.begin(), s.end());
+    }
+#endif
+
+#ifdef _WIN32
+    /// \brief Converts a wide Windows string to a UTF-8 string.
+    inline std::string wide_to_utf8(const std::wstring& wide) {
+        if (wide.empty()) return std::string();
+        int size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
+                                       wide.data(), static_cast<int>(wide.size()),
+                                       NULL, 0, NULL, NULL);
+        if (size == 0) {
+            throw std::runtime_error("Failed to convert UTF-16 path to UTF-8.");
+        }
+        std::string utf8(static_cast<std::size_t>(size), '\0');
+        int written = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
+                                          wide.data(), static_cast<int>(wide.size()),
+                                          &utf8[0], size, NULL, NULL);
+        if (written == 0) {
+            throw std::runtime_error("Failed to convert UTF-16 path to UTF-8.");
+        }
+        return utf8;
+    }
+
+    /// \brief Converts a UTF-8 string to a wide Windows string.
+    inline std::wstring utf8_to_wide(const std::string& utf8) {
+        if (utf8.empty()) return std::wstring();
+        int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                       utf8.data(), static_cast<int>(utf8.size()),
+                                       NULL, 0);
+        if (size == 0) {
+            throw std::runtime_error("Failed to convert UTF-8 path to UTF-16.");
+        }
+        std::wstring wide(static_cast<std::size_t>(size), L'\0');
+        int written = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                          utf8.data(), static_cast<int>(utf8.size()),
+                                          &wide[0], size);
+        if (written == 0) {
+            throw std::runtime_error("Failed to convert UTF-8 path to UTF-16.");
+        }
+        return wide;
     }
 #endif
 
@@ -124,15 +161,7 @@ namespace mdbxc {
             exe_path = exe_path.substr(0, pos);
         }
 
-#       if __cplusplus >= 202002L
-        fs::path path_wide = exe_path;
-        auto tmp = path_wide.u8string();
-        return u8string_to_string(tmp);
-#       else
-        // Convert from std::wstring (UTF-16) to std::string (UTF-8)
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        return converter.to_bytes(exe_path);
-#       endif
+        return wide_to_utf8(exe_path);
 
 #       elif defined(__APPLE__)
         uint32_t size = 0;
@@ -200,28 +229,6 @@ namespace mdbxc {
 #       endif
     }
 
-    /// \brief Converts a UTF-8 string to an ANSI string (Windows-specific).
-    /// \param utf8 The UTF-8 encoded string.
-    /// \return The converted ANSI string.
-    inline std::string utf8_to_ansi(const std::string& utf8) noexcept {
-#ifdef _WIN32
-        int n_len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, NULL, 0);
-        if (n_len == 0) return {};
-
-        std::wstring wide_string(n_len + 1, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, &wide_string[0], n_len);
-
-        n_len = WideCharToMultiByte(CP_ACP, 0, wide_string.c_str(), -1, NULL, 0, NULL, NULL);
-        if (n_len == 0) return {};
-
-        std::string ansi_string(n_len - 1, '\0');
-        WideCharToMultiByte(CP_ACP, 0, wide_string.c_str(), -1, &ansi_string[0], n_len, NULL, NULL);
-        return ansi_string;
-#else
-        return utf8;
-#endif
-    }
-
 #if __cplusplus >= 201703L
 
     /// \brief Computes the relative path from base_path to file_path using C++17 std::filesystem.
@@ -251,14 +258,7 @@ namespace mdbxc {
     /// \throws std::runtime_error if the directories cannot be created.
       inline void create_directories(const std::string& path) {
 #   ifdef _WIN32
-#       if __cplusplus >= 202002L
-        fs::path parent_dir = fs::u8path(get_parent_path(path));
-#       else
-        // Convert UTF-8 string to wide string for Windows
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        std::wstring wide_path = converter.from_bytes(get_parent_path(path));
-        fs::path parent_dir = fs::path(wide_path);
-#       endif
+        fs::path parent_dir = fs::path(utf8_to_wide(get_parent_path(path)));
 #   else
         fs::path parent_dir = fs::u8path(get_parent_path(path));
 #   endif
@@ -268,9 +268,11 @@ namespace mdbxc {
             if (!std::filesystem::create_directories(parent_dir, ec)) {
 #       if __cplusplus >= 202002L
                 auto p = parent_dir.u8string();
-                throw std::runtime_error("Failed to create directories for path: " + u8string_to_string(p));
+                throw std::runtime_error("Failed to create directories for path: " +
+                                         u8string_to_string(p) + ": " + ec.message());
 #       else
-                throw std::runtime_error("Failed to create directories for path: " + parent_dir.u8string());
+                throw std::runtime_error("Failed to create directories for path: " +
+                                         parent_dir.u8string() + ": " + ec.message());
 #       endif
             }
         }
@@ -513,13 +515,14 @@ namespace mdbxc {
                 components[i] == "/" ||
                 components[i] == "~/") continue;
 #           ifdef _WIN32
-            int ret = _mkdir(utf8_to_ansi(current_path).c_str());
+            int ret = _wmkdir(utf8_to_wide(current_path).c_str());
 #           else
             int ret = mkdir(current_path.c_str(), 0755);
 #           endif
             int errnum = errno;
             if (ret != 0 && errnum != EEXIST) {
-                throw std::runtime_error("Failed to create directory: " + current_path);
+                throw std::runtime_error("Failed to create directory: " + current_path +
+                                         ": " + std::string(strerror(errnum)));
             }
         }
     }
