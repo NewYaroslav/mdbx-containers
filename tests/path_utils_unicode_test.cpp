@@ -68,9 +68,10 @@ int main() {
     MDBXC_TEST_ASSERT(mdbxc::wide_to_utf8(wide_exotic_sample()) == exotic);
     MDBXC_TEST_ASSERT(mdbxc::utf8_to_wide(exotic) == wide_exotic_sample());
 
+    const std::string invalid_utf8(1, static_cast<char>(0xD0));
     bool failed = false;
     try {
-        (void)mdbxc::utf8_to_wide(std::string("\xD0", 1));
+        (void)mdbxc::utf8_to_wide(invalid_utf8);
     } catch (const std::runtime_error&) {
         failed = true;
     }
