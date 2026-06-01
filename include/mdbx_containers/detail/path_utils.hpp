@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <cstring>
 #if __cplusplus >= 201703L
 #include <filesystem>
 #else
@@ -50,20 +51,38 @@ namespace mdbxc {
     /// \brief Converts a wide Windows string to a UTF-8 string.
     inline std::string wide_to_utf8(const std::wstring& wide) {
         if (wide.empty()) return std::string();
-        int size = WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), NULL, 0, NULL, NULL);
-        if (size == 0) return std::string();
+        int size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
+                                       wide.data(), static_cast<int>(wide.size()),
+                                       NULL, 0, NULL, NULL);
+        if (size == 0) {
+            throw std::runtime_error("Failed to convert UTF-16 path to UTF-8.");
+        }
         std::string utf8(static_cast<std::size_t>(size), '\0');
-        WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), &utf8[0], size, NULL, NULL);
+        int written = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
+                                          wide.data(), static_cast<int>(wide.size()),
+                                          &utf8[0], size, NULL, NULL);
+        if (written == 0) {
+            throw std::runtime_error("Failed to convert UTF-16 path to UTF-8.");
+        }
         return utf8;
     }
 
     /// \brief Converts a UTF-8 string to a wide Windows string.
     inline std::wstring utf8_to_wide(const std::string& utf8) {
         if (utf8.empty()) return std::wstring();
-        int size = MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), NULL, 0);
-        if (size == 0) return std::wstring();
+        int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                       utf8.data(), static_cast<int>(utf8.size()),
+                                       NULL, 0);
+        if (size == 0) {
+            throw std::runtime_error("Failed to convert UTF-8 path to UTF-16.");
+        }
         std::wstring wide(static_cast<std::size_t>(size), L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), &wide[0], size);
+        int written = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                          utf8.data(), static_cast<int>(utf8.size()),
+                                          &wide[0], size);
+        if (written == 0) {
+            throw std::runtime_error("Failed to convert UTF-8 path to UTF-16.");
+        }
         return wide;
     }
 #endif
@@ -249,9 +268,11 @@ namespace mdbxc {
             if (!std::filesystem::create_directories(parent_dir, ec)) {
 #       if __cplusplus >= 202002L
                 auto p = parent_dir.u8string();
-                throw std::runtime_error("Failed to create directories for path: " + u8string_to_string(p));
+                throw std::runtime_error("Failed to create directories for path: " +
+                                         u8string_to_string(p) + ": " + ec.message());
 #       else
-                throw std::runtime_error("Failed to create directories for path: " + parent_dir.u8string());
+                throw std::runtime_error("Failed to create directories for path: " +
+                                         parent_dir.u8string() + ": " + ec.message());
 #       endif
             }
         }
@@ -500,7 +521,8 @@ namespace mdbxc {
 #           endif
             int errnum = errno;
             if (ret != 0 && errnum != EEXIST) {
-                throw std::runtime_error("Failed to create directory: " + current_path);
+                throw std::runtime_error("Failed to create directory: " + current_path +
+                                         ": " + std::string(strerror(errnum)));
             }
         }
     }
