@@ -5,11 +5,6 @@
 #include <unordered_map>
 #include <cassert>
 
-#if __cplusplus < 202002L
-# include <codecvt>
-# include <locale>
-#endif
-
 #if __cplusplus >= 201703L
 # include <filesystem>
 #endif
@@ -271,8 +266,7 @@ namespace mdbxc {
 #       if __cplusplus >= 202002L
         fs::path file_path = fs::u8path(pathname);
 #       else
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        std::wstring wide_path = converter.from_bytes(pathname);
+        std::wstring wide_path = utf8_to_wide(pathname);
         fs::path file_path = fs::path(wide_path);
 #       endif
         file_path = file_path.lexically_normal();
@@ -282,8 +276,7 @@ namespace mdbxc {
         );
 #   else
         pathname = lexically_normal_compat(pathname);
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        std::wstring wide_path = converter.from_bytes(pathname);
+        std::wstring wide_path = utf8_to_wide(pathname);
         check_mdbx(
             mdbx_env_openW(m_env, wide_path.c_str(), env_flags, 0664),
             "Failed to open environment"
