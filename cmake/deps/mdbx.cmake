@@ -1,8 +1,9 @@
 # cmake/deps/mdbx.cmake
 # Provides libmdbx targets with minimal, robust logic:
-#   1) SYSTEM/AUTO: try find_package (CONFIG/MODULE, various names)
-#   2) BUNDLED/AUTO: try submodule at external/libmdbx (with Windows/MSYS quirks)
-#   3) fallback: FetchContent from upstream
+#   1) use an existing parent-provided target, if available
+#   2) SYSTEM/AUTO: try find_package (CONFIG/MODULE, various names)
+#   3) BUNDLED/AUTO: try submodule at external/libmdbx (with Windows/MSYS quirks)
+#   4) fallback: FetchContent from upstream
 #
 # Canonical aliases produced:
 #   mdbx::mdbx        - "the" MDBX target (shared if system provides; otherwise static alias)
@@ -24,16 +25,31 @@ set(MDBX_GIT_TAG "v0.13.12" CACHE STRING "libmdbx release tag")
 
 # -------- internals ----------------------------------------------------------
 
+function(_mdbx_resolve_alias out_target target_name)
+    set(_resolved_target "${target_name}")
+
+    if(TARGET ${target_name})
+        get_target_property(_aliased_target ${target_name} ALIASED_TARGET)
+        if(_aliased_target)
+            set(_resolved_target "${_aliased_target}")
+        endif()
+    endif()
+
+    set(${out_target} "${_resolved_target}" PARENT_SCOPE)
+endfunction()
+
 function(_mdbx_make_aliases _maybe_shared _maybe_static)
     if(DEFINED _maybe_shared AND NOT "${_maybe_shared}" STREQUAL "")
-        if(TARGET ${_maybe_shared} AND NOT TARGET mdbx::mdbx)
-            add_library(mdbx::mdbx ALIAS ${_maybe_shared})
+        _mdbx_resolve_alias(_shared_target "${_maybe_shared}")
+        if(TARGET ${_shared_target} AND NOT TARGET mdbx::mdbx)
+            add_library(mdbx::mdbx ALIAS ${_shared_target})
             message(STATUS "[mdbx] Aliased '${_maybe_shared}' -> mdbx::mdbx")
         endif()
     endif()
     if(DEFINED _maybe_static AND NOT "${_maybe_static}" STREQUAL "")
-        if(TARGET ${_maybe_static} AND NOT TARGET mdbx::mdbx-static)
-            add_library(mdbx::mdbx-static ALIAS ${_maybe_static})
+        _mdbx_resolve_alias(_static_target "${_maybe_static}")
+        if(TARGET ${_static_target} AND NOT TARGET mdbx::mdbx-static)
+            add_library(mdbx::mdbx-static ALIAS ${_static_target})
             message(STATUS "[mdbx] Aliased '${_maybe_static}' -> mdbx::mdbx-static")
         endif()
     endif()
@@ -76,6 +92,17 @@ function(_mdbx_detect_and_alias out_ok)
 
     if(_found_shared OR _found_static)
         _mdbx_make_aliases("${_found_shared}" "${_found_static}")
+        set(${out_ok} TRUE PARENT_SCOPE)
+        return()
+    endif()
+endfunction()
+
+function(_mdbx_try_existing_target out_ok)
+    set(${out_ok} FALSE PARENT_SCOPE)
+
+    _mdbx_detect_and_alias(_ok)
+    if(_ok)
+        message(STATUS "[mdbx] Using existing CMake target")
         set(${out_ok} TRUE PARENT_SCOPE)
         return()
     endif()
@@ -241,7 +268,9 @@ function(mdbx_provide)
 
     set(_ok FALSE)
 
-    if(MX_MODE_UP STREQUAL "SYSTEM" OR MX_MODE_UP STREQUAL "AUTO")
+    _mdbx_try_existing_target(_ok)
+
+    if(NOT _ok AND (MX_MODE_UP STREQUAL "SYSTEM" OR MX_MODE_UP STREQUAL "AUTO"))
         _mdbx_try_find_package(_ok)
     endif()
 
@@ -255,9 +284,9 @@ function(mdbx_provide)
 
     if(NOT _ok)
         if(MX_MODE_UP STREQUAL "SYSTEM")
-            message(FATAL_ERROR "[mdbx] SYSTEM mode requested, but no package found.")
+            message(FATAL_ERROR "[mdbx] SYSTEM mode requested, but no existing target or package found.")
         else()
-            message(FATAL_ERROR "[mdbx] Failed to provide MDBX (find_package, submodule, FetchContent all failed).")
+            message(FATAL_ERROR "[mdbx] Failed to provide MDBX (existing target, find_package, submodule, FetchContent all failed).")
         endif()
     endif()
 
