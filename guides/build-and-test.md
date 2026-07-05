@@ -21,7 +21,8 @@ All project options use the `MDBXC_` prefix.
 When `mdbx-containers` is added as a subproject, existing parent-provided
 `mdbx::mdbx`, `mdbx::mdbx-static`, `libmdbx::mdbx`, and
 `libmdbx::mdbx-static` targets are reused before package, submodule, or
-FetchContent lookup.
+FetchContent lookup. Parent-provided targets take precedence over
+`MDBXC_DEPS_MODE`, including `BUNDLED`.
 
 ## Baseline Commands
 

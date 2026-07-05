@@ -68,7 +68,8 @@
    this project is added as a subproject, an existing parent-provided
    `mdbx::mdbx`, `mdbx::mdbx-static`, `libmdbx::mdbx`, or
    `libmdbx::mdbx-static` target is reused before package, submodule, or
-   FetchContent lookup.
+   FetchContent lookup. Parent-provided targets take precedence over
+   `MDBXC_DEPS_MODE`, including `BUNDLED`.
 3. Use a C++11 (or later) compiler.
 
 ### Build with CMake

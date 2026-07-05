@@ -93,7 +93,8 @@
    проект подключён как subproject, уже существующий parent target
    `mdbx::mdbx`, `mdbx::mdbx-static`, `libmdbx::mdbx` или
    `libmdbx::mdbx-static` переиспользуется до поиска пакета, submodule или
-   FetchContent.
+   FetchContent. Parent targets имеют приоритет над `MDBXC_DEPS_MODE`, включая
+   `BUNDLED`.
 3. Используйте компилятор с поддержкой C++11 или новее.
 
 ### Сборка через CMake

@@ -16,6 +16,9 @@
 #       OUT_TARGET_SHARED <var>     # returns 'mdbx::mdbx' (shared if system provided; bundled path -> static alias)
 #   )
 #
+# NOTE: Existing parent-provided targets take precedence over MODE, including
+#       BUNDLED.  MODE only controls fallback lookup after parent targets.
+#
 # NOTE: We intentionally keep bundled builds STATIC (MDBX_BUILD_SHARED_LIBRARY=OFF),
 #       to preserve existing CI behavior and Windows/MSYS quirks you had.
 
@@ -51,6 +54,14 @@ function(_mdbx_make_aliases _maybe_shared _maybe_static)
         if(TARGET ${_static_target} AND NOT TARGET mdbx::mdbx-static)
             add_library(mdbx::mdbx-static ALIAS ${_static_target})
             message(STATUS "[mdbx] Aliased '${_maybe_static}' -> mdbx::mdbx-static")
+        endif()
+    endif()
+
+    if(NOT TARGET mdbx::mdbx AND TARGET mdbx::mdbx-static)
+        _mdbx_resolve_alias(_static_target_for_shared "mdbx::mdbx-static")
+        if(TARGET ${_static_target_for_shared})
+            add_library(mdbx::mdbx ALIAS ${_static_target_for_shared})
+            message(STATUS "[mdbx] Aliased 'mdbx::mdbx-static' -> mdbx::mdbx")
         endif()
     endif()
 endfunction()
