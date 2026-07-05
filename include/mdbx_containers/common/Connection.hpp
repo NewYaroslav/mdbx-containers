@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_CONNECTION_HPP_INCLUDED
-#define _MDBX_CONTAINERS_CONNECTION_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_COMMON_CONNECTION_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_COMMON_CONNECTION_HPP_INCLUDED
 
 /// \file Connection.hpp
 /// \brief Manages an MDBX database connection using a provided configuration.
@@ -179,4 +179,4 @@ namespace mdbxc {
 #include "Connection.ipp"
 #endif
 
-#endif // _MDBX_CONTAINERS_CONNECTION_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_COMMON_CONNECTION_HPP_INCLUDED

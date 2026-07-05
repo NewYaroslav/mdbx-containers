@@ -1,7 +1,3 @@
-#pragma once
-#ifndef _MDBX_CONTAINERS_VECTOR_FLAT_VECTOR_INDEX_IPP_INCLUDED
-#define _MDBX_CONTAINERS_VECTOR_FLAT_VECTOR_INDEX_IPP_INCLUDED
-
 #include <cstring>
 #include <cmath>
 #include <algorithm>
@@ -151,5 +147,3 @@ namespace mdbxc {
     }
 
 } // namespace mdbxc
-
-#endif // _MDBX_CONTAINERS_VECTOR_FLAT_VECTOR_INDEX_IPP_INCLUDED

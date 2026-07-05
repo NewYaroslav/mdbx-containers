@@ -1,4 +1,6 @@
 #pragma once
+#ifndef MDBX_CONTAINERS_HEADER_TEST_ASSERT_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_TEST_ASSERT_HPP_INCLUDED
 
 #include <stdexcept>
 #include <string>
@@ -14,3 +16,5 @@
                                      ": assertion failed: " #expr);                           \
         }                                                                                     \
     } while (false)
+
+#endif // MDBX_CONTAINERS_HEADER_TEST_ASSERT_HPP_INCLUDED

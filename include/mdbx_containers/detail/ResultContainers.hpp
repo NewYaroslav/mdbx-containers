@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_RESULT_CONTAINERS_HPP_INCLUDED
-#define _MDBX_CONTAINERS_RESULT_CONTAINERS_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_DETAIL_RESULT_CONTAINERS_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_DETAIL_RESULT_CONTAINERS_HPP_INCLUDED
 
 /// \file detail/ResultContainers.hpp
 /// \brief Internal traits for selecting result container shapes.
@@ -24,4 +24,4 @@ namespace detail {
 } // namespace detail
 } // namespace mdbxc
 
-#endif // _MDBX_CONTAINERS_RESULT_CONTAINERS_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_DETAIL_RESULT_CONTAINERS_HPP_INCLUDED

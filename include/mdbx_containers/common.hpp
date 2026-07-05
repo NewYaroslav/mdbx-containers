@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_COMMON_HPP_INCLUDED
-#define _MDBX_CONTAINERS_COMMON_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_COMMON_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_COMMON_HPP_INCLUDED
 
 /// \file common.hpp
 /// \brief Publicly usable low-level components of the MDBX Containers library.
@@ -49,4 +49,4 @@
 #include "common/Connection.hpp"
 #include "detail/BaseTable.hpp"
 
-#endif // _MDBX_CONTAINERS_COMMON_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_COMMON_HPP_INCLUDED

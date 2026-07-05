@@ -45,6 +45,20 @@ omitting the prefix would be misleading.
 - If a file contains utilities, helpers, or multiple types, use `snake_case`,
   for example `path_utils.hpp`.
 
+## Include Guards
+
+- Use `#pragma once` and a non-reserved include guard for project-owned `.hpp`
+  and `.h` headers.
+- Guard names use `MDBX_CONTAINERS_HEADER_<PATH>_<FILE>_<EXT>_INCLUDED`.
+- Keep `.ipp` implementation fragments unguarded; they are included from
+  guarded headers and should not define standalone include guards.
+- Build/configuration macros keep their existing domain names and are not
+  forced into the guard naming scheme; examples include
+  `MDBX_CONTAINERS_HEADER_ONLY` and
+  `MDBX_CONTAINERS_SEPARATE_COMPILATION`.
+- Do not rewrite third-party vendored headers such as `detail/xxhash.h` just to
+  match project guard naming.
+
 ## Lambda Captures
 
 - Do not use lambda default captures (`[&]` or `[=]`) in C++ code.

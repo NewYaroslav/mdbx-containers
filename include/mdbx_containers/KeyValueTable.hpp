@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_KEY_VALUE_TABLE_HPP_INCLUDED
-#define _MDBX_CONTAINERS_KEY_VALUE_TABLE_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_KEY_VALUE_TABLE_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_KEY_VALUE_TABLE_HPP_INCLUDED
 
 /// \file KeyValueTable.hpp
 /// \brief Map-like table storing one value per key in an MDBX database.
@@ -2174,4 +2174,4 @@ namespace mdbxc {
 
 }; // namespace mdbxc
 
-#endif // _MDBX_CONTAINERS_KEY_VALUE_TABLE_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_KEY_VALUE_TABLE_HPP_INCLUDED
