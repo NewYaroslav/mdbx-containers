@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_SEQUENCE_TABLE_HPP_INCLUDED
-#define _MDBX_CONTAINERS_SEQUENCE_TABLE_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_SEQUENCE_TABLE_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_SEQUENCE_TABLE_HPP_INCLUDED
 
 /// \file SequenceTable.hpp
 /// \brief Persistent appendable table with stable uint64_t indices.
@@ -712,4 +712,4 @@ namespace mdbxc {
 
 } // namespace mdbxc
 
-#endif // _MDBX_CONTAINERS_SEQUENCE_TABLE_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_SEQUENCE_TABLE_HPP_INCLUDED

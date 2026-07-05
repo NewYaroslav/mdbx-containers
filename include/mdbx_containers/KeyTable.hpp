@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_KEY_TABLE_HPP_INCLUDED
-#define _MDBX_CONTAINERS_KEY_TABLE_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_KEY_TABLE_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_KEY_TABLE_HPP_INCLUDED
 
 /// \file KeyTable.hpp
 /// \brief Set-like table storing keys without user values.
@@ -1267,4 +1267,4 @@ namespace mdbxc {
 
 } // namespace mdbxc
 
-#endif // _MDBX_CONTAINERS_KEY_TABLE_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_KEY_TABLE_HPP_INCLUDED

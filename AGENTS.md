@@ -80,6 +80,12 @@ Determine the task type and apply the corresponding format:
   the other in the same change unless the user explicitly narrows the scope.
 - Preserve C++11 compatibility unless the change is explicitly C++17-only and
   properly guarded.
+- Use non-reserved include guards for project-owned `.hpp` and `.h` headers:
+  `MDBX_CONTAINERS_HEADER_<PATH>_<FILE>_<EXT>_INCLUDED`. Keep `.ipp`
+  implementation fragments unguarded; they are included from guarded headers.
+  Public/config macros keep their existing domain names and are not forced into
+  the guard naming scheme; examples include
+  `MDBX_CONTAINERS_HEADER_ONLY` and `MDBX_CONTAINERS_SEPARATE_COMPILATION`.
 - Do not use lambda default captures (`[&]` or `[=]`) in C++ code. List every
   captured variable explicitly, and capture `this` explicitly when member access
   is needed.

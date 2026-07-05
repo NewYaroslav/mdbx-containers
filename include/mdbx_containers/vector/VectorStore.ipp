@@ -1,7 +1,3 @@
-#pragma once
-#ifndef _MDBX_CONTAINERS_VECTOR_VECTOR_STORE_IPP_INCLUDED
-#define _MDBX_CONTAINERS_VECTOR_VECTOR_STORE_IPP_INCLUDED
-
 #include <algorithm>
 #include <stdexcept>
 #include <utility>
@@ -155,5 +151,3 @@ namespace mdbxc {
     }
 
 } // namespace mdbxc
-
-#endif // _MDBX_CONTAINERS_VECTOR_VECTOR_STORE_IPP_INCLUDED

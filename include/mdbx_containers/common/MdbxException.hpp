@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_EXCEPTION_HPP_INCLUDED
-#define _MDBX_CONTAINERS_EXCEPTION_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_COMMON_MDBX_EXCEPTION_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_COMMON_MDBX_EXCEPTION_HPP_INCLUDED
 
 /// \file MdbxException.hpp
 /// \brief Defines a specific exception for MDBX-related errors.
@@ -33,4 +33,4 @@ namespace mdbxc {
 
 } // namespace mdbxc
 
-#endif // _MDBX_CONTAINERS_EXCEPTION_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_COMMON_MDBX_EXCEPTION_HPP_INCLUDED

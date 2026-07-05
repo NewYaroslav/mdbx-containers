@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_CONFIG_HPP_INCLUDED
-#define _MDBX_CONTAINERS_CONFIG_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_COMMON_CONFIG_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_COMMON_CONFIG_HPP_INCLUDED
 
 /// \file Config.hpp
 /// \brief Configuration options used when opening an MDBX environment.
@@ -58,4 +58,4 @@ namespace mdbxc {
 
 }; // mdbxc
 
-#endif // _MDBX_CONTAINERS_CONFIG_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_COMMON_CONFIG_HPP_INCLUDED

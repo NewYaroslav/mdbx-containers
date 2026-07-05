@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_HPP_INCLUDED
-#define _MDBX_CONTAINERS_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_MDBX_CONTAINERS_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_MDBX_CONTAINERS_HPP_INCLUDED
 
 /// \file mdbx_containers.hpp
 /// \brief Main include file for the MDBX Containers library.
@@ -17,4 +17,4 @@
 #include "mdbx_containers/SequenceTable.hpp"
 #include "mdbx_containers/ValueTable.hpp"
 
-#endif // _MDBX_CONTAINERS_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_MDBX_CONTAINERS_HPP_INCLUDED

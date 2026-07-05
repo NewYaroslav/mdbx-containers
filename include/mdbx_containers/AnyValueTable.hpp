@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_ANY_VALUE_TABLE_HPP_INCLUDED
-#define _MDBX_CONTAINERS_ANY_VALUE_TABLE_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_ANY_VALUE_TABLE_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_ANY_VALUE_TABLE_HPP_INCLUDED
 
 /// \file AnyValueTable.hpp
 /// \brief Table storing values of arbitrary type indexed by key.
@@ -547,4 +547,4 @@ namespace mdbxc {
 
 } // namespace mdbxc
 
-#endif // _MDBX_CONTAINERS_ANY_VALUE_TABLE_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_ANY_VALUE_TABLE_HPP_INCLUDED

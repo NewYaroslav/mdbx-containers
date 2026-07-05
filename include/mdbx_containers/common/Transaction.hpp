@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_TRANSACTION_HPP_INCLUDED
-#define _MDBX_CONTAINERS_TRANSACTION_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_COMMON_TRANSACTION_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_COMMON_TRANSACTION_HPP_INCLUDED
 
 /// \file Transaction.hpp
 /// \brief Declares the Transaction class, a wrapper for managing MDBX transactions.
@@ -129,4 +129,4 @@ namespace mdbxc {
 #include "Transaction.ipp"
 #endif
 
-#endif // _MDBX_CONTAINERS_TRANSACTION_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_COMMON_TRANSACTION_HPP_INCLUDED

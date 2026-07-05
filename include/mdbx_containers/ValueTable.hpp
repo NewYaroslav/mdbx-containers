@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_VALUE_TABLE_HPP_INCLUDED
-#define _MDBX_CONTAINERS_VALUE_TABLE_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_VALUE_TABLE_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_VALUE_TABLE_HPP_INCLUDED
 
 /// \file ValueTable.hpp
 /// \brief Singleton-value table persisted in MDBX.
@@ -410,4 +410,4 @@ namespace mdbxc {
 
 } // namespace mdbxc
 
-#endif // _MDBX_CONTAINERS_VALUE_TABLE_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_VALUE_TABLE_HPP_INCLUDED

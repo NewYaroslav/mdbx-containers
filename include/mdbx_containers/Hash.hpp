@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_HASH_HPP_INCLUDED
-#define _MDBX_CONTAINERS_HASH_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_HASH_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_HASH_HPP_INCLUDED
 
 /// \file Hash.hpp
 /// \brief Public byte-view and hasher utilities for hashed containers.
@@ -213,4 +213,4 @@ namespace mdbxc {
 
 } // namespace mdbxc
 
-#endif // _MDBX_CONTAINERS_HASH_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_HASH_HPP_INCLUDED

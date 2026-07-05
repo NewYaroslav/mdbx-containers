@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _MDBX_CONTAINERS_UTILS_HPP_INCLUDED
-#define _MDBX_CONTAINERS_UTILS_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_DETAIL_UTILS_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_DETAIL_UTILS_HPP_INCLUDED
 
 /// \file utils.hpp
 /// \brief Utility helper functions for serializing values to and from MDBX.
@@ -909,4 +909,4 @@ namespace mdbxc {
 
 #undef MDBXC_NODISCARD
 
-#endif // _MDBX_CONTAINERS_UTILS_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_DETAIL_UTILS_HPP_INCLUDED
