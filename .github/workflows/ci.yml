@@ -27,7 +27,9 @@ jobs:
           - mdbx
           - libmdbx
           - mdbx-static
+          - mdbx-static-bare
           - libmdbx-static
+          - libmdbx-static-bare
 
     steps:
       - name: Checkout repository

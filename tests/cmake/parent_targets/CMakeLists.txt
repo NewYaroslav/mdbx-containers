@@ -7,11 +7,13 @@ set_property(CACHE MDBXC_PARENT_TARGET_CASE PROPERTY STRINGS
     mdbx
     libmdbx
     mdbx-static
+    mdbx-static-bare
     libmdbx-static
+    libmdbx-static-bare
 )
 
 if(MDBXC_PARENT_TARGET_CASE STREQUAL "")
-    message(FATAL_ERROR "Set MDBXC_PARENT_TARGET_CASE to one of: mdbx, libmdbx, mdbx-static, libmdbx-static")
+    message(FATAL_ERROR "Set MDBXC_PARENT_TARGET_CASE to one of: mdbx, libmdbx, mdbx-static, mdbx-static-bare, libmdbx-static, libmdbx-static-bare")
 endif()
 
 if(MDBXC_PARENT_TARGET_CASE STREQUAL "mdbx")
@@ -23,9 +25,13 @@ elseif(MDBXC_PARENT_TARGET_CASE STREQUAL "libmdbx")
 elseif(MDBXC_PARENT_TARGET_CASE STREQUAL "mdbx-static")
     add_library(parent_mdbx_static INTERFACE)
     add_library(mdbx::mdbx-static ALIAS parent_mdbx_static)
+elseif(MDBXC_PARENT_TARGET_CASE STREQUAL "mdbx-static-bare")
+    add_library(mdbx-static INTERFACE)
 elseif(MDBXC_PARENT_TARGET_CASE STREQUAL "libmdbx-static")
     add_library(parent_libmdbx_static INTERFACE)
     add_library(libmdbx::mdbx-static ALIAS parent_libmdbx_static)
+elseif(MDBXC_PARENT_TARGET_CASE STREQUAL "libmdbx-static-bare")
+    add_library(libmdbx-static INTERFACE)
 else()
     message(FATAL_ERROR "Unsupported MDBXC_PARENT_TARGET_CASE='${MDBXC_PARENT_TARGET_CASE}'")
 endif()
