@@ -89,7 +89,12 @@
    submodule.
 2. Убедитесь, что `libmdbx` доступна вашей системе сборки. Установите
    `MDBXC_DEPS_MODE=BUNDLED`, чтобы использовать bundled submodule в
-   `external/libmdbx`, или `SYSTEM`/`AUTO` для установленного пакета.
+   `external/libmdbx`, или `SYSTEM`/`AUTO` для установленного пакета. Если
+   проект подключён как subproject, уже существующий parent target
+   `mdbx::mdbx`, `mdbx::mdbx-static`, `libmdbx::mdbx` или
+   `libmdbx::mdbx-static` переиспользуется до поиска пакета, submodule или
+   FetchContent. Parent targets имеют приоритет над `MDBXC_DEPS_MODE`, включая
+   `BUNDLED`.
 3. Используйте компилятор с поддержкой C++11 или новее.
 
 ### Сборка через CMake

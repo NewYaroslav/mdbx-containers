@@ -62,7 +62,14 @@
 ## 🛠️ Installation
 
 1. Copy the `include/` directory into your project or add this repository as a submodule.
-2. Ensure `libmdbx` is available to your build system. Set `MDBXC_DEPS_MODE=BUNDLED` to use the bundled submodule at `external/libmdbx`, or use `SYSTEM`/`AUTO` for an installed package.
+2. Ensure `libmdbx` is available to your build system. Set
+   `MDBXC_DEPS_MODE=BUNDLED` to use the bundled submodule at
+   `external/libmdbx`, or use `SYSTEM`/`AUTO` for an installed package. When
+   this project is added as a subproject, an existing parent-provided
+   `mdbx::mdbx`, `mdbx::mdbx-static`, `libmdbx::mdbx`, or
+   `libmdbx::mdbx-static` target is reused before package, submodule, or
+   FetchContent lookup. Parent-provided targets take precedence over
+   `MDBXC_DEPS_MODE`, including `BUNDLED`.
 3. Use a C++11 (or later) compiler.
 
 ### Build with CMake

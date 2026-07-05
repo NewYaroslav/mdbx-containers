@@ -15,6 +15,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  parent-targets:
+    name: Parent MDBX target smoke (${{ matrix.target_case }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target_case:
+          - mdbx
+          - mdbx-bare
+          - libmdbx
+          - libmdbx-bare
+          - mdbx-static
+          - mdbx-static-bare
+          - libmdbx-static
+          - libmdbx-static-bare
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Configure parent-target smoke
+        run: |
+          set -euo pipefail
+          cmake -S tests/cmake/parent_targets -B "build-parent-${{ matrix.target_case }}" -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DMDBXC_PARENT_TARGET_CASE="${{ matrix.target_case }}" \
+            -Wno-dev
+
+      - name: Build parent-target smoke
+        run: |
+          set -euo pipefail
+          cmake --build "build-parent-${{ matrix.target_case }}" --parallel
+
   windows:
     name: Windows MinGW64 (C++${{ matrix.std }})
     runs-on: windows-latest

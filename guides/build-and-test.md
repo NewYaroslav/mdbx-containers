@@ -18,6 +18,12 @@ All project options use the `MDBXC_` prefix.
 | `MDBXC_BUILD_TESTS` | `ON` | Build tests from `tests/` and register them with CTest. |
 | `MDBXC_USE_ASAN` | `ON` | Enable AddressSanitizer for tests/examples when supported. |
 
+When `mdbx-containers` is added as a subproject, existing parent-provided
+`mdbx::mdbx`, `mdbx::mdbx-static`, `libmdbx::mdbx`, and
+`libmdbx::mdbx-static` targets are reused before package, submodule, or
+FetchContent lookup. Parent-provided targets take precedence over
+`MDBXC_DEPS_MODE`, including `BUNDLED`.
+
 ## Baseline Commands
 
 Use `tmp/` inside the repository for local verification builds, installs,
