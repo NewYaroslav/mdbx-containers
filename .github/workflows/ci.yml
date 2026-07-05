@@ -25,7 +25,9 @@ jobs:
       matrix:
         target_case:
           - mdbx
+          - mdbx-bare
           - libmdbx
+          - libmdbx-bare
           - mdbx-static
           - mdbx-static-bare
           - libmdbx-static

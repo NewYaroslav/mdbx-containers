@@ -5,7 +5,9 @@ project(mdbxc_parent_targets_smoke LANGUAGES CXX)
 set(MDBXC_PARENT_TARGET_CASE "" CACHE STRING "Parent-provided MDBX target case")
 set_property(CACHE MDBXC_PARENT_TARGET_CASE PROPERTY STRINGS
     mdbx
+    mdbx-bare
     libmdbx
+    libmdbx-bare
     mdbx-static
     mdbx-static-bare
     libmdbx-static
@@ -13,15 +15,19 @@ set_property(CACHE MDBXC_PARENT_TARGET_CASE PROPERTY STRINGS
 )
 
 if(MDBXC_PARENT_TARGET_CASE STREQUAL "")
-    message(FATAL_ERROR "Set MDBXC_PARENT_TARGET_CASE to one of: mdbx, libmdbx, mdbx-static, mdbx-static-bare, libmdbx-static, libmdbx-static-bare")
+    message(FATAL_ERROR "Set MDBXC_PARENT_TARGET_CASE to one of: mdbx, mdbx-bare, libmdbx, libmdbx-bare, mdbx-static, mdbx-static-bare, libmdbx-static, libmdbx-static-bare")
 endif()
 
 if(MDBXC_PARENT_TARGET_CASE STREQUAL "mdbx")
     add_library(parent_mdbx INTERFACE)
     add_library(mdbx::mdbx ALIAS parent_mdbx)
+elseif(MDBXC_PARENT_TARGET_CASE STREQUAL "mdbx-bare")
+    add_library(mdbx INTERFACE)
 elseif(MDBXC_PARENT_TARGET_CASE STREQUAL "libmdbx")
     add_library(parent_libmdbx INTERFACE)
     add_library(libmdbx::mdbx ALIAS parent_libmdbx)
+elseif(MDBXC_PARENT_TARGET_CASE STREQUAL "libmdbx-bare")
+    add_library(libmdbx INTERFACE)
 elseif(MDBXC_PARENT_TARGET_CASE STREQUAL "mdbx-static")
     add_library(parent_mdbx_static INTERFACE)
     add_library(mdbx::mdbx-static ALIAS parent_mdbx_static)
