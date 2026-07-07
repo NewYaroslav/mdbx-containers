@@ -135,6 +135,9 @@ if(MDBXC_BUILD_EXAMPLES)
         target_link_libraries(${example_name} PRIVATE ${_PKG_TARGET})
         message(STATUS "Example ${example_name} -> ${_PKG_TARGET}")
 
+        # Enable the optional sync subsystem when its headers are exercised.
+        target_compile_definitions(${example_name} PRIVATE MDBXC_SYNC_ENABLED=1)
+
         # To enable pause-on-Enter in examples only (not in tests), uncomment:
         # target_compile_definitions(${example_name} PRIVATE INTERACTIVE_TEST)
     endforeach()
@@ -159,6 +162,9 @@ if(MDBXC_BUILD_TESTS)
 
         target_link_libraries(${test_name} PRIVATE ${_PKG_TARGET})
         message(STATUS "Test ${test_name} -> ${_PKG_TARGET}")
+
+        # Enable the optional sync subsystem when its headers are exercised.
+        target_compile_definitions(${test_name} PRIVATE MDBXC_SYNC_ENABLED=1)
 
         # IMPORTANT: we do NOT define INTERACTIVE_TEST for tests.
         add_test(NAME ${test_name} COMMAND ${test_name})
