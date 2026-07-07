@@ -170,8 +170,6 @@ void test_sync_to_disk_readonly_throws() {
             conn->sync_to_disk(true, false);
         } catch (const MdbxException&) {
             caught = true;
-        } catch (const std::runtime_error&) {
-            caught = true;
         }
         if (!caught) {
             throw std::runtime_error("sync_to_disk on read-only connection should throw");

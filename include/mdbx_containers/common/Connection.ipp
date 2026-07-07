@@ -186,8 +186,8 @@ namespace mdbxc {
             throw MdbxException("Connection is not connected.", MDBX_EINVAL);
         }
         const int rc = mdbx_env_sync_ex(m_env, force, nonblock);
-        /// mdbx_env_sync_ex returns MDBX_SUCCESS on flushed data and
-        /// MDBX_RESULT_TRUE when nothing was pending; both are success.
+        // mdbx_env_sync_ex returns MDBX_SUCCESS on flushed data and
+        // MDBX_RESULT_TRUE when nothing was pending; both are success.
         if (rc != MDBX_SUCCESS && rc != MDBX_RESULT_TRUE) {
             check_mdbx(rc, "mdbx_env_sync_ex failed");
         }
