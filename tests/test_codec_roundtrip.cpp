@@ -69,6 +69,7 @@ void test_roundtrip_full() {
     std::vector<std::uint8_t> bytes = ChangeBatchCodec::encode(batch, &bounds);
     ChangeBatch decoded = ChangeBatchCodec::decode(bytes, nullptr, &bounds);
 
+    assert_eq("version", decoded.version, batch.version);
     assert_eq("ops count", decoded.ops.size(), batch.ops.size());
     assert_eq("seq", decoded.seq, batch.seq);
     assert_eq("time", decoded.time_unix_ns, batch.time_unix_ns);
@@ -91,6 +92,24 @@ void test_roundtrip_full() {
     assert_eq("tombstone flags", dd.op_flags,
               static_cast<std::uint32_t>(OP_TOMBSTONE));
     assert_eq("value empty", dd.value.size(), 0u);
+}
+
+void test_roundtrip_stream_mode() {
+    using namespace mdbxc::sync;
+    const CodecBounds bounds;
+    const ChangeBatch batch = make_batch();
+    std::vector<std::uint8_t> bytes = ChangeBatchCodec::encode(batch, &bounds);
+    const std::size_t expected_consumed = bytes.size();
+    bytes.push_back(0xFF);
+    bytes.push_back(0xEE);
+    bytes.push_back(0xDD);
+
+    std::size_t consumed = 0;
+    const ChangeBatch decoded = ChangeBatchCodec::decode(bytes, &consumed, &bounds);
+    assert_eq("stream consumed", consumed, expected_consumed);
+    assert_eq("stream ops", decoded.ops.size(), batch.ops.size());
+    assert_eq("stream seq", decoded.seq, batch.seq);
+    assert_eq("stream version", decoded.version, batch.version);
 }
 
 void test_roundtrip_idempotent() {
@@ -120,5 +139,6 @@ int main() {
     test_roundtrip_full();
     test_roundtrip_idempotent();
     test_roundtrip_no_ops();
+    test_roundtrip_stream_mode();
     return 0;
 }

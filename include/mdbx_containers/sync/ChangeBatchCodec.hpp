@@ -7,7 +7,7 @@
 /// \details
 /// Wire layout:
 /// \code
-///   magic            "MDBXCSYN"   7 bytes
+///   magic            "MDBXCSYN"   8 bytes
 ///   codec_version    u16 le       = 1
 ///   batch_version    u32 le       = 1
 ///   batch_flags      u32 le
@@ -50,11 +50,14 @@ namespace sync {
     /// \brief Stable binary codec for \c ChangeBatch.
     class ChangeBatchCodec {
     public:
-        /// \brief Encoded magic prefix.
-        static const char* magic() {
-            static const char m[8] = { 'M','D','B','X','C','S','Y','N' };
+        /// \brief Encoded magic prefix (8 bytes, no NUL terminator).
+        static const std::uint8_t* magic() {
+            static const std::uint8_t m[8] = { 'M','D','B','X','C','S','Y','N' };
             return m;
         }
+
+        /// \brief Magic prefix length in bytes.
+        static std::size_t magic_size() { return 8; }
 
         /// \brief Supported codec version.
         static std::uint16_t codec_version() { return 1; }
@@ -72,13 +75,21 @@ namespace sync {
             if (bounds != nullptr) {
                 validate_bounds(batch, *bounds);
             }
+            if (batch.version != batch_version()) {
+                throw std::logic_error("Unsupported ChangeBatch::version");
+            }
             if ((batch.batch_flags & BATCH_COMPRESSED_ZSTD) != 0) {
                 throw std::logic_error("BATCH_COMPRESSED_ZSTD is not supported in v0.1");
+            }
+            const std::uint32_t known_batch_mask = static_cast<std::uint32_t>(
+                BATCH_COMPRESSED_ZSTD | BATCH_HAS_MORE);
+            if ((batch.batch_flags & ~known_batch_mask) != 0) {
+                throw std::logic_error("ChangeBatch has unknown mandatory batch flags");
             }
 
             std::vector<std::uint8_t> out;
             out.reserve(256 + batch.ops.size() * 32);
-            append_bytes(out, magic(), 7);
+            append_bytes(out, reinterpret_cast<const char*>(magic()), magic_size());
             append_u16_le(out, codec_version());
             append_u32_le(out, batch_version());
             append_u32_le(out, batch.batch_flags);
@@ -89,6 +100,9 @@ namespace sync {
 
             for (std::size_t i = 0; i < batch.ops.size(); ++i) {
                 const ChangeOp& op = batch.ops[i];
+                if (op.op_type > ChangeOpType::ClearTable) {
+                    throw std::logic_error("Unknown ChangeOpType");
+                }
                 if ((op.op_flags & ~static_cast<std::uint32_t>(
                         OP_HAS_IDENTITY_KEY | OP_HAS_REVISION_KEY | OP_TOMBSTONE)) != 0) {
                     throw std::logic_error("ChangeOp has unknown mandatory flags");
@@ -138,9 +152,12 @@ namespace sync {
 
         /// \brief Decodes a batch from a byte span.
         /// \param data Source bytes.
-        /// \param bytes_read Optional output of bytes consumed.
+        /// \param bytes_read Optional output of bytes consumed. When null, any
+        ///        trailing bytes after a valid batch cause a decode error; pass
+        ///        a non-null pointer to use \c decode() as a stream parser.
         /// \param bounds Structural limits; null disables validation.
         /// \throws std::runtime_error on any format violation.
+        /// \throws std::length_error when structural bounds are exceeded.
         static ChangeBatch decode(const std::vector<std::uint8_t>& data,
                                   std::size_t* bytes_read = nullptr,
                                   const CodecBounds* bounds = nullptr) {
@@ -159,6 +176,7 @@ namespace sync {
             if (bv != batch_version()) {
                 throw std::runtime_error("Unsupported batch_version");
             }
+            batch.version = bv;
             batch.batch_flags = read_u32_le(cur);
             if ((batch.batch_flags & BATCH_COMPRESSED_ZSTD) != 0) {
                 throw std::runtime_error("BATCH_COMPRESSED_ZSTD is not supported in v0.1");
@@ -266,6 +284,22 @@ namespace sync {
 
             if (bytes_read != nullptr) {
                 *bytes_read = cur.pos;
+            } else if (cur.pos != cur.size) {
+                throw std::runtime_error("Trailing bytes after ChangeBatch");
+            }
+            return batch;
+        }
+
+        /// \brief Strict decoder: the input buffer must contain exactly one
+        /// batch with no trailing bytes.
+        /// \throws std::runtime_error on any format violation, including
+        ///         trailing bytes.
+        static ChangeBatch decode_exact(const std::vector<std::uint8_t>& data,
+                                       const CodecBounds* bounds = nullptr) {
+            std::size_t consumed = 0;
+            ChangeBatch batch = decode(data, &consumed, bounds);
+            if (consumed != data.size()) {
+                throw std::runtime_error("Trailing bytes after ChangeBatch");
             }
             return batch;
         }
@@ -337,11 +371,11 @@ namespace sync {
         }
 
         static void check_magic(Cursor& cur) {
-            check_bounds(cur, 7);
-            if (std::memcmp(cur.data + cur.pos, magic(), 7) != 0) {
+            check_bounds(cur, magic_size());
+            if (std::memcmp(cur.data + cur.pos, magic(), magic_size()) != 0) {
                 throw std::runtime_error("Codec magic mismatch");
             }
-            cur.pos += 7;
+            cur.pos += magic_size();
         }
 
         static std::uint8_t read_u8(Cursor& cur) {
