@@ -151,6 +151,48 @@ namespace mdbxc {
         return m_config ? m_config->max_dupsort_value_size : Config().max_dupsort_value_size;
     }
 
+    inline void Connection::backup_to(const std::string& path, const BackupOptions& options) {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        if (!m_env) {
+            throw MdbxException("Connection is not connected.", MDBX_EINVAL);
+        }
+        if (m_shutdown_requested) {
+            throw std::logic_error("Cannot backup during connection shutdown.");
+        }
+
+        MDBX_copy_flags_t flags = MDBX_CP_DEFAULTS;
+        if (options.mode == BackupMode::Compact) {
+            flags = static_cast<MDBX_copy_flags_t>(flags | MDBX_CP_COMPACT);
+        }
+        if (options.throttle_mvcc) {
+            flags = static_cast<MDBX_copy_flags_t>(flags | MDBX_CP_THROTTLE_MVCC);
+        }
+        if (options.dont_flush) {
+            flags = static_cast<MDBX_copy_flags_t>(flags | MDBX_CP_DONT_FLUSH);
+        }
+        if (options.force_dynamic_size) {
+            flags = static_cast<MDBX_copy_flags_t>(flags | MDBX_CP_FORCE_DYNAMIC_SIZE);
+        }
+
+        const int rc = mdbx_env_copy(m_env, path.c_str(), flags);
+        if (rc != MDBX_SUCCESS) {
+            check_mdbx(rc, "mdbx_env_copy failed");
+        }
+    }
+
+    inline void Connection::sync_to_disk(bool force, bool nonblock) {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        if (!m_env) {
+            throw MdbxException("Connection is not connected.", MDBX_EINVAL);
+        }
+        const int rc = mdbx_env_sync_ex(m_env, force, nonblock);
+        // mdbx_env_sync_ex returns MDBX_SUCCESS on flushed data and
+        // MDBX_RESULT_TRUE when nothing was pending; both are success.
+        if (rc != MDBX_SUCCESS && rc != MDBX_RESULT_TRUE) {
+            check_mdbx(rc, "mdbx_env_sync_ex failed");
+        }
+    }
+
     inline void Connection::initialize() {
         try {
             db_init();
