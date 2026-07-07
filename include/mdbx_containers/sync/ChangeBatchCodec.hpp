@@ -100,6 +100,9 @@ namespace sync {
 
             for (std::size_t i = 0; i < batch.ops.size(); ++i) {
                 const ChangeOp& op = batch.ops[i];
+                if (op.op_type > ChangeOpType::ClearTable) {
+                    throw std::logic_error("Unknown ChangeOpType");
+                }
                 if ((op.op_flags & ~static_cast<std::uint32_t>(
                         OP_HAS_IDENTITY_KEY | OP_HAS_REVISION_KEY | OP_TOMBSTONE)) != 0) {
                     throw std::logic_error("ChangeOp has unknown mandatory flags");
@@ -154,6 +157,7 @@ namespace sync {
         ///        a non-null pointer to use \c decode() as a stream parser.
         /// \param bounds Structural limits; null disables validation.
         /// \throws std::runtime_error on any format violation.
+        /// \throws std::length_error when structural bounds are exceeded.
         static ChangeBatch decode(const std::vector<std::uint8_t>& data,
                                   std::size_t* bytes_read = nullptr,
                                   const CodecBounds* bounds = nullptr) {

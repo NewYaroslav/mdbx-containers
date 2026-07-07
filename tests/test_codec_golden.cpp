@@ -145,6 +145,45 @@ void test_encoder_rejects_unknown_batch_flags() {
     }
 }
 
+void test_encoder_rejects_unknown_op_type() {
+    using namespace mdbxc::sync;
+    const CodecBounds bounds;
+    ChangeBatch batch;
+    ChangeOp op;
+    op.op_type = static_cast<ChangeOpType>(99);
+    op.dbi_name = "t";
+    op.storage_key = { 0x01 };
+    op.value = { 0x02 };
+    batch.ops.push_back(op);
+    bool caught = false;
+    try {
+        (void)ChangeBatchCodec::encode(batch, &bounds);
+    } catch (const std::logic_error&) {
+        caught = true;
+    }
+    if (!caught) {
+        throw std::runtime_error("encoder must reject unknown ChangeOpType");
+    }
+}
+
+void test_batch_has_more_roundtrip() {
+    using namespace mdbxc::sync;
+    const CodecBounds bounds;
+    ChangeBatch batch;
+    batch.batch_flags = BATCH_HAS_MORE;
+    ChangeOp op;
+    op.op_type = ChangeOpType::Put;
+    op.dbi_name = "t";
+    op.storage_key = { 0x01 };
+    op.value = { 0x02 };
+    batch.ops.push_back(op);
+    const std::vector<std::uint8_t> bytes = ChangeBatchCodec::encode(batch, &bounds);
+    const ChangeBatch decoded = ChangeBatchCodec::decode_exact(bytes, &bounds);
+    if ((decoded.batch_flags & BATCH_HAS_MORE) == 0) {
+        throw std::runtime_error("BATCH_HAS_MORE must survive roundtrip");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -153,5 +192,7 @@ int main() {
     test_decode_exact_rejects_trailing();
     test_encoder_rejects_bad_batch_version();
     test_encoder_rejects_unknown_batch_flags();
+    test_encoder_rejects_unknown_op_type();
+    test_batch_has_more_roundtrip();
     return 0;
 }
