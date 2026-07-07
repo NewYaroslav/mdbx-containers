@@ -158,6 +158,10 @@ namespace mdbxc {
         /// \note The backup may be performed while readers exist, but a long
         ///       backup keeps an MVCC snapshot alive and may delay page reuse.
         ///       Use \c BackupOptions::throttle_mvcc to mitigate this.
+        /// \note Holds the connection mutex for the duration of the copy.
+        ///       Existing raw MDBX transactions may continue, but new
+        ///       \c Connection::transaction(), \c Connection::begin(), and
+        ///       other state-mutating calls are blocked until backup completes.
         void backup_to(const std::string& path, const BackupOptions& options = BackupOptions());
 
         /// \brief Flushes the environment to disk.
@@ -165,6 +169,8 @@ namespace mdbxc {
         /// \param nonblock When \c true returns immediately if a flush is
         ///        already in progress on another thread.
         /// \throws MdbxException on any MDBX error.
+        /// \warning Not valid for read-only connections; MDBX may return
+        ///          \c MDBX_EACCES.
         /// \note Durability flush is not database replication; see
         ///       \c Sync.hpp for changelog-based replication.
         void sync_to_disk(bool force = true, bool nonblock = false);

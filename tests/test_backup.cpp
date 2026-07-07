@@ -4,6 +4,10 @@
 #include <map>
 #include <stdexcept>
 #include <string>
+#if __cplusplus >= 201703L
+# include <filesystem>
+# include <system_error>
+#endif
 
 namespace {
 
@@ -139,11 +143,102 @@ void test_sync_to_disk() {
     cleanup(p);
 }
 
+void test_sync_to_disk_readonly_throws() {
+    using namespace mdbxc;
+
+    const std::string p = "test_sync_to_disk_readonly.mdbx";
+    cleanup(p);
+
+    {
+        Config cfg;
+        cfg.pathname = p;
+        cfg.max_dbs = 2;
+        cfg.no_subdir = true;
+        auto conn = Connection::create(cfg);
+        KeyValueTable<int, int> kv(conn, "t");
+        kv.insert_or_assign(1, 100);
+    }
+
+    {
+        Config cfg;
+        cfg.pathname = p;
+        cfg.read_only = true;
+        cfg.no_subdir = true;
+        auto conn = Connection::create(cfg);
+        bool caught = false;
+        try {
+            conn->sync_to_disk(true, false);
+        } catch (const MdbxException&) {
+            caught = true;
+        } catch (const std::runtime_error&) {
+            caught = true;
+        }
+        if (!caught) {
+            throw std::runtime_error("sync_to_disk on read-only connection should throw");
+        }
+    }
+
+    cleanup(p);
+}
+
+#if __cplusplus >= 201703L
+void test_backup_directory_mode() {
+    using namespace mdbxc;
+    namespace fs = std::filesystem;
+
+    const fs::path src_dir = "test_backup_dir_src";
+    const fs::path dst_dir = "test_backup_dir_dst";
+    std::error_code ec;
+    fs::remove_all(src_dir, ec);
+    fs::remove_all(dst_dir, ec);
+
+    {
+        Config cfg;
+        cfg.pathname = src_dir.string();
+        cfg.max_dbs = 4;
+        cfg.no_subdir = false;
+        auto conn = Connection::create(cfg);
+        KeyValueTable<int, std::string> kv(conn, "t");
+        for (int i = 0; i < 32; ++i) {
+            kv.insert_or_assign(i, "d_" + std::to_string(i));
+        }
+        conn->sync_to_disk();
+
+        BackupOptions opt;
+        opt.mode = BackupMode::Compact;
+        conn->backup_to(dst_dir.string(), opt);
+    }
+
+    {
+        Config cfg;
+        cfg.pathname = dst_dir.string();
+        cfg.read_only = true;
+        cfg.no_subdir = false;
+        auto conn = Connection::create(cfg);
+        KeyValueTable<int, std::string> kv(conn, "t");
+        std::map<int, std::string> data = kv.retrieve_all();
+        if (data.size() != 32u) {
+            throw std::runtime_error("directory backup: expected 32 records");
+        }
+        if (data.at(7) != "d_7") {
+            throw std::runtime_error("directory backup: value mismatch at key 7");
+        }
+    }
+
+    fs::remove_all(src_dir, ec);
+    fs::remove_all(dst_dir, ec);
+}
+#endif
+
 } // namespace
 
 int main() {
     test_backup_compact();
     test_backup_normal_overwrite();
     test_sync_to_disk();
+    test_sync_to_disk_readonly_throws();
+#if __cplusplus >= 201703L
+    test_backup_directory_mode();
+#endif
     return 0;
 }

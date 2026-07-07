@@ -10,6 +10,7 @@ int main() {
 
     const std::string db_path = "backup_basic_source.mdbx";
     const std::string backup_path = "backup_basic_target.mdbx";
+    std::remove(db_path.c_str());
     std::remove(backup_path.c_str());
 
     {
