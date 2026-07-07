@@ -23,6 +23,10 @@
 #include "sync/ISyncPeer.hpp"
 #include "sync/Protocol.hpp"
 #include "sync/SyncCursor.hpp"
+#include "sync/stores/MetaStore.hpp"
+#include "sync/stores/ChangeLogStore.hpp"
+#include "sync/stores/AppliedStore.hpp"
+#include "sync/stores/IdentityIndexStore.hpp"
 #endif
 
 #endif // MDBX_CONTAINERS_HEADER_SYNC_HPP_INCLUDED

@@ -9,6 +9,24 @@
 /// \ingroup mdbxc_utils
 /// @{
 
+#include <bitset>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#include "../common/MdbxException.hpp"
+
 #if __cplusplus >= 201703L
 #   define MDBXC_NODISCARD [[nodiscard]]
 #else
