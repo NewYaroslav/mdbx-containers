@@ -169,3 +169,36 @@ exceeded.
 - Guard C++17-only facilities with the existing `__cplusplus >= 201703L`
   pattern or provide a C++11 fallback.
 - Avoid MSVC-specific assumptions; Windows CI targets MinGW.
+
+## Sync Subsystem
+
+The optional replication layer lives under `include/mdbx_containers/sync/`
+and is gated by `MDBXC_SYNC_ENABLED`. The full design record with
+endianness policy, store layouts, codec contract, and what is explicitly
+deferred to v0.2 lives in
+[`include/mdbx_containers/sync/DESIGN.md`](../include/mdbx_containers/sync/DESIGN.md).
+
+Operational rules:
+
+- Read `DESIGN.md` before changing any sync header, the `ChangeBatchCodec`
+  layout, or any store's key encoding. These are wire-format and on-disk
+  contracts; changes break data on disk and break other nodes.
+- Endianness policy (LE for payloads, BE only when a key participates in a
+  numeric range scan) is documented in `DESIGN.md`. Do not "fix" the BE
+  seq field in `ChangeLogStore::encode_key` back to LE — the change was
+  intentional and required for correct range scan order.
+- `IdentityIndexValue` is an opaque payload keyed by a length-prefixed
+  composite. Do not add length-prefixes inside the value — the value is
+  single-valued per key, so prefixes solve no collision there.
+- Tombstones in `IdentityIndexStore` use the `IDENTITY_TOMBSTONE` flag bit,
+  not `erase()`. Older incoming batches may still need to resolve the
+  logical key; real removal is explicit.
+- The four stores each have an `ensure_open()` guard on every public
+  method. Calling a method before `open()` throws `std::logic_error` rather
+  than silently writing to DBI 0. Do not weaken this guard.
+- `ConflictPolicy::Reject` is the v0.1 default. `LastWriterWins` exists
+  but only with deterministic tie-break (`max(time_unix_ns, origin_node_id)`
+  when no `revision_key` is supplied). `Custom` is deferred to v0.2.
+- `HashedKeyValueStore`, `KeyMultiValueTable`, and `AnyValueTable` are
+  not replicated in v0.1; their wire format is not defined. Do not add
+  `record_op()` paths for them without first extending `DESIGN.md`.
