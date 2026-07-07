@@ -5,6 +5,8 @@
 /// \file Connection.hpp
 /// \brief Manages an MDBX database connection using a provided configuration.
 
+#include "../Backup.hpp"
+
 namespace mdbxc {
 
     /// \class Connection
@@ -142,6 +144,30 @@ namespace mdbxc {
         /// \brief Returns the configured proactive DUPSORT duplicate value limit.
         /// \return Maximum duplicate value size, or a non-positive value when disabled.
         int64_t max_dupsort_value_size() const;
+
+        /// \brief Copies the whole MDBX environment to a file or directory path.
+        /// \param path Destination path. The target must not already exist;
+        ///        the caller is responsible for removing a stale target before
+        ///        invoking this method.
+        /// \param options Backup behavior; see \ref BackupOptions.
+        /// \throws MdbxException on any MDBX error.
+        /// \warning Copies the entire environment, not a single logical table.
+        /// \warning Do not call concurrently with \c configure(), \c connect(),
+        ///          \c disconnect(), or destruction. Do not call while shutdown
+        ///          has been requested.
+        /// \note The backup may be performed while readers exist, but a long
+        ///       backup keeps an MVCC snapshot alive and may delay page reuse.
+        ///       Use \c BackupOptions::throttle_mvcc to mitigate this.
+        void backup_to(const std::string& path, const BackupOptions& options = BackupOptions());
+
+        /// \brief Flushes the environment to disk.
+        /// \param force When \c true forces a synchronous durable flush.
+        /// \param nonblock When \c true returns immediately if a flush is
+        ///        already in progress on another thread.
+        /// \throws MdbxException on any MDBX error.
+        /// \note Durability flush is not database replication; see
+        ///       \c Sync.hpp for changelog-based replication.
+        void sync_to_disk(bool force = true, bool nonblock = false);
 
     private:
         friend class Transaction;
