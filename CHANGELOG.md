@@ -18,6 +18,10 @@ All notable changes to this project will be documented in this file.
 - Clarified that `AnyValueTable` type-tag prefix verification is not fully implemented yet and should not be treated as complete runtime type safety.
 - Made project philosophy documentation English-only and kept the Russian project overview in `README-RU.md`.
 - Added and updated English agent guidance under `guides/`, including codebase orientation, build/test notes, implementation notes, coding style, and commit conventions.
+- Added `include/mdbx_containers/Backup.hpp` exposing `BackupMode` and `BackupOptions` (compact, throttle MVCC, no flush, force dynamic size).
+- Added `Connection::backup_to(path, options)` as a thin wrapper over `mdbx_env_copy` for whole-environment backup; the connection mutex is held for the duration of the copy.
+- Added `Connection::sync_to_disk(force, nonblock)` as a thin wrapper over `mdbx_env_sync_ex`; treats both `MDBX_SUCCESS` and `MDBX_RESULT_TRUE` as success.
+- Added `examples/backup_basic_example.cpp` and `tests/test_backup.cpp` covering compact backup, normal backup with explicit target removal, sync_to_disk, read-only sync_to_disk rejection, and C++17 directory-mode backup.
 - Bumped the project version to `v1.0.2`.
 
 ## [v1.0.1] - 2025-08-21
