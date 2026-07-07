@@ -109,6 +109,9 @@ namespace sync {
         /// \return Number of records removed.
         std::size_t prune_up_to(MDBX_txn* txn, const NodeId& origin,
                                 std::uint64_t up_to) {
+            if (!m_open) {
+                throw std::logic_error("ChangeLogStore is not open");
+            }
             MDBX_cursor* raw = nullptr;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw), "cursor open failed");
             std::size_t removed = 0;
@@ -118,7 +121,8 @@ namespace sync {
                 encode_key(origin, up_to, hi_key);
                 MDBX_val lo = { lo_key.empty() ? nullptr : &lo_key[0], lo_key.size() };
                 MDBX_val hi = { hi_key.empty() ? nullptr : &hi_key[0], hi_key.size() };
-                MDBX_val k, v;
+                MDBX_val k = lo;
+                MDBX_val v;
                 int rc = mdbx_cursor_get(raw, &k, &v, MDBX_SET_RANGE);
                 while (rc == MDBX_SUCCESS) {
                     if (k.iov_len < 24) break;
@@ -149,8 +153,11 @@ namespace sync {
                                std::vector<std::uint8_t>& out) {
             out.resize(24);
             std::memcpy(out.data(), origin.data(), 16);
+            /// \brief Big-endian seq so MDBX bytewise range scans preserve
+            ///        numeric ordering. Little-endian would invert order
+            ///        around byte boundaries (e.g. 256 < 1).
             for (int i = 0; i < 8; ++i) {
-                out[16 + i] = static_cast<std::uint8_t>((seq >> (i * 8)) & 0xff);
+                out[16 + i] = static_cast<std::uint8_t>((seq >> ((7 - i) * 8)) & 0xff);
             }
         }
 

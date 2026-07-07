@@ -228,6 +228,135 @@ void test_identity_index_store() {
     cleanup(p);
 }
 
+void test_changelog_prune_up_to_boundary() {
+    using namespace mdbxc::sync;
+    const std::string p = "test_sync_stores_prune.mdbx";
+    cleanup(p);
+
+    mdbxc::Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = mdbxc::Connection::create(cfg);
+
+    ChangeLogStore store(conn->env_handle());
+    const NodeId origin = make_node(0xA1);
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        store.open(txn.handle());
+        for (std::uint64_t s : { 1ULL, 2ULL, 255ULL, 256ULL, 257ULL, 1000ULL }) {
+            store.append(txn.handle(), origin, s, { 0x01, static_cast<std::uint8_t>(s & 0xff) });
+        }
+
+        const std::size_t removed = store.prune_up_to(txn.handle(), origin, 256);
+        if (removed != 4) {
+            throw std::runtime_error("expected 4 removed, got " + std::to_string(removed));
+        }
+
+        for (std::uint64_t s : { 1ULL, 2ULL, 255ULL, 256ULL }) {
+            if (store.contains(txn.handle(), origin, s)) {
+                throw std::runtime_error("seq " + std::to_string(s) + " should be pruned");
+            }
+        }
+        for (std::uint64_t s : { 257ULL, 1000ULL }) {
+            if (!store.contains(txn.handle(), origin, s)) {
+                throw std::runtime_error("seq " + std::to_string(s) + " should remain");
+            }
+        }
+        txn.commit();
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_changelog_prune_does_not_touch_other_origin() {
+    using namespace mdbxc::sync;
+    const std::string p = "test_sync_stores_prune_other.mdbx";
+    cleanup(p);
+
+    mdbxc::Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = mdbxc::Connection::create(cfg);
+
+    ChangeLogStore store(conn->env_handle());
+    const NodeId origin_a = make_node(0xA2);
+    const NodeId origin_b = make_node(0xB2);
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        store.open(txn.handle());
+        store.append(txn.handle(), origin_a, 1, { 0x01 });
+        store.append(txn.handle(), origin_b, 1, { 0x02 });
+        store.append(txn.handle(), origin_a, 2, { 0x03 });
+
+        const std::size_t removed_a = store.prune_up_to(txn.handle(), origin_a, 1);
+        if (removed_a != 1) {
+            throw std::runtime_error("expected 1 from origin_a, got " + std::to_string(removed_a));
+        }
+        if (!store.contains(txn.handle(), origin_b, 1)) {
+            throw std::runtime_error("origin_b seq 1 was pruned unexpectedly");
+        }
+        if (!store.contains(txn.handle(), origin_a, 2)) {
+            throw std::runtime_error("origin_a seq 2 must remain");
+        }
+        txn.commit();
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_identity_key_collision() {
+    using namespace mdbxc::sync;
+    const std::string p = "test_sync_stores_collision.mdbx";
+    cleanup(p);
+
+    mdbxc::Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = mdbxc::Connection::create(cfg);
+
+    IdentityIndexStore store(conn->env_handle());
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        store.open(txn.handle());
+
+        IdentityIndexValue v;
+        v.storage_key = { 0xAA };
+        v.origin_node_id = make_node(0xC3);
+        v.seq = 1;
+        store.put(txn.handle(), "ab",  { 'c' }, v);
+        store.put(txn.handle(), "a",   { 'b', 'c' }, v);
+
+        IdentityIndexValue got1, got2;
+        if (!store.get(txn.handle(), "ab", { 'c' }, got1)) {
+            throw std::runtime_error("ab/c not found");
+        }
+        if (!store.get(txn.handle(), "a", { 'b', 'c' }, got2)) {
+            throw std::runtime_error("a/bc not found");
+        }
+
+        IdentityIndexValue canon;
+        canon.storage_key = { 0xAA };
+        canon.origin_node_id = make_node(0xC3);
+        canon.seq = 1;
+        if (got1.storage_key != canon.storage_key ||
+            got2.storage_key != canon.storage_key) {
+            throw std::runtime_error("collision: two distinct keys collapsed to one record");
+        }
+        txn.commit();
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 } // namespace
 
 int main() {
@@ -235,5 +364,8 @@ int main() {
     test_changelog_store();
     test_applied_store();
     test_identity_index_store();
+    test_changelog_prune_up_to_boundary();
+    test_changelog_prune_does_not_touch_other_origin();
+    test_identity_key_collision();
     return 0;
 }

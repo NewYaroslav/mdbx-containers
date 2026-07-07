@@ -109,6 +109,9 @@ namespace sync {
         /// \return true when a record was removed.
         bool erase(MDBX_txn* txn, const std::string& dbi_name,
                    const std::vector<std::uint8_t>& identity_key) {
+            if (!m_open) {
+                throw std::logic_error("IdentityIndexStore is not open");
+            }
             std::vector<std::uint8_t> key_buf;
             encode_key(dbi_name, identity_key, key_buf);
             MDBX_val k = { key_buf.empty() ? nullptr : &key_buf[0], key_buf.size() };
@@ -123,8 +126,14 @@ namespace sync {
         static void encode_key(const std::string& dbi_name,
                                const std::vector<std::uint8_t>& identity_key,
                                std::vector<std::uint8_t>& out) {
+            const std::uint32_t dn_len =
+                static_cast<std::uint32_t>(dbi_name.size());
             out.clear();
-            out.reserve(dbi_name.size() + identity_key.size());
+            out.reserve(4 + dn_len + identity_key.size());
+            out.push_back(static_cast<std::uint8_t>(dn_len & 0xff));
+            out.push_back(static_cast<std::uint8_t>((dn_len >> 8) & 0xff));
+            out.push_back(static_cast<std::uint8_t>((dn_len >> 16) & 0xff));
+            out.push_back(static_cast<std::uint8_t>((dn_len >> 24) & 0xff));
             out.insert(out.end(), dbi_name.begin(), dbi_name.end());
             out.insert(out.end(), identity_key.begin(), identity_key.end());
         }

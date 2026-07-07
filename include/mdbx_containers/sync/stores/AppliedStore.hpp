@@ -41,9 +41,17 @@ namespace sync {
         bool is_open() const { return m_open; }
         MDBX_dbi handle() const { return m_dbi; }
 
+        /// \brief Throws when the DBI has not been opened yet.
+        void ensure_open() const {
+            if (!m_open) {
+                throw std::logic_error("AppliedStore is not open");
+            }
+        }
+
         /// \brief Returns the last contiguous applied \c seq for \p origin.
         /// \details Returns 0 when no record exists.
         std::uint64_t last_applied_seq(MDBX_txn* txn, const NodeId& origin) const {
+            ensure_open();
             MDBX_val k = { const_cast<std::uint8_t*>(origin.data()), 16 };
             MDBX_val v;
             const int rc = mdbx_get(txn, m_dbi, &k, &v);
@@ -61,6 +69,7 @@ namespace sync {
         /// \p origin.
         void set_last_applied_seq(MDBX_txn* txn, const NodeId& origin,
                                   std::uint64_t seq) {
+            ensure_open();
             std::uint8_t buf[8];
             for (int i = 0; i < 8; ++i) {
                 buf[i] = static_cast<std::uint8_t>((seq >> (i * 8)) & 0xff);
@@ -76,6 +85,7 @@ namespace sync {
         /// \brief Removes the record for \p origin if present.
         /// \return true when a record was removed.
         bool clear(MDBX_txn* txn, const NodeId& origin) {
+            ensure_open();
             MDBX_val k = { const_cast<std::uint8_t*>(origin.data()), 16 };
             const int rc = mdbx_del(txn, m_dbi, &k, nullptr);
             if (rc == MDBX_SUCCESS) return true;
