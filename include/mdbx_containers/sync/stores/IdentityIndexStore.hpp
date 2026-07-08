@@ -44,8 +44,11 @@ namespace sync {
     };
 
     /// \brief Thin wrapper around \c _mdbxc_identity_index.
-    /// \details Key = concat(dbi_name_bytes, identity_key_bytes). Value =
-    /// length-prefixed \c IdentityIndexValue.
+    /// \details Key = \c u32 dbi_name_len_le || dbi_name_bytes || identity_key_bytes.
+    /// The length prefix is mandatory: without it, \c ("ab","c") and
+    /// \c ("a","bc") would collide on the same MDBX record. Value =
+    /// \c IdentityIndexValue, opaque structured payload with length-prefixed
+    /// variable-size fields (\c storage_key, \c revision_key).
     class IdentityIndexStore {
     public:
         IdentityIndexStore(MDBX_env* env,
@@ -64,10 +67,18 @@ namespace sync {
         bool is_open() const { return m_open; }
         MDBX_dbi handle() const { return m_dbi; }
 
+        /// \brief Throws when the DBI has not been opened yet.
+        void ensure_open() const {
+            if (!m_open) {
+                throw std::logic_error("IdentityIndexStore is not open");
+            }
+        }
+
         /// \brief Stores or replaces the identity record.
         void put(MDBX_txn* txn, const std::string& dbi_name,
                  const std::vector<std::uint8_t>& identity_key,
                  const IdentityIndexValue& value) {
+            ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(dbi_name, identity_key, key_buf);
             std::vector<std::uint8_t> val_buf;
@@ -85,6 +96,7 @@ namespace sync {
         bool get(MDBX_txn* txn, const std::string& dbi_name,
                  const std::vector<std::uint8_t>& identity_key,
                  IdentityIndexValue& out) const {
+            ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(dbi_name, identity_key, key_buf);
             MDBX_val k = { key_buf.empty() ? nullptr : &key_buf[0], key_buf.size() };
@@ -100,6 +112,7 @@ namespace sync {
         void tombstone(MDBX_txn* txn, const std::string& dbi_name,
                        const std::vector<std::uint8_t>& identity_key,
                        const IdentityIndexValue& marker) {
+            ensure_open();
             IdentityIndexValue v = marker;
             v.flags |= static_cast<std::uint32_t>(IDENTITY_TOMBSTONE);
             put(txn, dbi_name, identity_key, v);

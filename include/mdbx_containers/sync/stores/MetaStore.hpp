@@ -47,6 +47,13 @@ namespace sync {
             m_open = true;
         }
 
+        /// \brief Throws when the DBI has not been opened yet.
+        void ensure_open() const {
+            if (!m_open) {
+                throw std::logic_error("MetaStore is not open");
+            }
+        }
+
         /// \brief Returns whether the DBI is open.
         bool is_open() const { return m_open; }
 
@@ -157,6 +164,7 @@ namespace sync {
 
         std::size_t read_fixed(MDBX_txn* txn, std::uint8_t key,
                                std::uint8_t* dst, std::size_t n) const {
+            ensure_open();
             MDBX_val k = { &key, 1 };
             MDBX_val v;
             const int rc = mdbx_get(txn, m_dbi, &k, &v);
@@ -169,6 +177,7 @@ namespace sync {
 
         void write_fixed(MDBX_txn* txn, std::uint8_t key,
                          const std::uint8_t* src, std::size_t n) const {
+            ensure_open();
             MDBX_val k = { &key, 1 };
             MDBX_val v = { const_cast<std::uint8_t*>(src), n };
             check_mdbx(

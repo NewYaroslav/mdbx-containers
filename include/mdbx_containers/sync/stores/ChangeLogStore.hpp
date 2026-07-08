@@ -45,11 +45,19 @@ namespace sync {
         bool is_open() const { return m_open; }
         MDBX_dbi handle() const { return m_dbi; }
 
+        /// \brief Throws when the DBI has not been opened yet.
+        void ensure_open() const {
+            if (!m_open) {
+                throw std::logic_error("ChangeLogStore is not open");
+            }
+        }
+
         /// \brief Appends a single batch for \p origin at \p seq.
         /// \details Uses \c MDBX_NOOVERWRITE so accidental re-use of a
         /// (origin, seq) key surfaces immediately.
         void append(MDBX_txn* txn, const NodeId& origin,
                     std::uint64_t seq, const std::vector<std::uint8_t>& bytes) {
+            ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(origin, seq, key_buf);
             MDBX_val k = { key_buf.empty() ? nullptr : &key_buf[0], key_buf.size() };
@@ -63,6 +71,7 @@ namespace sync {
 
         /// \brief Returns true when a record exists for (\p origin, \p seq).
         bool contains(MDBX_txn* txn, const NodeId& origin, std::uint64_t seq) const {
+            ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(origin, seq, key_buf);
             MDBX_val k = { key_buf.empty() ? nullptr : &key_buf[0], key_buf.size() };
@@ -78,6 +87,7 @@ namespace sync {
         /// \return true when present, false when absent.
         bool get(MDBX_txn* txn, const NodeId& origin, std::uint64_t seq,
                  std::vector<std::uint8_t>& out) const {
+            ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(origin, seq, key_buf);
             MDBX_val k = { key_buf.empty() ? nullptr : &key_buf[0], key_buf.size() };
@@ -95,6 +105,7 @@ namespace sync {
         /// \brief Removes the record at (\p origin, \p seq).
         /// \return true when a record was removed, false when absent.
         bool erase(MDBX_txn* txn, const NodeId& origin, std::uint64_t seq) {
+            ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(origin, seq, key_buf);
             MDBX_val k = { key_buf.empty() ? nullptr : &key_buf[0], key_buf.size() };
