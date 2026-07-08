@@ -6,20 +6,13 @@
 /// \brief Base class for working with MDBX databases (tables).
 
 #include <cstdint>
-#include <string>
+
+#ifndef MDBXC_SYNC_ENABLED
+#define MDBXC_SYNC_ENABLED 0
+#endif#include <string>
 #include <vector>
 
-#include "../sync/SyncModule.hpp"
 
-#if MDBXC_SYNC_ENABLED
-namespace mdbxc {
-    class Connection;
-    namespace sync {
-        enum class ChangeOpType : std::uint8_t;
-        class ISyncCaptureSink;
-    }
-}
-#endif
 
 namespace mdbxc {
     

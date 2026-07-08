@@ -22,7 +22,7 @@
 #include "Backup.hpp"
 #include "Config.hpp"
 #include "Transaction.hpp"
-#include "../sync/SyncModule.hpp"
+
 
 #if MDBXC_SYNC_ENABLED
 namespace mdbxc {
