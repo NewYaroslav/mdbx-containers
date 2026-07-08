@@ -1228,10 +1228,10 @@ namespace mdbxc {
             MDBX_val db_val = empty_value();
             int rc = mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
             if (rc == MDBX_SUCCESS) {
+                #if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-                #if MDBXC_SYNC_ENABLED
                 record_op(txn, sync::ChangeOpType::Put, kbytes, {});
                 #endif
                 return true;
@@ -1263,10 +1263,10 @@ namespace mdbxc {
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
+                #if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-                #if MDBXC_SYNC_ENABLED
                 record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
                 #endif
                 return true;

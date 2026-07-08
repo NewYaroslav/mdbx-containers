@@ -31,8 +31,8 @@
 ///     them up as if they were committed.
 
 #include <cstdint>
-#include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -42,8 +42,6 @@
 #if MDBXC_SYNC_ENABLED
 #include <mdbx.h>
 
-#include "../common/Connection.hpp"
-#include "../common/MdbxException.hpp"
 #include "ChangeBatch.hpp"
 #include "ChangeBatchCodec.hpp"
 #include "ChangeOp.hpp"
@@ -62,9 +60,9 @@ namespace sync {
         /// \param conn Shared connection whose \c _mdbxc_changelog and
         ///        \c _mdbxc_meta DBIs will be opened lazily on first flush.
         explicit ThreadLocalChangeAccumulator(std::shared_ptr<Connection> conn)
-            : m_conn(std::move(conn)),
-              m_meta(m_conn->env_handle()),
-              m_change_log(m_conn->env_handle()) {}
+            : m_env(conn->env_handle()),
+              m_meta(m_env),
+              m_change_log(m_env) {}
 
         void record_change(MDBX_txn* txn,
                            const std::string& dbi_name,
@@ -126,10 +124,9 @@ namespace sync {
             if (m_node_id == make_zero_node()) {
                 NodeId from_meta = m_meta.get_node_id(txn);
                 if (compare_node_id(from_meta, make_zero_node()) == 0) {
-                    throw MdbxException(
+                    throw std::runtime_error(
                         "Sync node_id is not initialised. Attach a SyncEngine "
-                        "and write _mdbxc_meta.node_id before enabling capture.",
-                        MDBX_EINVAL
+                        "and write _mdbxc_meta.node_id before enabling capture."
                     );
                 }
                 m_node_id = from_meta;
@@ -154,7 +151,7 @@ namespace sync {
             m_change_log.append(txn, m_node_id, batch.seq, bytes);
         }
 
-        std::shared_ptr<Connection> m_conn;
+        MDBX_env* m_env;
         NodeId m_node_id{};
         MetaStore m_meta;
         ChangeLogStore m_change_log;

@@ -199,6 +199,9 @@ namespace mdbxc {
             m_txn = nullptr;
             m_started = false;
 
+#if MDBXC_SYNC_ENABLED
+            registry->on_discard(txn);
+#endif
             safe_unbind_txn(registry, txn);
             safe_unregister_txn_handle(registry);
 

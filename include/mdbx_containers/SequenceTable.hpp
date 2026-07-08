@@ -555,13 +555,13 @@ namespace mdbxc {
             }
             check_mdbx(rc, "Failed to append value");
             {
+                #if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
                 const std::vector<std::uint8_t> vbytes(
                     static_cast<std::uint8_t*>(db_val.iov_base),
                     static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
-                #if MDBXC_SYNC_ENABLED
                 record_op(txn, sync::ChangeOpType::Put, kbytes, vbytes);
                 #endif
             }
@@ -604,10 +604,10 @@ namespace mdbxc {
             MDBX_val db_key = make_key(id, sc_key);
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
+                #if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-                #if MDBXC_SYNC_ENABLED
                 record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
                 #endif
                 return true;

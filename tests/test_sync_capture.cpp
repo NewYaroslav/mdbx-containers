@@ -210,7 +210,7 @@ void test_zero_node_id_rejected() {
     try {
         KeyValueTable<int, int> kv(conn, "t");
         kv.insert_or_assign(1, 100);
-    } catch (const mdbxc::MdbxException&) {
+    } catch (const std::runtime_error&) {
         caught = true;
     }
 
@@ -222,6 +222,89 @@ void test_zero_node_id_rejected() {
         throw std::runtime_error("capture must reject uninitialised node_id");
     }
 }
+void test_explicit_rollback_does_not_flush() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_rollback.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    /// Pre-init node_id.
+    {
+        sync::MetaStore meta(conn->env_handle());
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        meta.open(txn.handle());
+        sync::NodeId n{};
+        n[0] = 0xA1;
+        meta.set_node_id(txn.handle(), n);
+        txn.commit();
+    }
+
+    sync::ThreadLocalChangeAccumulator sink(conn);
+    conn->attach_sync_capture(&sink);
+
+    KeyValueTable<int, int> kv(conn, "t");
+    {
+        kv.insert_or_assign(1, 100);
+    }
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        kv.insert_or_assign(2, 200);
+        txn.rollback();
+    }
+    {
+        kv.insert_or_assign(3, 300);
+    }
+
+    conn->detach_sync_capture();
+
+    sync::ChangeLogStore cl(conn->env_handle());
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        cl.open(txn.handle());
+        txn.commit();
+    }
+
+    auto key_bytes = [](int k) {
+        std::vector<std::uint8_t> out(sizeof(int));
+        std::memcpy(out.data(), &k, sizeof(int));
+        return out;
+    };
+
+    std::vector<std::uint8_t> batch1, batch2;
+    {
+        auto txn = conn->transaction(TransactionMode::READ_ONLY);
+        sync::NodeId n{};
+        n[0] = 0xA1;
+        if (!cl.get(txn.handle(), n, 1, batch1)) {
+            throw std::runtime_error("changelog missing seq 1");
+        }
+        if (!cl.get(txn.handle(), n, 2, batch2)) {
+            throw std::runtime_error("changelog missing seq 2");
+        }
+    }
+
+    auto batch_has_key = [](const std::vector<std::uint8_t>& bytes, const std::vector<std::uint8_t>& key) {
+        const sync::ChangeBatch b = sync::ChangeBatchCodec::decode_exact(bytes);
+        for (const sync::ChangeOp& op : b.ops) {
+            if (op.dbi_name == "t" && op.storage_key == key) return true;
+        }
+        return false;
+    };
+
+    if (!batch_has_key(batch1, key_bytes(1))) throw std::runtime_error("seq 1 should contain key=1");
+    if (batch_has_key(batch1, key_bytes(2))) throw std::runtime_error("seq 1 should not contain rolled-back key=2");
+    if (!batch_has_key(batch2, key_bytes(3))) throw std::runtime_error("seq 2 should contain key=3");
+    if (batch_has_key(batch2, key_bytes(2))) throw std::runtime_error("seq 2 leaked rolled-back key=2");
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 
 void test_aborted_transaction_does_not_flush() {
     using namespace mdbxc;
@@ -384,6 +467,16 @@ int main() {
     } catch (...) {
         std::printf("FAIL test_aborted_transaction_does_not_flush: non-std exception\n");
         return 6;
+    }    try {
+        test_explicit_rollback_does_not_flush();
+        std::printf("PASS test_explicit_rollback_does_not_flush\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_explicit_rollback_does_not_flush: %s\n", e.what());
+        return 7;
+    } catch (...) {
+        std::printf("FAIL test_explicit_rollback_does_not_flush: non-std exception\n");
+        return 7;
     }
+
     return 0;
 }

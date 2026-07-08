@@ -366,10 +366,10 @@ namespace mdbxc {
             MDBX_val db_val = serialize_value(value, sc_value);
             int rc = mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
             if (rc == MDBX_SUCCESS) {
+                #if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> vbytes(
                     static_cast<std::uint8_t*>(db_val.iov_base),
                     static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
-                #if MDBXC_SYNC_ENABLED
                 record_op(txn, sync::ChangeOpType::Put, {}, vbytes);
                 #endif
                 return true;
