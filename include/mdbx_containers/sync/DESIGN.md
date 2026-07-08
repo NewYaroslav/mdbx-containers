@@ -189,19 +189,24 @@ when the current key compares greater than `hi` (or when the cursor runs
 out of records). This is the only documented way; alternatives either
 don't exist or fail on the first record.
 
-## Why `IdentityIndexValue` does not get length-prefixed fields
+## Why `IdentityIndexValue` does not get an extra outer value prefix
 
-Only the **key** is subject to MDBX bytewise uniqueness — different keys
-can hash to the same key bytes, in which case they collide in the DBI.
-The **value** for a given key is single-valued and never compares against
-any other value (codec-level equality, not identity). Adding length-prefix
-inside the value would inflate every record without solving a real problem,
-and would force every consumer to know two parallel encodings instead of
-one structured payload.
+Only the **key** is subject to MDBX bytewise uniqueness — different logical
+keys can collapse to the same key bytes if the composite key is not encoded
+unambiguously. That is why the identity-index key uses:
 
-When HLC or similar lands in v0.2, it goes in as **opaque bytes inside
-`revision_key`** — already a structured payload field, no length-prefix
-needed.
+    u32 dbi_name_len le ‖ dbi_name bytes ‖ identity_key bytes
+
+The **value** for a given key is single-valued and never participates in MDBX
+key comparison. It is still a structured payload, so variable-size fields
+inside the value (`storage_key`, `revision_key`) are length-prefixed where
+needed for decoding.
+
+Do not add an extra outer MDBX-value prefix around `IdentityIndexValue`;
+the MDBX value length is already known from `MDBX_val::iov_len`.
+
+When HLC or similar lands in v0.2, it goes in as opaque bytes inside
+`revision_key`.
 
 ## Deferred to v0.2 with no open issue yet
 
