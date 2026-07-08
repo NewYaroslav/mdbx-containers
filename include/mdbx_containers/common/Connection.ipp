@@ -12,7 +12,7 @@
 #include <mdbx.h>
 
 #if MDBXC_SYNC_ENABLED
-#include "../sync/ISyncCaptureSink.hpp"
+#include "mdbx_containers/sync/ISyncCaptureSink.hpp"
 #endif
 
 namespace mdbxc {

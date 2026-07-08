@@ -57,11 +57,11 @@ namespace mdbxc {
             (void)rc;
         }
 
-        if (registry && txn && was_started && mode == TransactionMode::WRITABLE) {
 #if MDBXC_SYNC_ENABLED
+        if (registry && txn && was_started && mode == TransactionMode::WRITABLE) {
             registry->on_discard(txn);
-#endif
         }
+#endif
 
         if (registry && txn && was_started) {
             safe_unbind_txn(registry, txn);

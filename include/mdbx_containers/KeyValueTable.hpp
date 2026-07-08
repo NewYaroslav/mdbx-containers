@@ -2091,7 +2091,7 @@ namespace mdbxc {
             int rc = mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
 
             if (rc == MDBX_SUCCESS) {
-                #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
@@ -2099,7 +2099,7 @@ namespace mdbxc {
                     static_cast<std::uint8_t*>(db_val.iov_base),
                     static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
                 record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
-                #endif
+#endif
                 return true;
             }
             if (rc == MDBX_KEYEXIST)
@@ -2123,7 +2123,7 @@ namespace mdbxc {
                 mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),  // or 0
                 "Failed to insert or assign key-value pair"
             );
-            #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
             const std::vector<std::uint8_t> kbytes(
                 static_cast<std::uint8_t*>(db_key.iov_base),
                 static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
@@ -2131,7 +2131,7 @@ namespace mdbxc {
                 static_cast<std::uint8_t*>(db_val.iov_base),
                 static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
             record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
-            #endif
+#endif
         }
 
         template<typename Fn>
@@ -2178,12 +2178,12 @@ namespace mdbxc {
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             const int rc = mdbx_del(txn_handle, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
-                #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
                 record_op(txn_handle, sync::ChangeOpType::Delete, kbytes, {});
-                #endif
+#endif
                 return true;
             }
             if (rc == MDBX_NOTFOUND) return false;
@@ -2195,9 +2195,9 @@ namespace mdbxc {
         /// \throws MdbxException if an MDBX error occurs.
         void db_clear(MDBX_txn* txn_handle) {
             check_mdbx(mdbx_drop(txn_handle, m_dbi, 0), "Failed to clear table");
-            #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
             record_op(txn_handle, sync::ChangeOpType::ClearTable, {}, {});
-            #endif
+#endif
         }
 
     }; // KeyValueTable

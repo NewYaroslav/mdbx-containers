@@ -1228,12 +1228,12 @@ namespace mdbxc {
             MDBX_val db_val = empty_value();
             int rc = mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
             if (rc == MDBX_SUCCESS) {
-                #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
                 record_op(txn, sync::ChangeOpType::Put, kbytes, {});
-                #endif
+#endif
                 return true;
             }
             if (rc == MDBX_KEYEXIST) return false;
@@ -1263,12 +1263,12 @@ namespace mdbxc {
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
-                #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
                 record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
-                #endif
+#endif
                 return true;
             }
             if (rc == MDBX_NOTFOUND) return false;
@@ -1278,9 +1278,9 @@ namespace mdbxc {
 
         void db_clear(MDBX_txn* txn) {
             check_mdbx(mdbx_drop(txn, m_dbi, 0), "Failed to clear table");
-            #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
             record_op(txn, sync::ChangeOpType::ClearTable, {}, {});
-            #endif
+#endif
         }
     };
 

@@ -555,7 +555,7 @@ namespace mdbxc {
             }
             check_mdbx(rc, "Failed to append value");
             {
-                #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
@@ -563,7 +563,7 @@ namespace mdbxc {
                     static_cast<std::uint8_t*>(db_val.iov_base),
                     static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
                 record_op(txn, sync::ChangeOpType::Put, kbytes, vbytes);
-                #endif
+#endif
             }
             return next_id;
         }
@@ -604,12 +604,12 @@ namespace mdbxc {
             MDBX_val db_key = make_key(id, sc_key);
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
-                #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
                 record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
-                #endif
+#endif
                 return true;
             }
             if (rc == MDBX_NOTFOUND) return false;
@@ -619,9 +619,9 @@ namespace mdbxc {
 
         void db_clear(MDBX_txn* txn) {
             check_mdbx(mdbx_drop(txn, m_dbi, 0), "Failed to clear SequenceTable");
-            #if MDBXC_SYNC_ENABLED
+#if MDBXC_SYNC_ENABLED
             record_op(txn, sync::ChangeOpType::ClearTable, {}, {});
-            #endif
+#endif
         }
 
         std::size_t db_count(MDBX_txn* txn) const {
