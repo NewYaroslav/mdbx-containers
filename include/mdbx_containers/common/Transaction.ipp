@@ -125,6 +125,15 @@ namespace mdbxc {
         case TransactionMode::WRITABLE:
         {
             MDBX_txn* txn = m_txn;
+
+#if MDBXC_SYNC_ENABLED
+            /// \brief Pre-commit hook for changelog capture.
+            /// \details Runs inside the write transaction, before
+            /// \c mdbx_txn_commit. Any \c MdbxException raised here aborts the
+            /// commit so user-visible writes and changelog rows stay atomic.
+            m_registry->on_pre_commit(txn);
+#endif
+
             const int rc = mdbx_txn_commit(txn);
 
             if (rc == MDBX_THREAD_MISMATCH) {

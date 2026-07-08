@@ -12,6 +12,7 @@
 #include "sync/SyncModule.hpp"
 
 #if MDBXC_SYNC_ENABLED
+#include "sync/ChangeAccumulator.hpp"
 #include "sync/ChangeBatch.hpp"
 #include "sync/ChangeBatchCodec.hpp"
 #include "sync/ChangeOp.hpp"
@@ -19,6 +20,7 @@
 #include "sync/CodecFlags.hpp"
 #include "sync/Common.hpp"
 #include "sync/ConflictPolicy.hpp"
+#include "sync/ISyncCaptureSink.hpp"
 #include "sync/IdentityProvider.hpp"
 #include "sync/ISyncPeer.hpp"
 #include "sync/Protocol.hpp"

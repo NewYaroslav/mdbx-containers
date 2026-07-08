@@ -11,6 +11,10 @@
 
 #include <mdbx.h>
 
+#if MDBXC_SYNC_ENABLED
+#include "../sync/ISyncCaptureSink.hpp"
+#endif
+
 namespace mdbxc {
 
     inline Connection::Connection(const Config& config) {
@@ -150,6 +154,29 @@ namespace mdbxc {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         return m_config ? m_config->max_dupsort_value_size : Config().max_dupsort_value_size;
     }
+
+#if MDBXC_SYNC_ENABLED
+    inline void Connection::attach_sync_capture(sync::ISyncCaptureSink* sink) {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        m_sync_capture = sink;
+    }
+
+    inline void Connection::detach_sync_capture() {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        m_sync_capture = nullptr;
+    }
+
+    inline sync::ISyncCaptureSink* Connection::sync_capture() const {
+        return m_sync_capture;
+    }
+
+    inline void Connection::on_pre_commit(MDBX_txn* txn) {
+        sync::ISyncCaptureSink* sink = sync_capture();
+        if (sink != nullptr) {
+            sink->flush_in_txn(txn);
+        }
+    }
+#endif
 
     inline void Connection::backup_to(const std::string& path, const BackupOptions& options) {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);

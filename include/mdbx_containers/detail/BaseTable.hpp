@@ -5,6 +5,17 @@
 /// \file BaseTable.hpp
 /// \brief Base class for working with MDBX databases (tables).
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "../sync/SyncModule.hpp"
+
+#if MDBXC_SYNC_ENABLED
+#include "../sync/ChangeOp.hpp"
+#include "../sync/ISyncCaptureSink.hpp"
+#endif
+
 namespace mdbxc {
     
     /// \class BaseTable
@@ -32,7 +43,7 @@ namespace mdbxc {
         explicit BaseTable(std::shared_ptr<Connection> connection,
                         std::string name,
                         MDBX_db_flags_t flags)
-            : m_connection(std::move(connection)) {
+            : m_connection(std::move(connection)), m_name(std::move(name)) {
             bool read_only = m_connection->is_read_only();
             MDBX_db_flags_t open_flags = read_only
                 ? static_cast<MDBX_db_flags_t>(flags & ~MDBX_CREATE)
@@ -41,7 +52,7 @@ namespace mdbxc {
                 read_only ? TransactionMode::READ_ONLY : TransactionMode::WRITABLE
             );
             check_mdbx(
-                mdbx_dbi_open(txn.handle(), name.c_str(), open_flags, &m_dbi),
+                mdbx_dbi_open(txn.handle(), m_name.c_str(), open_flags, &m_dbi),
                 "Failed to open table"
             );
             txn.commit();
@@ -134,6 +145,7 @@ namespace mdbxc {
 
         std::shared_ptr<Connection>  m_connection;   ///< Shared connection to MDBX environment.
         MDBX_dbi                     m_dbi{};         ///< DBI handle for the opened table.
+        std::string                  m_name;          ///< DBI name (used for sync capture).
 
         /// \brief Returns the transaction bound to the current thread, if any.
         /// \return Pointer to the MDBX transaction or nullptr.
@@ -156,6 +168,22 @@ namespace mdbxc {
                 );
             }
         }
+
+#if MDBXC_SYNC_ENABLED
+        /// \brief Forwards a successful write to the attached sync capture sink.
+        /// \details Called from derived table \c db_* helpers right after a
+        /// successful \c mdbx_put / \c mdbx_del. No-op when no sink is attached
+        /// or when the connection is read-only.
+        void record_op(MDBX_txn* txn,
+                       sync::ChangeOpType op_type,
+                       const std::vector<std::uint8_t>& storage_key,
+                       const std::vector<std::uint8_t>& value) const {
+            if (m_connection->is_read_only()) return;
+            sync::ISyncCaptureSink* sink = m_connection->sync_capture();
+            if (sink == nullptr) return;
+            sink->record_change(txn, m_name, op_type, storage_key, value);
+        }
+#endif
     };
     
 }; // namespace mdbxc

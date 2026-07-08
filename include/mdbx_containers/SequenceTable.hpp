@@ -554,6 +554,15 @@ namespace mdbxc {
                 );
             }
             check_mdbx(rc, "Failed to append value");
+            {
+                const std::vector<std::uint8_t> kbytes(
+                    static_cast<std::uint8_t*>(db_key.iov_base),
+                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
+                const std::vector<std::uint8_t> vbytes(
+                    static_cast<std::uint8_t*>(db_val.iov_base),
+                    static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
+                record_op(txn, sync::ChangeOpType::Put, kbytes, vbytes);
+            }
             return next_id;
         }
 
@@ -592,7 +601,13 @@ namespace mdbxc {
             SerializeScratch sc_key;
             MDBX_val db_key = make_key(id, sc_key);
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
-            if (rc == MDBX_SUCCESS) return true;
+            if (rc == MDBX_SUCCESS) {
+                const std::vector<std::uint8_t> kbytes(
+                    static_cast<std::uint8_t*>(db_key.iov_base),
+                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
+                record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
+                return true;
+            }
             if (rc == MDBX_NOTFOUND) return false;
             check_mdbx(rc, "Failed to erase value");
             return false;
@@ -600,6 +615,7 @@ namespace mdbxc {
 
         void db_clear(MDBX_txn* txn) {
             check_mdbx(mdbx_drop(txn, m_dbi, 0), "Failed to clear SequenceTable");
+            record_op(txn, sync::ChangeOpType::ClearTable, {}, {});
         }
 
         std::size_t db_count(MDBX_txn* txn) const {

@@ -5,6 +5,18 @@
 /// \file TransactionTracker.hpp
 /// \brief Tracks MDBX transactions per thread for reuse and cleanup.
 
+#include <condition_variable>
+#include <cstddef>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
+
+#include "../sync/SyncModule.hpp"
+
+#if MDBXC_SYNC_ENABLED
+#include <mdbx.h>
+#endif
+
 namespace mdbxc {
 
     /// \class TransactionTracker
@@ -66,6 +78,15 @@ namespace mdbxc {
         }
         
         virtual ~TransactionTracker() = default;
+
+#if MDBXC_SYNC_ENABLED
+        /// \brief Pre-commit hook for sync capture.
+        /// \details Called by \c Transaction::commit before \c mdbx_txn_commit
+        /// for write transactions. Default is no-op; \c Connection overrides.
+        virtual void on_pre_commit(MDBX_txn* txn) noexcept(false) {
+            (void)txn;
+        }
+#endif
 
     private:
         mutable std::mutex m_mutex;  ///< Protects access to m_thread_txns.
