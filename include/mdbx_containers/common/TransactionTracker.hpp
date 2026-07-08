@@ -88,6 +88,14 @@ namespace mdbxc {
         virtual void on_pre_commit(MDBX_txn* txn) noexcept(false) {
             (void)txn;
         }
+
+        /// \brief Discard hook for sync capture.
+        /// \details Called by \c Transaction::release / \c rollback paths
+        /// when a write transaction is aborted. Default is no-op; \c Connection
+        /// forwards to the attached \c ISyncCaptureSink.
+        virtual void on_discard(MDBX_txn* txn) noexcept {
+            (void)txn;
+        }
 #endif
 
     private:

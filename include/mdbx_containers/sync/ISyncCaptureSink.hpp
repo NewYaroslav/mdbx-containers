@@ -13,9 +13,13 @@
 /// written to \c _mdbxc_changelog atomically with the user-visible change.
 
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "SyncModule.hpp"
+
+#if MDBXC_SYNC_ENABLED
 #include <mdbx.h>
 
 #include "ChangeOp.hpp"
@@ -54,9 +58,20 @@ namespace sync {
         /// \c _mdbxc_changelog within \p txn so that user-visible writes and
         /// their changelog entry land or fail atomically together.
         virtual void flush_in_txn(MDBX_txn* txn) = 0;
+
+        /// \brief Discards any pending ops recorded for a transaction that
+        /// is about to be aborted or rolled back.
+        /// \param txn The about-to-be-aborted write transaction.
+        /// \details Default implementation is a no-op; overloads drop the
+        /// pending ops so the next transaction on the same thread (or the
+        /// next MDBX_txn* address if the allocator reuses it) starts clean.
+        virtual void discard_txn(MDBX_txn* txn) noexcept {
+            (void)txn;
+        }
     };
 
 } // namespace sync
 } // namespace mdbxc
 
 #endif // MDBX_CONTAINERS_HEADER_SYNC_I_SYNC_CAPTURE_SINK_HPP_INCLUDED
+#endif // MDBXC_SYNC_ENABLED guard

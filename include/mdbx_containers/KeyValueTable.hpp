@@ -2097,7 +2097,9 @@ namespace mdbxc {
                 const std::vector<std::uint8_t> vbytes(
                     static_cast<std::uint8_t*>(db_val.iov_base),
                     static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
+                #if MDBXC_SYNC_ENABLED
                 record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
+                #endif
                 return true;
             }
             if (rc == MDBX_KEYEXIST)
@@ -2127,7 +2129,9 @@ namespace mdbxc {
             const std::vector<std::uint8_t> vbytes(
                 static_cast<std::uint8_t*>(db_val.iov_base),
                 static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
+            #if MDBXC_SYNC_ENABLED
             record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
+            #endif
         }
 
         template<typename Fn>
@@ -2177,7 +2181,9 @@ namespace mdbxc {
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
+                #if MDBXC_SYNC_ENABLED
                 record_op(txn_handle, sync::ChangeOpType::Delete, kbytes, {});
+                #endif
                 return true;
             }
             if (rc == MDBX_NOTFOUND) return false;
@@ -2189,7 +2195,9 @@ namespace mdbxc {
         /// \throws MdbxException if an MDBX error occurs.
         void db_clear(MDBX_txn* txn_handle) {
             check_mdbx(mdbx_drop(txn_handle, m_dbi, 0), "Failed to clear table");
+            #if MDBXC_SYNC_ENABLED
             record_op(txn_handle, sync::ChangeOpType::ClearTable, {}, {});
+            #endif
         }
 
     }; // KeyValueTable

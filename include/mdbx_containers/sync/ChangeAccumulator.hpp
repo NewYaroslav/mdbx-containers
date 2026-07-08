@@ -25,7 +25,10 @@
 ///     encodes the batch and appends it to \c _mdbxc_changelog inside the
 ///     same write transaction;
 ///  4. on any exception, restores the moved-out ops back into the map keyed
-///     by \p txn so a retry of the same write transaction can re-emit them.
+///     by \p txn so a retry of the same write transaction can re-emit them;
+///  5. on \c discard_txn, drops the pending ops for an aborted transaction
+///     so a future commit on the same address (allocator reuse) cannot pick
+///     them up as if they were committed.
 
 #include <cstdint>
 #include <memory>
@@ -34,6 +37,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "SyncModule.hpp"
+
+#if MDBXC_SYNC_ENABLED
 #include <mdbx.h>
 
 #include "../common/Connection.hpp"
@@ -154,9 +160,15 @@ namespace sync {
         ChangeLogStore m_change_log;
         std::mutex m_mutex;
         std::unordered_map<MDBX_txn*, std::vector<PendingOp>> m_pending;
+
+        void discard_txn(MDBX_txn* txn) noexcept override {
+            std::lock_guard<std::mutex> lk(m_mutex);
+            m_pending.erase(txn);
+        }
     };
 
 } // namespace sync
 } // namespace mdbxc
 
 #endif // MDBX_CONTAINERS_HEADER_SYNC_CHANGE_ACCUMULATOR_HPP_INCLUDED
+#endif // MDBXC_SYNC_ENABLED guard

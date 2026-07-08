@@ -42,6 +42,7 @@ namespace mdbxc {
     inline void Transaction::release() noexcept {
         TransactionTracker* registry = m_registry;
         MDBX_txn* txn = m_txn;
+        const TransactionMode mode = m_mode;
         const bool was_started = m_started;
 
         m_registry = nullptr;
@@ -54,6 +55,12 @@ namespace mdbxc {
             assert((rc == MDBX_SUCCESS || rc == MDBX_THREAD_MISMATCH) &&
                    "mdbx_txn_abort() failed in Transaction::release()");
             (void)rc;
+        }
+
+        if (registry && txn && was_started && mode == TransactionMode::WRITABLE) {
+#if MDBXC_SYNC_ENABLED
+            registry->on_discard(txn);
+#endif
         }
 
         if (registry && txn && was_started) {

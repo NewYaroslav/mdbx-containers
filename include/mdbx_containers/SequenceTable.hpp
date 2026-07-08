@@ -561,7 +561,9 @@ namespace mdbxc {
                 const std::vector<std::uint8_t> vbytes(
                     static_cast<std::uint8_t*>(db_val.iov_base),
                     static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
+                #if MDBXC_SYNC_ENABLED
                 record_op(txn, sync::ChangeOpType::Put, kbytes, vbytes);
+                #endif
             }
             return next_id;
         }
@@ -605,7 +607,9 @@ namespace mdbxc {
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
+                #if MDBXC_SYNC_ENABLED
                 record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
+                #endif
                 return true;
             }
             if (rc == MDBX_NOTFOUND) return false;
@@ -615,7 +619,9 @@ namespace mdbxc {
 
         void db_clear(MDBX_txn* txn) {
             check_mdbx(mdbx_drop(txn, m_dbi, 0), "Failed to clear SequenceTable");
+            #if MDBXC_SYNC_ENABLED
             record_op(txn, sync::ChangeOpType::ClearTable, {}, {});
+            #endif
         }
 
         std::size_t db_count(MDBX_txn* txn) const {

@@ -176,6 +176,17 @@ namespace mdbxc {
             sink->flush_in_txn(txn);
         }
     }
+
+    inline void Connection::on_discard(MDBX_txn* txn) noexcept {
+        try {
+            sync::ISyncCaptureSink* sink = sync_capture();
+            if (sink != nullptr) {
+                sink->discard_txn(txn);
+            }
+        } catch (...) {
+            // discard must not throw; sink contract is noexcept.
+        }
+    }
 #endif
 
     inline void Connection::backup_to(const std::string& path, const BackupOptions& options) {

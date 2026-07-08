@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <map>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -259,25 +260,62 @@ void test_aborted_transaction_does_not_flush() {
         kv.insert_or_assign(2, 200);
         /// txn aborts on destruction without commit.
     }
+    {
+        kv.insert_or_assign(3, 300);
+    }
 
     conn->detach_sync_capture();
 
+    /// Decode every committed ChangeBatch and ensure the aborted op (key=2)
+    /// does not appear. Also confirm that seq 1 carries op=1 and seq 2
+    /// carries op=3 (the post-abort commit).
     sync::ChangeLogStore cl(conn->env_handle());
     {
         auto txn = conn->transaction(TransactionMode::WRITABLE);
         cl.open(txn.handle());
         txn.commit();
     }
+
+    auto key_bytes = [](int k) {
+        std::vector<std::uint8_t> out(sizeof(int));
+        std::memcpy(out.data(), &k, sizeof(int));
+        return out;
+    };
+
+    std::vector<std::uint8_t> batch1, batch2;
     {
         auto txn = conn->transaction(TransactionMode::READ_ONLY);
         sync::NodeId n{};
         n[0] = 0xA1;
-        if (!cl.contains(txn.handle(), n, 1)) {
+        if (!cl.get(txn.handle(), n, 1, batch1)) {
             throw std::runtime_error("changelog missing seq 1 from first commit");
         }
-        if (cl.contains(txn.handle(), n, 2)) {
-            throw std::runtime_error("changelog leaked seq 2 from aborted txn");
+        if (!cl.get(txn.handle(), n, 2, batch2)) {
+            throw std::runtime_error("changelog missing seq 2 from post-abort commit");
         }
+    }
+
+    auto batch_has_key = [](const std::vector<std::uint8_t>& bytes, const std::vector<std::uint8_t>& key) {
+        const sync::ChangeBatch b = sync::ChangeBatchCodec::decode_exact(bytes);
+        for (const sync::ChangeOp& op : b.ops) {
+            if (op.dbi_name == "t" && op.storage_key == key) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (!batch_has_key(batch1, key_bytes(1))) {
+        throw std::runtime_error("seq 1 should contain op with key=1");
+    }
+    if (batch_has_key(batch1, key_bytes(2))) {
+        throw std::runtime_error("seq 1 should not contain aborted op with key=2");
+    }
+    if (!batch_has_key(batch2, key_bytes(3))) {
+        throw std::runtime_error("seq 2 should contain op with key=3 (post-abort commit)");
+    }
+    if (batch_has_key(batch2, key_bytes(2))) {
+        throw std::runtime_error("seq 2 leaked aborted op with key=2");
     }
 
     conn->disconnect();

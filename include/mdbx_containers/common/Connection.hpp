@@ -54,6 +54,7 @@ namespace mdbxc {
 #if MDBXC_SYNC_ENABLED
     public:
         void on_pre_commit(MDBX_txn* txn) override;
+        void on_discard(MDBX_txn* txn) noexcept override;
 #endif
     private:
         friend class BaseTable;
