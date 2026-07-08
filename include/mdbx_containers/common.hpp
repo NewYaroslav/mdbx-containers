@@ -42,7 +42,7 @@
 
 #include "common/MdbxException.hpp"
 #include "common/Config.hpp"
-#include "detail/TransactionTracker.hpp"
+#include "common/TransactionTracker.hpp"
 #include "detail/utils.hpp"
 #include "common/Transaction.hpp"
 #include "detail/path_utils.hpp"

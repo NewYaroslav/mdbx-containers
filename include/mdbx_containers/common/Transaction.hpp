@@ -5,6 +5,8 @@
 /// \file Transaction.hpp
 /// \brief Declares the Transaction class, a wrapper for managing MDBX transactions.
 
+#include "TransactionTracker.hpp"
+
 namespace mdbxc {
     
     /// \enum TransactionMode

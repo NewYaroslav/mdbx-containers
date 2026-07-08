@@ -12,8 +12,13 @@
 #include "../sync/SyncModule.hpp"
 
 #if MDBXC_SYNC_ENABLED
-#include "../sync/ChangeOp.hpp"
-#include "../sync/ISyncCaptureSink.hpp"
+namespace mdbxc {
+    class Connection;
+    namespace sync {
+        enum class ChangeOpType : std::uint8_t;
+        class ISyncCaptureSink;
+    }
+}
 #endif
 
 namespace mdbxc {

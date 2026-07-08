@@ -1,6 +1,6 @@
 #pragma once
-#ifndef MDBX_CONTAINERS_HEADER_DETAIL_TRANSACTION_TRACKER_HPP_INCLUDED
-#define MDBX_CONTAINERS_HEADER_DETAIL_TRANSACTION_TRACKER_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_COMMON_TRANSACTION_TRACKER_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_COMMON_TRANSACTION_TRACKER_HPP_INCLUDED
 
 /// \file TransactionTracker.hpp
 /// \brief Tracks MDBX transactions per thread for reuse and cleanup.
@@ -11,7 +11,9 @@
 #include <thread>
 #include <unordered_map>
 
-#include "../sync/SyncModule.hpp"
+#ifndef MDBXC_SYNC_ENABLED
+#define MDBXC_SYNC_ENABLED 0
+#endif
 
 #if MDBXC_SYNC_ENABLED
 #include <mdbx.h>
@@ -102,4 +104,4 @@ namespace mdbxc {
 #include "TransactionTracker.ipp"
 #endif
 
-#endif // MDBX_CONTAINERS_HEADER_DETAIL_TRANSACTION_TRACKER_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_COMMON_TRANSACTION_TRACKER_HPP_INCLUDED

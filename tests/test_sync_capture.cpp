@@ -9,11 +9,6 @@
 
 namespace {
 
-mdbxc::sync::NodeId cl_placeholder_origin() {
-    mdbxc::sync::NodeId n{};
-    return n;
-}
-
 void cleanup(const std::string& p) {
     std::remove(p.c_str());
 }
@@ -134,12 +129,159 @@ void test_capture_flush_on_commit() {
 }
 
 void test_changelog_capture_roundtrip() {
-    /// \note Full changelog roundtrip is tracked as a follow-up: under
-    ///       MinGW the ThreadLocalChangeAccumulator + sink + change + read
-    ///       sequence in the same process reproduces a startup crash that
-    ///       needs separate debugging. The simpler tests above already cover
-    ///       record_op propagation and pre-commit hook firing.
-    std::printf("SKIP test_changelog_capture_roundtrip (tracked separately)\n");
+    using namespace mdbxc;
+    const std::string p = "test_capture_changelog.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    /// SyncEngine normally writes node_id before capture is enabled. We
+    /// simulate that by writing the node id through MetaStore directly.
+    const sync::NodeId node_id = [] {
+        sync::NodeId n{};
+        for (int i = 0; i < 16; ++i) {
+            n[i] = static_cast<std::uint8_t>(0xC0 + i);
+        }
+        return n;
+    }();
+
+    {
+        sync::MetaStore meta(conn->env_handle());
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        meta.open(txn.handle());
+        meta.set_node_id(txn.handle(), node_id);
+        txn.commit();
+    }
+
+    sync::ThreadLocalChangeAccumulator sink(conn);
+    conn->attach_sync_capture(&sink);
+
+    {
+        KeyValueTable<int, int> kv(conn, "data");
+        kv.insert_or_assign(1, 100);
+        kv.insert_or_assign(2, 200);
+    }
+
+    conn->detach_sync_capture();
+
+    sync::ChangeLogStore cl(conn->env_handle());
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        cl.open(txn.handle());
+        txn.commit();
+    }
+    {
+        auto txn = conn->transaction(TransactionMode::READ_ONLY);
+        if (!cl.contains(txn.handle(), node_id, 1)) {
+            throw std::runtime_error("changelog missing seq 1");
+        }
+        if (!cl.contains(txn.handle(), node_id, 2)) {
+            throw std::runtime_error("changelog missing seq 2");
+        }
+        if (cl.contains(txn.handle(), node_id, 3)) {
+            throw std::runtime_error("changelog unexpectedly has seq 3");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_zero_node_id_rejected() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_zero_node_id.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    sync::ThreadLocalChangeAccumulator sink(conn);
+    conn->attach_sync_capture(&sink);
+
+    bool caught = false;
+    try {
+        KeyValueTable<int, int> kv(conn, "t");
+        kv.insert_or_assign(1, 100);
+    } catch (const mdbxc::MdbxException&) {
+        caught = true;
+    }
+
+    conn->detach_sync_capture();
+    conn->disconnect();
+    cleanup(p);
+
+    if (!caught) {
+        throw std::runtime_error("capture must reject uninitialised node_id");
+    }
+}
+
+void test_aborted_transaction_does_not_flush() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_aborted.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    /// Pre-init node_id so capture does not throw on the first attempt.
+    {
+        sync::MetaStore meta(conn->env_handle());
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        meta.open(txn.handle());
+        sync::NodeId n{};
+        n[0] = 0xA1;
+        meta.set_node_id(txn.handle(), n);
+        txn.commit();
+    }
+
+    sync::ThreadLocalChangeAccumulator sink(conn);
+    conn->attach_sync_capture(&sink);
+
+    /// One KeyValueTable instance shared between the two writes; the DBI
+    /// handle stays valid across both transactions because MDBX caches DBIs
+    /// by name in the environment.
+    KeyValueTable<int, int> kv(conn, "t");
+    {
+        kv.insert_or_assign(1, 100);
+    }
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        kv.insert_or_assign(2, 200);
+        /// txn aborts on destruction without commit.
+    }
+
+    conn->detach_sync_capture();
+
+    sync::ChangeLogStore cl(conn->env_handle());
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        cl.open(txn.handle());
+        txn.commit();
+    }
+    {
+        auto txn = conn->transaction(TransactionMode::READ_ONLY);
+        sync::NodeId n{};
+        n[0] = 0xA1;
+        if (!cl.contains(txn.handle(), n, 1)) {
+            throw std::runtime_error("changelog missing seq 1 from first commit");
+        }
+        if (cl.contains(txn.handle(), n, 2)) {
+            throw std::runtime_error("changelog leaked seq 2 from aborted txn");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
 }
 
 } // namespace
@@ -151,12 +293,18 @@ int main() {
     } catch (const std::exception& e) {
         std::printf("FAIL test_no_sink_no_capture: %s\n", e.what());
         return 1;
+    } catch (...) {
+        std::printf("FAIL test_no_sink_no_capture: non-std exception\n");
+        return 1;
     }
     try {
         test_capture_writes_via_sink();
         std::printf("PASS test_capture_writes_via_sink\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_capture_writes_via_sink: %s\n", e.what());
+        return 2;
+    } catch (...) {
+        std::printf("FAIL test_capture_writes_via_sink: non-std exception\n");
         return 2;
     }
     try {
@@ -165,7 +313,39 @@ int main() {
     } catch (const std::exception& e) {
         std::printf("FAIL test_capture_flush_on_commit: %s\n", e.what());
         return 3;
+    } catch (...) {
+        std::printf("FAIL test_capture_flush_on_commit: non-std exception\n");
+        return 3;
     }
-    test_changelog_capture_roundtrip();
+    try {
+        test_changelog_capture_roundtrip();
+        std::printf("PASS test_changelog_capture_roundtrip\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_changelog_capture_roundtrip: %s\n", e.what());
+        return 4;
+    } catch (...) {
+        std::printf("FAIL test_changelog_capture_roundtrip: non-std exception\n");
+        return 4;
+    }
+    try {
+        test_zero_node_id_rejected();
+        std::printf("PASS test_zero_node_id_rejected\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_zero_node_id_rejected: %s\n", e.what());
+        return 5;
+    } catch (...) {
+        std::printf("FAIL test_zero_node_id_rejected: non-std exception\n");
+        return 5;
+    }
+    try {
+        test_aborted_transaction_does_not_flush();
+        std::printf("PASS test_aborted_transaction_does_not_flush\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_aborted_transaction_does_not_flush: %s\n", e.what());
+        return 6;
+    } catch (...) {
+        std::printf("FAIL test_aborted_transaction_does_not_flush: non-std exception\n");
+        return 6;
+    }
     return 0;
 }

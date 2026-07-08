@@ -19,8 +19,7 @@
 
 #include <mdbx.h>
 
-#include "../Backup.hpp"
-#include "../detail/TransactionTracker.hpp"
+#include "Backup.hpp"
 #include "Config.hpp"
 #include "Transaction.hpp"
 #include "../sync/SyncModule.hpp"
