@@ -187,18 +187,22 @@ Operational rules:
   numeric range scan) is documented in `DESIGN.md`. Do not "fix" the BE
   seq field in `ChangeLogStore::encode_key` back to LE — the change was
   intentional and required for correct range scan order.
-- `IdentityIndexValue` is an opaque payload keyed by a length-prefixed
-  composite. Do not add length-prefixes inside the value — the value is
-  single-valued per key, so prefixes solve no collision there.
+- `IdentityIndexValue` is an opaque structured payload keyed by a
+  length-prefixed composite. Variable-size fields inside the value
+  (`storage_key`, `revision_key`) are themselves length-prefixed for
+  decoding. Do **not** add an extra outer MDBX-value prefix — the value is
+  single-valued per key, so an outer prefix would solve no collision there.
 - Tombstones in `IdentityIndexStore` use the `IDENTITY_TOMBSTONE` flag bit,
   not `erase()`. Older incoming batches may still need to resolve the
   logical key; real removal is explicit.
 - The four stores each have an `ensure_open()` guard on every public
   method. Calling a method before `open()` throws `std::logic_error` rather
   than silently writing to DBI 0. Do not weaken this guard.
-- `ConflictPolicy::Reject` is the v0.1 default. `LastWriterWins` exists
-  but only with deterministic tie-break (`max(time_unix_ns, origin_node_id)`
-  when no `revision_key` is supplied). `Custom` is deferred to v0.2.
+- `ConflictPolicy::Reject` is the v0.1 default. `LastWriterWins` is
+  opt-in and must be deterministic. Prefer `revision_key` when present; if
+  no `revision_key` exists, the exact fallback must be defined in
+  `SyncEngine` and documented before use. `time_unix_ns` is metadata, not
+  a reliable conflict authority. `Custom` is deferred to v0.2.
 - `HashedKeyValueStore`, `KeyMultiValueTable`, and `AnyValueTable` are
   not replicated in v0.1; their wire format is not defined. Do not add
   `record_op()` paths for them without first extending `DESIGN.md`.

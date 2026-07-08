@@ -1,28 +1,39 @@
-# Sync Subsystem Design (v0.1)
+# Sync Subsystem Design (target: v0.1)
 
 > Reading order for any agent considering changes to the sync subsystem.
-> v0.1 is the foundation layer: types, codec, stores, change capture. The
-> actual sync algorithm (`SyncEngine`, transports) lands in later commits.
+> This document locks in decisions that have wire- or disk-format consequences
+> so future agents do not silently change them. It also distinguishes
+> **already implemented** from **planned for v0.1** to keep the contract
+> honest as the codebase evolves.
 
 ## Scope
 
 Multi-master replication of logical MDBX tables between node-local envs.
 Wire is transport-agnostic, codec is versioned, storage is four named DBIs.
-This document locks in decisions that have wire- or disk-format consequences
-so future agents do not silently change them.
 
-## What v0.1 covers
+## Already implemented (merged into main)
 
-- Four stores: `MetaStore`, `ChangeLogStore`, `AppliedStore`, `IdentityIndexStore`.
-- `ChangeBatchCodec` with strict versioned wire format (magic, codec version,
-  batch version, batch flags, then payload).
+- Public types in `include/mdbx_containers/sync/`:
+  `Common`, `ChangeBatch`, `ChangeOp`, `CodecFlags`, `CodecBounds`,
+  `Protocol`, `SyncCursor`, `ConflictPolicy`, `ISyncPeer`,
+  `IdentityProvider`, `ChangeBatchCodec`.
+- Four system stores under `include/mdbx_containers/sync/stores/`:
+  `MetaStore`, `ChangeLogStore`, `AppliedStore`, `IdentityIndexStore`.
+- `ChangeBatchCodec` strict versioned wire format (magic, codec version,
+  batch version, batch flags, then payload); rejects unknown mandatory
+  flags and version mismatches at both encode and decode.
+
+## Planned before v0.1 release (NOT YET implemented)
+
 - Change capture: pre-commit hook in `Transaction::commit` writes a
   `ChangeBatch` to `ChangeLogStore` inside the same write transaction.
-- `SyncEngine` + `DirectSyncPeer` for in-process replication.
-- Full export/import via `seq=0, BATCH_HAS_MORE` chunks.
-- `ConflictPolicy::Reject` default, `LastWriterWins` opt-in.
-- Replicated tables: `KeyValueTable`, `KeyTable`, `ValueTable`, `SequenceTable`
-  (single-writer for `append`; `insert_or_assign`/`set`/`erase`/`clear` normal).
+- `SyncEngine` (pull/push/apply protocol logic, gap handling).
+- `DirectSyncPeer` for in-process tests of `SyncEngine`.
+- Full export/import via `seq=0, BATCH_HAS_MORE` chunks for empty replicas.
+- Replicated table operation coverage: `KeyValueTable`, `KeyTable`,
+  `ValueTable`, `SequenceTable` (single-writer for `append`;
+  `insert_or_assign`/`set`/`erase`/`clear` normal).
+- `ConflictPolicy::Reject` is the default; `LastWriterWins` is opt-in.
 
 ## What v0.1 does NOT cover (deferred to v0.2)
 
@@ -33,8 +44,10 @@ so future agents do not silently change them.
 - `IdentityProvider` integration in `BaseTable` — declared in v0.1, no
   write path until HashedKeyValueStore.
 - Automatic remap of physical `storage_key` from logical `identity_key`.
-- HLC for `LastWriterWins` ties — `time_unix_ns` is metadata only; tie-break
-  currently falls back to `origin_node_id` if no `revision_key` is supplied.
+- HLC for `LastWriterWins` — `time_unix_ns` is metadata only, not a reliable
+  conflict authority. The exact tie-break rule (revision_key priority,
+  fallback when no revision_key is supplied) must be defined in `SyncEngine`
+  and documented before `LastWriterWins` is used in a non-test path.
 - `Custom` conflict resolver — schema-level callback; deferred until the
   first real consumer needs it.
 - HTTP and WebSocket transports (`Simple-Web-Server`,
@@ -124,7 +137,7 @@ contract:
 - Decoder rejects trailing bytes when called with `bytes_read == nullptr`
   or via `decode_exact`.
 
-## Sync flow
+## Sync flow (planned v0.1 behavior, not yet implemented)
 
 Default round shape, single-writer friendly and the base case for
 multi-master:
