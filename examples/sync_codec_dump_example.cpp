@@ -1,5 +1,5 @@
 #define MDBXC_SYNC_ENABLED 1
-#include <mdbx_containers/Sync.hpp>
+#include <mdbx_containers/sync.hpp>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
