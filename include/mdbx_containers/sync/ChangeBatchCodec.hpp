@@ -42,7 +42,7 @@
 
 #include "ChangeBatch.hpp"
 #include "CodecBounds.hpp"
-#include "CodecFlags.hpp"
+#include "codec_flags.hpp"
 
 namespace mdbxc {
 namespace sync {

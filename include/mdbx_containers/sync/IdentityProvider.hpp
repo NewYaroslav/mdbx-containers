@@ -11,17 +11,17 @@
 #include <vector>
 
 #include "ChangeOp.hpp"
-#include "CodecFlags.hpp"
+#include "codec_flags.hpp"
 
 namespace mdbxc {
 namespace sync {
 
     /// \brief View over a replicated record exposed to identity providers.
     struct RecordView {
-        std::string dbi_name;
-        ChangeOpType op_type = ChangeOpType::Put;
-        std::vector<std::uint8_t> storage_key;
-        std::vector<std::uint8_t> value;
+        std::string dbi_name;                     ///< Per-batch feature flags (BATCH_NONE, BATCH_HAS_MORE, ...).
+        ChangeOpType op_type = ChangeOpType::Put; ///< Identifier of the node that produced this batch.
+        std::vector<std::uint8_t> storage_key;    ///< Monotonic per-node sequence number assigned by MetaStore::increment_local_seq.
+        std::vector<std::uint8_t> value;          ///< List of operations in this batch; order is preserved on apply.
     };
 
     /// \brief Optional identity and revision for a replicated record.

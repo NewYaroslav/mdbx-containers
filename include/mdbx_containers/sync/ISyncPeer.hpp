@@ -5,7 +5,7 @@
 /// \file ISyncPeer.hpp
 /// \brief Abstract transport-level peer used by \c SyncEngine.
 
-#include "Protocol.hpp"
+#include "protocol.hpp"
 
 namespace mdbxc {
 namespace sync {

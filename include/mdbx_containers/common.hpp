@@ -46,6 +46,10 @@
 #include "detail/utils.hpp"
 #include "common/Transaction.hpp"
 #include "detail/path_utils.hpp"
+#if MDBXC_SYNC_ENABLED
+namespace mdbxc { namespace sync { class ISyncCaptureSink; } }
+#endif
+#include "sync/ISyncCaptureSink.hpp"
 #include "common/Connection.hpp"
 #include "detail/BaseTable.hpp"
 

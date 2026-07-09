@@ -2,7 +2,7 @@
 #ifndef MDBX_CONTAINERS_HEADER_SYNC_PROTOCOL_HPP_INCLUDED
 #define MDBX_CONTAINERS_HEADER_SYNC_PROTOCOL_HPP_INCLUDED
 
-/// \file Protocol.hpp
+/// \file protocol.hpp
 /// \brief Transport-level request and response structures for sync.
 
 #include <cstdint>
@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "ChangeBatch.hpp"
-#include "Common.hpp"
+#include "common.hpp"
 #include "SyncCursor.hpp"
 
 namespace mdbxc {

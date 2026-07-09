@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "CodecFlags.hpp"
+#include "codec_flags.hpp"
 
 namespace mdbxc {
 namespace sync {
@@ -26,14 +26,14 @@ namespace sync {
     /// \c identity_key is the application-level identity (empty when equal to
     /// storage_key). \c revision_key is an optional application-level version.
     struct ChangeOp {
-        ChangeOpType           op_type   = ChangeOpType::Put;
-        std::uint32_t          op_flags  = OP_NONE;
-        std::uint32_t          dbi_flags = 0;
-        std::string            dbi_name;
-        std::vector<std::uint8_t> storage_key;
-        std::vector<std::uint8_t> value;
-        std::vector<std::uint8_t> identity_key;
-        std::vector<std::uint8_t> revision_key;
+        ChangeOpType           op_type   = ChangeOpType::Put; ///< Per-batch feature flags (BATCH_NONE, BATCH_HAS_MORE, ...).
+        std::uint32_t          op_flags  = OP_NONE;           ///< Identifier of the node that produced this batch.
+        std::uint32_t          dbi_flags = 0;                 ///< Monotonic per-node sequence number assigned by MetaStore::increment_local_seq.
+        std::string            dbi_name;                      ///< List of operations in this batch; order is preserved on apply.
+        std::vector<std::uint8_t> storage_key;                ///< Operation kind: Put/Delete/ClearTable.
+        std::vector<std::uint8_t> value;                      ///< Per-op feature flags (OP_HAS_IDENTITY_KEY, OP_HAS_REVISION_KEY, OP_TOMBSTONE).
+        std::vector<std::uint8_t> identity_key;               ///< Raw MDBX_DBI flags passed to mdbx_dbi_open for the DBI named in `dbi_name.
+        std::vector<std::uint8_t> revision_key;               ///< Name of the user table (also the DBI name).
     };
 
 } // namespace sync

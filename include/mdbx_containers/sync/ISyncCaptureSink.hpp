@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-#include "SyncModule.hpp"
+#include "sync_module.hpp"
 
 #if MDBXC_SYNC_ENABLED
 #include <mdbx.h>

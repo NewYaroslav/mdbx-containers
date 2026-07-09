@@ -9,22 +9,23 @@
 /// non-zero. Otherwise the include is a no-op so applications that do not
 /// need replication pay zero compile-time or runtime cost.
 
-#include "sync/SyncModule.hpp"
+#include "sync/sync_module.hpp"
 
 #if MDBXC_SYNC_ENABLED
+#include "detail/utils.hpp"
 #include "common/Connection.hpp"
 #include "sync/ChangeAccumulator.hpp"
 #include "sync/ChangeBatch.hpp"
 #include "sync/ChangeBatchCodec.hpp"
 #include "sync/ChangeOp.hpp"
 #include "sync/CodecBounds.hpp"
-#include "sync/CodecFlags.hpp"
-#include "sync/Common.hpp"
+#include "sync/codec_flags.hpp"
+#include "sync/common.hpp"
 #include "sync/ConflictPolicy.hpp"
 #include "sync/ISyncCaptureSink.hpp"
 #include "sync/IdentityProvider.hpp"
 #include "sync/ISyncPeer.hpp"
-#include "sync/Protocol.hpp"
+#include "sync/protocol.hpp"
 #include "sync/SyncCursor.hpp"
 #include "sync/stores/MetaStore.hpp"
 #include "sync/stores/ChangeLogStore.hpp"

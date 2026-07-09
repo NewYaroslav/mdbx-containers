@@ -11,8 +11,10 @@
 
 #include <mdbx.h>
 
+#ifndef MDBX_CONTAINERS_HEADER_ONLY
 #if MDBXC_SYNC_ENABLED
 #include <mdbx_containers/sync/ISyncCaptureSink.hpp>
+#endif
 #endif
 
 namespace mdbxc {

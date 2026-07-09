@@ -15,6 +15,8 @@
 #include <cstring>
 #include <deque>
 #include <list>
+
+#include <mdbx.h>
 #include <map>
 #include <memory>
 #include <set>

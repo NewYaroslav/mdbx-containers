@@ -37,7 +37,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "SyncModule.hpp"
+#include "sync_module.hpp"
 
 #if MDBXC_SYNC_ENABLED
 #include <mdbx.h>
@@ -45,7 +45,7 @@
 #include "ChangeBatch.hpp"
 #include "ChangeBatchCodec.hpp"
 #include "ChangeOp.hpp"
-#include "Common.hpp"
+#include "common.hpp"
 #include "ISyncCaptureSink.hpp"
 #include "stores/ChangeLogStore.hpp"
 #include "stores/MetaStore.hpp"

@@ -9,10 +9,10 @@
 
 #ifndef MDBXC_SYNC_ENABLED
 #define MDBXC_SYNC_ENABLED 0
-#endif#include <string>
+#endif
+
+#include <string>
 #include <vector>
-
-
 
 namespace mdbxc {
     

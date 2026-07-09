@@ -23,15 +23,6 @@
 #include "Config.hpp"
 #include "Transaction.hpp"
 
-
-#if MDBXC_SYNC_ENABLED
-namespace mdbxc {
-namespace sync {
-    class ISyncCaptureSink;
-}
-}
-#endif
-
 namespace mdbxc {
 
     /// \class Connection
