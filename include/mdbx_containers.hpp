@@ -3,18 +3,13 @@
 #define MDBX_CONTAINERS_HEADER_MDBX_CONTAINERS_HPP_INCLUDED
 
 /// \file mdbx_containers.hpp
-/// \brief Main include file for the MDBX Containers library.
-/// 
-/// Provides integration between MDBX and STL-style containers with support
-/// for transactions, persistence, and thread-bound table operations.
+/// \brief Main include file for the MDBX Containers library. Pulls in every
+///        public header: table wrappers, the sync subsystem umbrella, and the
+///        vector subsystem umbrella. Use \c mdbx_containers/tables.hpp if
+///        only the table API is needed.
 
-#include "mdbx_containers/AnyValueTable.hpp"
-#include "mdbx_containers/Hash.hpp"
-#include "mdbx_containers/HashedKeyValueStore.hpp"
-#include "mdbx_containers/KeyMultiValueTable.hpp"
-#include "mdbx_containers/KeyTable.hpp"
-#include "mdbx_containers/KeyValueTable.hpp"
-#include "mdbx_containers/SequenceTable.hpp"
-#include "mdbx_containers/ValueTable.hpp"
+#include "mdbx_containers/tables.hpp"
+#include "mdbx_containers/sync.hpp"
+#include "mdbx_containers/vector.hpp"
 
 #endif // MDBX_CONTAINERS_HEADER_MDBX_CONTAINERS_HPP_INCLUDED
