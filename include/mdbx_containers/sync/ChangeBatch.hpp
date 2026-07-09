@@ -9,8 +9,8 @@
 #include <vector>
 
 #include "ChangeOp.hpp"
-#include "CodecFlags.hpp"
-#include "Common.hpp"
+#include "codec_flags.hpp"
+#include "common.hpp"
 
 namespace mdbxc {
 namespace sync {
@@ -20,11 +20,11 @@ namespace sync {
     /// single MDBX write transaction.
     struct ChangeBatch {
         std::uint32_t         version = 1;      ///< Schema version; always 1 in v0.1.
-        std::uint32_t         batch_flags = BATCH_NONE;
-        NodeId                origin_node_id{};
-        std::uint64_t         seq = 0;
+        std::uint32_t         batch_flags = BATCH_NONE; ///< Per-batch feature flags (BATCH_NONE, BATCH_HAS_MORE, ...).
+        NodeId                origin_node_id{}; ///< Identifier of the node that produced this batch.
+        std::uint64_t         seq = 0;          ///< Monotonic per-node sequence number assigned by MetaStore::increment_local_seq.
         std::uint64_t         time_unix_ns = 0; ///< Physical timestamp metadata only.
-        std::vector<ChangeOp> ops;
+        std::vector<ChangeOp> ops;              ///< List of operations in this batch; order is preserved on apply.
     };
 
 } // namespace sync

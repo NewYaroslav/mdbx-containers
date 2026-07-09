@@ -5,6 +5,9 @@
 /// \file MdbxException.hpp
 /// \brief Defines a specific exception for MDBX-related errors.
 
+#include <stdexcept>
+#include <string>
+
 namespace mdbxc {
 
     /// \class MdbxException

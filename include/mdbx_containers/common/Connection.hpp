@@ -5,7 +5,23 @@
 /// \file Connection.hpp
 /// \brief Manages an MDBX database connection using a provided configuration.
 
-#include "../Backup.hpp"
+#include <chrono>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <unordered_map>
+
+#if __cplusplus >= 201703L
+#   include <optional>
+#endif
+
+#include <mdbx.h>
+
+#include "Backup.hpp"
+#include "Config.hpp"
+#include "Transaction.hpp"
 
 namespace mdbxc {
 
@@ -26,6 +42,12 @@ namespace mdbxc {
     /// \see https://libmdbx.dqdkfa.ru/group__c__transactions.html
     /// \see https://libmdbx.dqdkfa.ru/group__c__opening.html
     class Connection : private TransactionTracker {
+#if MDBXC_SYNC_ENABLED
+    public:
+        void on_pre_commit(MDBX_txn* txn) override;
+        void on_discard(MDBX_txn* txn) noexcept override;
+#endif
+    private:
         friend class BaseTable;
     public:
 
@@ -145,6 +167,25 @@ namespace mdbxc {
         /// \return Maximum duplicate value size, or a non-positive value when disabled.
         int64_t max_dupsort_value_size() const;
 
+#if MDBXC_SYNC_ENABLED
+        /// \brief Attaches a non-owning \c ISyncCaptureSink.
+        /// \details Pass \c nullptr to disable change capture. The pointer is
+        /// non-owning; the sink must outlive the \c Connection period during
+        /// which it is attached.
+        /// \warning Lifecycle-only. Do not call concurrently with table
+        ///          operations or active transactions.
+        void attach_sync_capture(sync::ISyncCaptureSink* sink);
+
+        /// \brief Detaches the currently attached \c ISyncCaptureSink.
+        /// \details Safe to call when no sink is attached.
+        /// \warning Lifecycle-only. Do not call concurrently with table
+        ///          operations or active transactions.
+        void detach_sync_capture();
+
+        /// \brief Returns the currently attached \c ISyncCaptureSink or \c nullptr.
+        sync::ISyncCaptureSink* sync_capture() const;
+#endif
+
         /// \brief Copies the whole MDBX environment to a file or directory path.
         /// \param path Destination path. The target must not already exist;
         ///        the caller is responsible for removing a stale target before
@@ -202,6 +243,10 @@ namespace mdbxc {
 
         /// \brief Initializes and opens the MDBX environment.
         void db_init();
+
+#if MDBXC_SYNC_ENABLED
+        sync::ISyncCaptureSink* m_sync_capture = nullptr;
+#endif
 
     }; // Connection
 

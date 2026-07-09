@@ -13,10 +13,6 @@
 
 #include <mdbx.h>
 
-#include "../../detail/utils.hpp"
-#include "../Common.hpp"
-#include "../ChangeBatch.hpp"
-
 namespace mdbxc {
 namespace sync {
 
@@ -44,6 +40,11 @@ namespace sync {
 
         bool is_open() const { return m_open; }
         MDBX_dbi handle() const { return m_dbi; }
+
+        /// \brief Resets the open flag so the next \c open() reopens the DBI
+        /// inside the supplied transaction. Use between transactions to avoid
+        /// using a stale handle from a prior committed/closed transaction.
+        void reset_open() { m_open = false; }
 
         /// \brief Throws when the DBI has not been opened yet.
         void ensure_open() const {

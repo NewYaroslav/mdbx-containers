@@ -206,3 +206,25 @@ Operational rules:
 - `HashedKeyValueStore`, `KeyMultiValueTable`, and `AnyValueTable` are
   not replicated in v0.1; their wire format is not defined. Do not add
   `record_op()` paths for them without first extending `DESIGN.md`.
+
+## Header Include Discipline
+
+- The only top-level include points are `mdbx_containers.hpp` (umbrella for
+  all table wrappers) and the per-domain aggregators: `common.hpp`,
+  `vector.hpp`, `Sync.hpp`. End users must not include subdomain headers
+  directly (`common/...`, `detail/...`, `sync/...`); they include through
+  the aggregator that already pulls the right pieces in the right order.
+- Inside `include/mdbx_containers/`, leaf headers under one subdomain may
+  rely on the umbrella having included the cross-domain prerequisites. Do
+  not self-contain every dependency; that spreads ordering decisions across
+  every leaf and makes re-organisation brittle.
+- Always use a local include path relative to `include/mdbx_containers/`,
+  never `"mdbx_containers/..."` and never a leading `"../"` chain. The
+  `Backup.hpp`, `TransactionTracker.hpp`, and `SyncModule.hpp` headers have
+  been moved to the right submodule to make this practical (see commit
+  history on PRs #60, #66).
+- The single `../` exceptions today are the few `common/Connection.hpp`
+  and `common/Connection.ipp` includes that reach into `sync/` (the
+  pre-commit hook). When a fourth cross-subdomain dependency shows up,
+  prefer moving the source header into a shared subdomain over adding more
+  relative paths.

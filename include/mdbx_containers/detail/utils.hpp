@@ -15,6 +15,9 @@
 #include <cstring>
 #include <deque>
 #include <list>
+
+#include <mdbx.h>
+
 #include <map>
 #include <memory>
 #include <set>
@@ -24,8 +27,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include "../common/MdbxException.hpp"
 
 #if __cplusplus >= 201703L
 #   define MDBXC_NODISCARD [[nodiscard]]

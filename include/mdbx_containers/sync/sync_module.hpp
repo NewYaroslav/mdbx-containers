@@ -2,7 +2,7 @@
 #ifndef MDBX_CONTAINERS_HEADER_SYNC_SYNC_MODULE_HPP_INCLUDED
 #define MDBX_CONTAINERS_HEADER_SYNC_SYNC_MODULE_HPP_INCLUDED
 
-/// \file SyncModule.hpp
+/// \file sync_module.hpp
 /// \brief Compile-time gate for the optional sync subsystem.
 
 #ifndef MDBXC_SYNC_ENABLED

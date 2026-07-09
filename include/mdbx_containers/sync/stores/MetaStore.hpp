@@ -14,9 +14,6 @@
 
 #include <mdbx.h>
 
-#include "../../detail/utils.hpp"
-#include "../Common.hpp"
-
 namespace mdbxc {
 namespace sync {
 
@@ -59,6 +56,11 @@ namespace sync {
 
         /// \brief Returns the underlying MDBX DBI handle.
         MDBX_dbi handle() const { return m_dbi; }
+
+        /// \brief Resets the open flag so the next \c open() reopens the DBI
+        /// inside the supplied transaction. Use between transactions to avoid
+        /// using a stale handle from a prior committed/closed transaction.
+        void reset_open() { m_open = false; }
 
         /// \brief Reads \c db_uuid. Empty array when unset.
         NodeId get_db_uuid(MDBX_txn* txn) const {

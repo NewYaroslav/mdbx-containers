@@ -1,9 +1,23 @@
 #pragma once
-#ifndef MDBX_CONTAINERS_HEADER_DETAIL_TRANSACTION_TRACKER_HPP_INCLUDED
-#define MDBX_CONTAINERS_HEADER_DETAIL_TRANSACTION_TRACKER_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_COMMON_TRANSACTION_TRACKER_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_COMMON_TRANSACTION_TRACKER_HPP_INCLUDED
 
 /// \file TransactionTracker.hpp
 /// \brief Tracks MDBX transactions per thread for reuse and cleanup.
+
+#include <condition_variable>
+#include <cstddef>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
+
+#ifndef MDBXC_SYNC_ENABLED
+#define MDBXC_SYNC_ENABLED 0
+#endif
+
+#if MDBXC_SYNC_ENABLED
+#include <mdbx.h>
+#endif
 
 namespace mdbxc {
 
@@ -67,6 +81,23 @@ namespace mdbxc {
         
         virtual ~TransactionTracker() = default;
 
+#if MDBXC_SYNC_ENABLED
+        /// \brief Pre-commit hook for sync capture.
+        /// \details Called by \c Transaction::commit before \c mdbx_txn_commit
+        /// for write transactions. Default is no-op; \c Connection overrides.
+        virtual void on_pre_commit(MDBX_txn* txn) noexcept(false) {
+            (void)txn;
+        }
+
+        /// \brief Discard hook for sync capture.
+        /// \details Called by \c Transaction::release / \c rollback paths
+        /// when a write transaction is aborted. Default is no-op; \c Connection
+        /// forwards to the attached \c ISyncCaptureSink.
+        virtual void on_discard(MDBX_txn* txn) noexcept {
+            (void)txn;
+        }
+#endif
+
     private:
         mutable std::mutex m_mutex;  ///< Protects access to m_thread_txns.
         mutable std::condition_variable m_txn_cv; ///< Notifies waiters when transactions end.
@@ -81,4 +112,4 @@ namespace mdbxc {
 #include "TransactionTracker.ipp"
 #endif
 
-#endif // MDBX_CONTAINERS_HEADER_DETAIL_TRANSACTION_TRACKER_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_COMMON_TRANSACTION_TRACKER_HPP_INCLUDED

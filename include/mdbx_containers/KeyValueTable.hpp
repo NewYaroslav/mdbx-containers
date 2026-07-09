@@ -2090,15 +2090,25 @@ namespace mdbxc {
             MDBX_val db_val = serialize_value(value, sc_value);
             int rc = mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
 
-            if (rc == MDBX_SUCCESS)
+            if (rc == MDBX_SUCCESS) {
+#if MDBXC_SYNC_ENABLED
+                const std::vector<std::uint8_t> kbytes(
+                    static_cast<std::uint8_t*>(db_key.iov_base),
+                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
+                const std::vector<std::uint8_t> vbytes(
+                    static_cast<std::uint8_t*>(db_val.iov_base),
+                    static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
+                record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
+#endif
                 return true;
+            }
             if (rc == MDBX_KEYEXIST)
                 return false;
 
             check_mdbx(rc, "Failed to insert key-value pair");
             return false;
         }
-        
+
         /// \brief Inserts or replaces the key-value pair.
         /// \param key The key to insert or replace.
         /// \param value The value to set.
@@ -2113,6 +2123,15 @@ namespace mdbxc {
                 mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),  // or 0
                 "Failed to insert or assign key-value pair"
             );
+#if MDBXC_SYNC_ENABLED
+            const std::vector<std::uint8_t> kbytes(
+                static_cast<std::uint8_t*>(db_key.iov_base),
+                static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
+            const std::vector<std::uint8_t> vbytes(
+                static_cast<std::uint8_t*>(db_val.iov_base),
+                static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
+            record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
+#endif
         }
 
         template<typename Fn>
@@ -2157,8 +2176,16 @@ namespace mdbxc {
         bool db_erase(const KeyT& key, MDBX_txn* txn_handle) {
             SerializeScratch sc_key;
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
-            int rc = mdbx_del(txn_handle, m_dbi, &db_key, nullptr);
-            if (rc == MDBX_SUCCESS) return true;
+            const int rc = mdbx_del(txn_handle, m_dbi, &db_key, nullptr);
+            if (rc == MDBX_SUCCESS) {
+#if MDBXC_SYNC_ENABLED
+                const std::vector<std::uint8_t> kbytes(
+                    static_cast<std::uint8_t*>(db_key.iov_base),
+                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
+                record_op(txn_handle, sync::ChangeOpType::Delete, kbytes, {});
+#endif
+                return true;
+            }
             if (rc == MDBX_NOTFOUND) return false;
             check_mdbx(rc, "Failed to erase key");
             return false;
@@ -2168,6 +2195,9 @@ namespace mdbxc {
         /// \throws MdbxException if an MDBX error occurs.
         void db_clear(MDBX_txn* txn_handle) {
             check_mdbx(mdbx_drop(txn_handle, m_dbi, 0), "Failed to clear table");
+#if MDBXC_SYNC_ENABLED
+            record_op(txn_handle, sync::ChangeOpType::ClearTable, {}, {});
+#endif
         }
 
     }; // KeyValueTable

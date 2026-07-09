@@ -13,9 +13,6 @@
 
 #include <mdbx.h>
 
-#include "../../detail/utils.hpp"
-#include "../Common.hpp"
-
 namespace mdbxc {
 namespace sync {
 
