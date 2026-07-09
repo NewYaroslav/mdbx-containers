@@ -12,8 +12,7 @@
 #include "sync/sync_module.hpp"
 
 #if MDBXC_SYNC_ENABLED
-#include "detail/utils.hpp"
-#include "common/Connection.hpp"
+#include "common.hpp"
 #include "sync/ChangeAccumulator.hpp"
 #include "sync/ChangeBatch.hpp"
 #include "sync/ChangeBatchCodec.hpp"

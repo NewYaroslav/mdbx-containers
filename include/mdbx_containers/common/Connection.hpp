@@ -2,10 +2,6 @@
 #ifndef MDBX_CONTAINERS_HEADER_COMMON_CONNECTION_HPP_INCLUDED
 #define MDBX_CONTAINERS_HEADER_COMMON_CONNECTION_HPP_INCLUDED
 
-
-#if MDBXC_SYNC_ENABLED
-namespace mdbxc { namespace sync { class ISyncCaptureSink; } }
-#endif
 /// \file Connection.hpp
 /// \brief Manages an MDBX database connection using a provided configuration.
 
