@@ -2,7 +2,7 @@
 #ifndef MDBX_CONTAINERS_HEADER_SYNC_COMMON_HPP_INCLUDED
 #define MDBX_CONTAINERS_HEADER_SYNC_COMMON_HPP_INCLUDED
 
-/// \file Common.hpp
+/// \file common.hpp
 /// \brief Shared sync types: node identifiers, fixed-size byte arrays.
 
 #include <array>
