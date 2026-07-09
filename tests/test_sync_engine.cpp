@@ -1,5 +1,5 @@
 #include <mdbx_containers.hpp>
-#include <mdbx_containers/Sync.hpp>
+#include <mdbx_containers/sync.hpp>
 
 #include <cstdint>
 #include <cstdio>
@@ -14,6 +14,25 @@ namespace {
 
 void cleanup(const std::string& p) {
     std::remove(p.c_str());
+}
+
+template<class KVT>
+typename KVT::value_type::second_type kv_or_throw(const std::shared_ptr<mdbxc::Connection>& conn,
+        KVT& kv, const typename KVT::value_type::first_type& key, const char* what) {
+    typename KVT::value_type::second_type out{};
+    auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+    if (!kv.try_get(key, out, txn.handle())) {
+        throw std::runtime_error(std::string("missing: ") + what);
+    }
+    return out;
+}
+
+template<class KVT>
+bool kv_has(const std::shared_ptr<mdbxc::Connection>& conn,
+        KVT& kv, const typename KVT::value_type::first_type& key) {
+    typename KVT::value_type::second_type out{};
+    auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+    return kv.try_get(key, out, txn.handle());
 }
 
 mdbxc::sync::NodeId make_node(std::uint8_t seed) {
@@ -97,12 +116,9 @@ void test_engine_round_trip_kv() {
     }
 
     KeyValueTable<int, int> replica_kv(replica_conn, "kv");
-    auto v1 = replica_kv.find(1);
-    auto v2 = replica_kv.find(2);
-    auto v3 = replica_kv.find(3);
-    if (!v1 || *v1 != 100) throw std::runtime_error("replica kv[1] != 100");
-    if (!v2 || *v2 != 200) throw std::runtime_error("replica kv[2] != 200");
-    if (!v3 || *v3 != 300) throw std::runtime_error("replica kv[3] != 300");
+    if (kv_or_throw(replica_conn, replica_kv, 1, "replica kv[1]") != 100) throw std::runtime_error("replica kv[1] != 100");
+    if (kv_or_throw(replica_conn, replica_kv, 2, "replica kv[2]") != 200) throw std::runtime_error("replica kv[2] != 200");
+    if (kv_or_throw(replica_conn, replica_kv, 3, "replica kv[3]") != 300) throw std::runtime_error("replica kv[3] != 300");
 
     replica_conn->disconnect();
     cleanup(primary_path);
@@ -316,8 +332,7 @@ void test_engine_handle_push_to_remote() {
     }
 
     KeyValueTable<int, int> remote_kv(remote_conn, "kv");
-    auto v = remote_kv.find(7);
-    if (!v || *v != 0x77) {
+    if (kv_or_throw(remote_conn, remote_kv, 7, "remote kv[7]") != 0x77) {
         throw std::runtime_error("remote kv[7] != 0x77 after push");
     }
 
@@ -325,6 +340,225 @@ void test_engine_handle_push_to_remote() {
     remote_conn->disconnect();
     cleanup(origin_path);
     cleanup(remote_path);
+}
+
+void test_engine_push_gap_rolls_back() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_push_gap.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    seed_node_id(conn, make_node(0x10));
+    sync::SyncEngine engine(conn);
+
+    auto make_batch = [](std::uint64_t seq) {
+        sync::ChangeBatch b;
+        b.origin_node_id = make_node(0x20);
+        b.seq = seq;
+        sync::ChangeOp op;
+        op.op_type = sync::ChangeOpType::Put;
+        op.dbi_name = "t";
+        op.storage_key = { static_cast<std::uint8_t>(seq) };
+        op.value = { 0xFF };
+        b.ops.push_back(op);
+        return b;
+    };
+
+    // Direct apply: seq=1 first
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        if (engine.apply_batch(txn.handle(), make_batch(1)) != sync::ApplyResult::Applied) {
+            throw std::runtime_error("seq=1 should apply");
+        }
+        txn.commit();
+    }
+
+    // Push [seq=3] — should be Conflict, ok=false, no commit
+    {
+        sync::DirectSyncPeer peer(&engine);
+        sync::PushRequest req;
+        req.sender = make_node(0x20);
+        req.db_id  = make_node(0x10);  // peer db_id == local db_uuid
+        req.batches.push_back(make_batch(3));
+
+        const sync::PushResponse resp = peer.push(req);
+        if (resp.ok) {
+            throw std::runtime_error("push with gap should return ok=false");
+        }
+    }
+
+    // After rejected push, table 't' should still be empty (rollback worked)
+    {
+        KeyValueTable<std::uint8_t, std::uint8_t> t(conn, "t");
+        if (kv_has(conn, t, static_cast<std::uint8_t>(3))) {
+            throw std::runtime_error("seq=3 must not be persisted on rejected push");
+        }
+    }
+
+    // Receiver cursor should remain at seq=1
+    {
+        const sync::SyncCursor cur = engine.applied_cursor();
+        if (cur.last_seq_for(make_node(0x20)) != 1u) {
+            throw std::runtime_error("cursor should still be at seq=1 after rejected push");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_handle_pull_wrong_db_id() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_pull_wrong_db.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xA0), make_node(0xD0));
+
+    sync::DirectSyncPeer peer(&engine);
+    sync::PullRequest req;
+    req.requester = make_node(0xB0);
+    req.db_id     = make_node(0xFF);  // wrong db_id
+
+    const sync::PullResponse resp = peer.pull(req);
+    if (resp.ok) {
+        throw std::runtime_error("pull with wrong db_id should return ok=false");
+    }
+    if (!resp.batches.empty()) {
+        throw std::runtime_error("pull with wrong db_id should not return batches");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_handle_push_wrong_db_id() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_push_wrong_db.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xA0), make_node(0xD0));
+
+    sync::ChangeBatch b;
+    b.origin_node_id = make_node(0x20);
+    b.seq = 1;
+    sync::ChangeOp op;
+    op.op_type = sync::ChangeOpType::Put;
+    op.dbi_name = "t";
+    op.storage_key = { 0x01 };
+    op.value = { 0xAA };
+    b.ops.push_back(op);
+
+    sync::DirectSyncPeer peer(&engine);
+    sync::PushRequest req;
+    req.sender = make_node(0x20);
+    req.db_id  = make_node(0xFF);  // wrong
+    req.batches.push_back(b);
+
+    const sync::PushResponse resp = peer.push(req);
+    if (resp.ok) {
+        throw std::runtime_error("push with wrong db_id should return ok=false");
+    }
+
+    {
+        KeyValueTable<std::uint8_t, std::uint8_t> t(conn, "t");
+        if (kv_has(conn, t, static_cast<std::uint8_t>(1))) {
+            throw std::runtime_error("table must be empty on wrong db_id push");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_handle_pull_pagination_has_more() {
+    using namespace mdbxc;
+    const std::string primary_path = "test_engine_pull_pag.mdbx";
+    const std::string replica_path = "test_engine_pull_pag_replica.mdbx";
+    cleanup(primary_path); cleanup(replica_path);
+
+    auto primary_conn = open_env(primary_path);
+    auto replica_conn = open_env(replica_path);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_uuid      = make_node(0xD0);
+
+    sync::SyncEngine primary_engine(primary_conn);
+    sync::SyncEngine replica_engine(replica_conn);
+    primary_engine.initialize_local_identity(primary_node, db_uuid);
+    replica_engine.initialize_local_identity(replica_node, db_uuid);
+
+    sync::ThreadLocalChangeAccumulator primary_sink(primary_conn);
+    primary_conn->attach_sync_capture(&primary_sink);
+    {
+        KeyValueTable<int, int> kv(primary_conn, "kv");
+        for (int i = 1; i <= 5; ++i) {
+            kv.insert_or_assign(i, i * 100);
+        }
+    }
+    primary_conn->detach_sync_capture();
+
+    sync::DirectSyncPeer peer(&primary_engine);
+    sync::PullRequest req;
+    req.requester  = replica_node;
+    req.db_id      = db_uuid;
+    req.max_batches = 2;  // force pagination
+    const sync::PullResponse resp = peer.pull(req);
+
+    if (resp.batches.size() != 2u) {
+        throw std::runtime_error("expected 2 batches, got " +
+                                 std::to_string(resp.batches.size()));
+    }
+    if (!resp.has_more) {
+        throw std::runtime_error("has_more should be true when limit truncates pull");
+    }
+
+    // Apply first page
+    {
+        auto txn = replica_conn->transaction(TransactionMode::WRITABLE);
+        for (const sync::ChangeBatch& b : resp.batches) {
+            replica_engine.apply_batch(txn.handle(), b);
+        }
+        txn.commit();
+    }
+
+    // Pull page 2 with cursor from page 1
+    sync::PullRequest req2;
+    req2.requester = replica_node;
+    req2.db_id     = db_uuid;
+    req2.have      = replica_engine.applied_cursor();
+    req2.max_batches = 100;  // no limit this time
+    const sync::PullResponse resp2 = peer.pull(req2);
+    if (resp2.batches.size() != 3u) {
+        throw std::runtime_error("expected 3 remaining batches, got " +
+                                 std::to_string(resp2.batches.size()));
+    }
+    if (resp2.has_more) {
+        throw std::runtime_error("has_more should be false after draining changelog");
+    }
+
+    {
+        auto txn = replica_conn->transaction(TransactionMode::WRITABLE);
+        for (const sync::ChangeBatch& b : resp2.batches) {
+            replica_engine.apply_batch(txn.handle(), b);
+        }
+        txn.commit();
+    }
+
+    KeyValueTable<int, int> replica_kv(replica_conn, "kv");
+    for (int i = 1; i <= 5; ++i) {
+        if (kv_or_throw(replica_conn, replica_kv, i, "missing on replica") != i * 100) {
+            throw std::runtime_error("wrong value on replica after paginated pull");
+        }
+    }
+
+    primary_conn->disconnect();
+    replica_conn->disconnect();
+    cleanup(primary_path); cleanup(replica_path);
 }
 
 } // namespace
@@ -338,6 +572,10 @@ int main() {
         { "test_engine_gap_returns_conflict",   &test_engine_gap_returns_conflict },
         { "test_engine_applied_cursor",         &test_engine_applied_cursor },
         { "test_engine_handle_push_to_remote",  &test_engine_handle_push_to_remote },
+        { "test_engine_push_gap_rolls_back",    &test_engine_push_gap_rolls_back },
+        { "test_engine_handle_pull_wrong_db_id",&test_engine_handle_pull_wrong_db_id },
+        { "test_engine_handle_push_wrong_db_id",&test_engine_handle_push_wrong_db_id },
+        { "test_engine_handle_pull_pagination", &test_engine_handle_pull_pagination_has_more },
     };
 
     int rc = 0;

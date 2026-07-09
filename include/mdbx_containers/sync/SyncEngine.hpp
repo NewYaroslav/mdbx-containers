@@ -37,7 +37,7 @@
 #include "ChangeBatch.hpp"
 #include "ChangeBatchCodec.hpp"
 #include "ChangeOp.hpp"
-#include "Protocol.hpp"
+#include "protocol.hpp"
 #include "SyncCursor.hpp"
 #include "../common/MdbxException.hpp"
 #include "../common/Transaction.hpp"
@@ -146,11 +146,20 @@ namespace sync {
                 /// \brief Handles a pull request: scans the local \c ChangeLogStore
         /// for batches newer than the requester's cursor.
         /// \details When \c request.have is empty, returns a full snapshot
-        /// (all known origins, batches from seq=1). The \c remote_have field
-        /// is left empty; callers can call \c applied_cursor separately when
-        /// they want it.
+        /// (all known origins, batches from seq=1). Validates
+        /// \c request.db_id against the local \c db_uuid; mismatched peers
+        /// receive an empty response with \c ok=false.
+        /// \c has_more is set to \c true when the loop stopped because of
+        /// \c request.max_batches or \c request.max_bytes rather than
+        /// running out of changelog entries.
         PullResponse handle_pull(const PullRequest& request) {
             PullResponse out;
+            if (!db_id_matches(request.db_id)) {
+                out.ok = false;
+                out.error = "db_id mismatch";
+                return out;
+            }
+
             MDBX_txn* txn = nullptr;
             check_mdbx(mdbx_txn_begin(m_conn->env_handle(), nullptr,
                                       MDBX_TXN_RDONLY, &txn),
@@ -161,7 +170,10 @@ namespace sync {
             } guard{txn};
 
             MDBX_dbi changelog_dbi = open_changelog_ro(txn);
-            if (changelog_dbi == 0) return out;
+            if (changelog_dbi == 0) {
+                out.remote_have = read_applied_cursor(txn, out.remote_have);
+                return out;
+            }
 
             if (request.have.last_seq_by_origin.empty()) {
                 return pull_full_snapshot(txn, changelog_dbi, request);
@@ -169,6 +181,7 @@ namespace sync {
 
             std::vector<std::uint8_t> buf;
             std::size_t total_bytes = 0;
+            bool truncated = false;
             for (const auto& kv : request.have.last_seq_by_origin) {
                 const NodeId& origin = kv.first;
                 const std::uint64_t have_seq = kv.second;
@@ -183,29 +196,36 @@ namespace sync {
                     out.batches.push_back(b);
                     total_bytes += buf.size();
                     ++next_seq;
-                    if (!(b.batch_flags & BATCH_HAS_MORE)) {
-                        break;
-                    }
+                }
+                if (out.batches.size() >= request.max_batches ||
+                    total_bytes >= request.max_bytes) {
+                    truncated = true;
+                    break;
                 }
             }
-            out.has_more = false;
+            out.has_more = truncated;
+            out.remote_have = read_applied_cursor(txn, out.remote_have);
             return out;
         }
 
         /// \brief Walks the changelog with a cursor and returns every batch.
+        /// \details Sets \c has_more=true when the walk stopped because of
+        /// \c request.max_batches or \c request.max_bytes.
         PullResponse pull_full_snapshot(MDBX_txn* txn, MDBX_dbi dbi,
                                         const PullRequest& request) {
             PullResponse out;
-            out.remote_have = applied_cursor(txn);
+            out.remote_have = read_applied_cursor(txn, out.remote_have);
             MDBX_cursor* raw = nullptr;
             check_mdbx(mdbx_cursor_open(txn, dbi, &raw), "pull_full: cursor open failed");
             std::size_t total_bytes = 0;
+            bool truncated = false;
             try {
                 MDBX_val k, v;
                 int rc = mdbx_cursor_get(raw, &k, &v, MDBX_FIRST);
                 while (rc == MDBX_SUCCESS) {
                     if (out.batches.size() >= request.max_batches ||
                         total_bytes >= request.max_bytes) {
+                        truncated = true;
                         break;
                     }
                     std::vector<std::uint8_t> buf(v.iov_len);
@@ -224,19 +244,35 @@ namespace sync {
                 throw;
             }
             mdbx_cursor_close(raw);
+            out.has_more = truncated;
             return out;
         }
 
-        /// \brief Handles a push request: applies each batch in order and
-        /// returns the resulting cursor.
+        /// \brief Handles a push request: applies each batch in order.
+        /// \details Atomic: when \c apply_batch returns \c Conflict for any
+        /// batch, the transaction is rolled back (no partial commit) and
+        /// \c ok is set to \c false. Validates \c request.db_id against the
+        /// local \c db_uuid; mismatched peers receive \c ok=false with no
+        /// side effects.
         PushResponse handle_push(const PushRequest& request) {
             PushResponse out;
-            out.receiver_have = applied_cursor();
+            if (!db_id_matches(request.db_id)) {
+                out.ok = false;
+                out.error = "db_id mismatch";
+                out.receiver_have = applied_cursor();
+                return out;
+            }
             auto txn = m_conn->transaction(TransactionMode::WRITABLE);
             for (const ChangeBatch& batch : request.batches) {
-                (void)apply_batch(txn.handle(), batch);
+                const ApplyResult r = apply_batch(txn.handle(), batch);
+                if (r == ApplyResult::Conflict) {
+                    out.ok = false;
+                    out.error = "gap/conflict while applying pushed batch";
+                    return out;  // txn dtor rolls back; receiver_have stays stale
+                }
             }
             txn.commit();
+            out.ok = true;
             out.receiver_have = applied_cursor();
             return out;
         }
@@ -257,6 +293,15 @@ namespace sync {
         }
 
     private:
+        /// \brief Returns true when \p request_db_id matches the local
+        /// \c db_uuid. A zero \p request_db_id is rejected: callers must
+        /// know the database identity before issuing pull/push requests.
+        bool db_id_matches(const NodeId& request_db_id) const {
+            const NodeId zero{};
+            if (compare_node_id(request_db_id, zero) == 0) return false;
+            return compare_node_id(request_db_id, db_uuid()) == 0;
+        }
+
         /// \brief Opens \c _mdbxc_changelog read-only when it exists; 0 otherwise.
         static MDBX_dbi open_changelog_ro(MDBX_txn* txn) {
             return open_store_ro(txn, "_mdbxc_changelog");
