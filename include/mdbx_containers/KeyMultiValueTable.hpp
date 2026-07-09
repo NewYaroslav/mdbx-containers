@@ -361,7 +361,7 @@ namespace mdbxc {
 
         // --- Bounds / edges ---
 
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         /// \brief Finds the first physical pair whose key is not less than the given key.
         /// \param key Key to bound.
         /// \param txn Optional transaction handle.
@@ -473,7 +473,7 @@ namespace mdbxc {
         std::optional<KeyT> max_key(const Transaction& txn) const {
             return max_key(txn.handle());
         }
-#else
+#       else
         /// \brief Finds the first physical pair whose key is not less than the given key.
         /// \param key Key to bound.
         /// \param txn Optional transaction handle.
@@ -673,7 +673,7 @@ namespace mdbxc {
         std::pair<bool, KeyT> max_key_compat(const Transaction& txn) const {
             return max_key_compat(txn.handle());
         }
-#endif
+#       endif
 
         // --- Reverse scan ---
 
@@ -1406,7 +1406,8 @@ namespace mdbxc {
             return true;
         }
 
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
+
         std::optional<value_type> db_lower_bound(const KeyT& key, MDBX_txn* txn) const {
             SerializeScratch sc_key;
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
@@ -1493,7 +1494,9 @@ namespace mdbxc {
             check_mdbx(rc, "Failed to seek maximum key");
             return deserialize_key<KeyT>(db_key);
         }
-#else
+
+#       else
+
         std::pair<bool, value_type> db_lower_bound_compat(const KeyT& key, MDBX_txn* txn) const {
             SerializeScratch sc_key;
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
@@ -1580,7 +1583,8 @@ namespace mdbxc {
             check_mdbx(rc, "Failed to seek maximum key");
             return std::make_pair(true, deserialize_key<KeyT>(db_key));
         }
-#endif
+
+#       endif
 
         void db_range_reverse(const KeyT& from_key, const KeyT& to_key,
                               std::vector<value_type>& out, MDBX_txn* txn) const {

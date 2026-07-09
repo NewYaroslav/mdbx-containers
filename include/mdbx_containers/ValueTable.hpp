@@ -133,7 +133,8 @@ namespace mdbxc {
             return try_get(out, txn.handle());
         }
 
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
+
         /// \brief Finds the singleton value.
         /// \param txn Optional transaction handle.
         /// \return Optional containing the value when present.
@@ -154,7 +155,9 @@ namespace mdbxc {
         std::optional<ValueT> find(const Transaction& txn) const {
             return find(txn.handle());
         }
-#else
+
+#       else
+
         /// \brief Finds the singleton value.
         /// \param txn Optional transaction handle.
         /// \return Pair of success flag and value.
@@ -168,7 +171,8 @@ namespace mdbxc {
         std::pair<bool, ValueT> find(const Transaction& txn) const {
             return find(txn.handle());
         }
-#endif
+
+#       endif
 
         /// \brief Finds the singleton value in a C++11-compatible form.
         /// \param txn Optional transaction handle.
@@ -366,12 +370,12 @@ namespace mdbxc {
             MDBX_val db_val = serialize_value(value, sc_value);
             int rc = mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
             if (rc == MDBX_SUCCESS) {
-#if MDBXC_SYNC_ENABLED
+#               if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> vbytes(
                     static_cast<std::uint8_t*>(db_val.iov_base),
                     static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
                 record_op(txn, sync::ChangeOpType::Put, {}, vbytes);
-#endif
+#               endif
                 return true;
             }
             if (rc == MDBX_KEYEXIST) return false;
@@ -406,9 +410,9 @@ namespace mdbxc {
             MDBX_val db_key = make_key(sc_key);
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
-#if MDBXC_SYNC_ENABLED
+#               if MDBXC_SYNC_ENABLED
                 record_op(txn, sync::ChangeOpType::Delete, {}, {});
-#endif
+#               endif
                 return true;
             }
             if (rc == MDBX_NOTFOUND) return false;
@@ -418,9 +422,9 @@ namespace mdbxc {
 
         void db_clear(MDBX_txn* txn) {
             check_mdbx(mdbx_drop(txn, m_dbi, 0), "Failed to clear value table");
-#if MDBXC_SYNC_ENABLED
+#           if MDBXC_SYNC_ENABLED
             record_op(txn, sync::ChangeOpType::ClearTable, {}, {});
-#endif
+#           endif
         }
     };
 

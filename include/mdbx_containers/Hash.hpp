@@ -59,12 +59,12 @@ namespace mdbxc {
                 std::is_same<T, uint8_t>::value;
         };
 
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         template<>
         struct is_hashed_byte_element<std::byte> {
             static const bool value = true;
         };
-#endif
+#       endif
 
     } // namespace detail
 

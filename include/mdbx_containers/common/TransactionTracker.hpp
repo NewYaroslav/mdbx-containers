@@ -81,7 +81,7 @@ namespace mdbxc {
         
         virtual ~TransactionTracker() = default;
 
-#if MDBXC_SYNC_ENABLED
+#       if MDBXC_SYNC_ENABLED
         /// \brief Pre-commit hook for sync capture.
         /// \details Called by \c Transaction::commit before \c mdbx_txn_commit
         /// for write transactions. Default is no-op; \c Connection overrides.
@@ -96,7 +96,7 @@ namespace mdbxc {
         virtual void on_discard(MDBX_txn* txn) noexcept {
             (void)txn;
         }
-#endif
+#       endif
 
     private:
         mutable std::mutex m_mutex;  ///< Protects access to m_thread_txns.
