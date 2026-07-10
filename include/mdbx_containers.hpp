@@ -9,7 +9,7 @@
 ///        only the table API is needed.
 
 #include "mdbx_containers/tables.hpp"
-#include "mdbx_containers/Sync.hpp"
+#include "mdbx_containers/sync.hpp"
 #include "mdbx_containers/vector.hpp"
 
 #endif // MDBX_CONTAINERS_HEADER_MDBX_CONTAINERS_HPP_INCLUDED
