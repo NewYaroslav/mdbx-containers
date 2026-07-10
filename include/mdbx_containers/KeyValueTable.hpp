@@ -114,7 +114,7 @@ namespace mdbxc {
         /// \note The returned container is fresh; database records are inserted
         ///       according to the requested container's insertion rules.
         template<template<class...> class ContainerT = std::map>
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         auto operator()() {
             using ReturnT = std::conditional_t<
                 std::is_same_v<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT>>>,
@@ -128,7 +128,8 @@ namespace mdbxc {
             }, TransactionMode::READ_ONLY);
             return container;
         }
-#else
+#       else
+
         typename std::conditional<
             std::is_same<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT> > >::value,
             std::vector<std::pair<KeyT, ValueT> >,
@@ -146,7 +147,7 @@ namespace mdbxc {
             }, TransactionMode::READ_ONLY);
             return container;
         }
-#endif
+#       endif
 
         /// \brief Helper proxy for convenient assignment via operator[].
         class AssignmentProxy {
@@ -170,13 +171,13 @@ namespace mdbxc {
             /// \warning Reading a missing key through this conversion mutates
             ///          the table by persisting a default-constructed value.
             operator ValueT() const {
-#if __cplusplus >= 201703L
+#               if __cplusplus >= 201703L
                 auto val = m_db.find(m_key);
                 if (val) return *val;
-#else
+#               else
                 std::pair<bool, ValueT> val = m_db.find(m_key);
                 if (val.first) return val.second;
-#endif
+#               endif
                 ValueT def{}; // default construct if missing
                 m_db.insert_or_assign(m_key, def); // persist the default value
                 return def;
@@ -249,7 +250,7 @@ namespace mdbxc {
         /// \throws MdbxException if a database error occurs.
         /// \note Returns a fresh container populated from the table.
         template<template<class...> class ContainerT = std::map>
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         auto retrieve_all(MDBX_txn* txn = nullptr) {
             using ReturnT = std::conditional_t<
                 std::is_same_v<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT>>>,
@@ -273,7 +274,7 @@ namespace mdbxc {
         auto retrieve_all(const Transaction& txn) {
             return retrieve_all<ContainerT>(txn.handle());
         }
-#else
+#       else
         typename std::conditional<
             std::is_same<ContainerT<KeyT, ValueT>, std::vector<std::pair<KeyT, ValueT> > >::value,
             std::vector<std::pair<KeyT, ValueT> >,
@@ -305,7 +306,7 @@ namespace mdbxc {
         >::type retrieve_all(const Transaction& txn) {
             return retrieve_all<ContainerT>(txn.handle());
         }
-#endif
+#       endif
 
         /// \brief Retrieves key-value pairs within an inclusive key range.
         /// \tparam ContainerT Container type storing key-value pairs.
@@ -452,7 +453,8 @@ namespace mdbxc {
 
         // --- Bounds / edges ---
 
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
+
         /// \brief Finds the first key-value pair whose key is not less than the given key.
         /// \param key Key to bound.
         /// \param txn Optional transaction handle.
@@ -564,7 +566,9 @@ namespace mdbxc {
         std::optional<KeyT> max_key(const Transaction& txn) const {
             return max_key(txn.handle());
         }
-#else
+
+#       else
+
         /// \brief Finds the first key-value pair whose key is not less than the given key.
         /// \param key Key to bound.
         /// \param txn Optional transaction handle.
@@ -764,7 +768,7 @@ namespace mdbxc {
         std::pair<bool, KeyT> max_key_compat(const Transaction& txn) const {
             return max_key_compat(txn.handle());
         }
-#endif
+#       endif
 
         // --- Reverse scan ---
 
@@ -1126,7 +1130,7 @@ namespace mdbxc {
             return try_get(key, out, txn.handle());
         }
 
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         /// \brief Finds value by key.
         /// \param key Key to search for.
         /// \param txn Optional active MDBX transaction.
@@ -1152,7 +1156,7 @@ namespace mdbxc {
         std::optional<ValueT> find(const KeyT& key, const Transaction& txn) const {
             return find(key, txn.handle());
         }
-#else
+#       else
         /// \brief Finds value by key.
         /// \param key Key to search for.
         /// \param txn Optional active MDBX transaction.
@@ -1176,7 +1180,7 @@ namespace mdbxc {
         std::pair<bool, ValueT> find(const KeyT& key, const Transaction& txn) const {
             return find(key, txn.handle());
         }
-#endif
+#       endif
 
         /// \brief Finds value by key.
         /// \param key Key to search for.
@@ -1559,7 +1563,7 @@ namespace mdbxc {
             return true;
         }
 
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         std::optional<value_type> db_lower_bound(const KeyT& key, MDBX_txn* txn) const {
             SerializeScratch sc_key;
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
@@ -1653,7 +1657,7 @@ namespace mdbxc {
             check_mdbx(rc, "Failed to seek maximum key");
             return deserialize_key<KeyT>(db_key);
         }
-#else
+#       else
         std::pair<bool, value_type> db_lower_bound_compat(const KeyT& key, MDBX_txn* txn) const {
             SerializeScratch sc_key;
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
@@ -1747,7 +1751,7 @@ namespace mdbxc {
             check_mdbx(rc, "Failed to seek maximum key");
             return std::make_pair(true, deserialize_key<KeyT>(db_key));
         }
-#endif
+#       endif
 
         void db_range_reverse(const KeyT& from_key, const KeyT& to_key,
                               std::vector<value_type>& out, MDBX_txn* txn) const {
@@ -1970,7 +1974,7 @@ namespace mdbxc {
             SerializeScratch sc_key;
             SerializeScratch sc_value;
             
-#if __cplusplus >= 201703L
+#           if __cplusplus >= 201703L
             for (const auto& [key, value] : container) {
                 MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
                 MDBX_val db_val = serialize_value(value, sc_value);
@@ -1979,7 +1983,7 @@ namespace mdbxc {
                     "Failed to write record"
                 );
             }
-#else
+#           else
             for (typename std::vector<std::pair<KeyT, ValueT> >::const_iterator it = container.begin();
                  it != container.end(); ++it) {
                 const KeyT& key = it->first;
@@ -1991,7 +1995,7 @@ namespace mdbxc {
                     "Failed to write record"
                 );
             }
-#endif
+#           endif
         }
 
         /// \brief Reconciles the content of the database with the container.
@@ -2091,7 +2095,7 @@ namespace mdbxc {
             int rc = mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
 
             if (rc == MDBX_SUCCESS) {
-#if MDBXC_SYNC_ENABLED
+#               if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
@@ -2099,7 +2103,7 @@ namespace mdbxc {
                     static_cast<std::uint8_t*>(db_val.iov_base),
                     static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
                 record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
-#endif
+#               endif
                 return true;
             }
             if (rc == MDBX_KEYEXIST)
@@ -2123,7 +2127,7 @@ namespace mdbxc {
                 mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),  // or 0
                 "Failed to insert or assign key-value pair"
             );
-#if MDBXC_SYNC_ENABLED
+#           if MDBXC_SYNC_ENABLED
             const std::vector<std::uint8_t> kbytes(
                 static_cast<std::uint8_t*>(db_key.iov_base),
                 static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
@@ -2131,7 +2135,7 @@ namespace mdbxc {
                 static_cast<std::uint8_t*>(db_val.iov_base),
                 static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
             record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
-#endif
+#           endif
         }
 
         template<typename Fn>
@@ -2178,12 +2182,12 @@ namespace mdbxc {
             MDBX_val db_key = serialize_key<Options::safe_integer_key>(key, sc_key);
             const int rc = mdbx_del(txn_handle, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
-#if MDBXC_SYNC_ENABLED
+#               if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
                 record_op(txn_handle, sync::ChangeOpType::Delete, kbytes, {});
-#endif
+#               endif
                 return true;
             }
             if (rc == MDBX_NOTFOUND) return false;
@@ -2195,9 +2199,9 @@ namespace mdbxc {
         /// \throws MdbxException if an MDBX error occurs.
         void db_clear(MDBX_txn* txn_handle) {
             check_mdbx(mdbx_drop(txn_handle, m_dbi, 0), "Failed to clear table");
-#if MDBXC_SYNC_ENABLED
+#           if MDBXC_SYNC_ENABLED
             record_op(txn_handle, sync::ChangeOpType::ClearTable, {}, {});
-#endif
+#           endif
         }
 
     }; // KeyValueTable

@@ -57,11 +57,11 @@ namespace mdbxc {
             (void)rc;
         }
 
-#if MDBXC_SYNC_ENABLED
+#       if MDBXC_SYNC_ENABLED
         if (registry && txn && was_started && mode == TransactionMode::WRITABLE) {
             registry->on_discard(txn);
         }
-#endif
+#       endif
 
         if (registry && txn && was_started) {
             safe_unbind_txn(registry, txn);
@@ -133,13 +133,13 @@ namespace mdbxc {
         {
             MDBX_txn* txn = m_txn;
 
-#if MDBXC_SYNC_ENABLED
-            /// \brief Pre-commit hook for changelog capture.
-            /// \details Runs inside the write transaction, before
-            /// \c mdbx_txn_commit. Any \c MdbxException raised here aborts the
-            /// commit so user-visible writes and changelog rows stay atomic.
+#           if MDBXC_SYNC_ENABLED
+            // Pre-commit hook for changelog capture.
+            // Runs inside the write transaction, before mdbx_txn_commit. 
+            // MdbxException raised here aborts the commit so 
+            // user-visible writes and changelog rows stay atomic.
             m_registry->on_pre_commit(txn);
-#endif
+#           endif
 
             const int rc = mdbx_txn_commit(txn);
 
@@ -199,9 +199,9 @@ namespace mdbxc {
             m_txn = nullptr;
             m_started = false;
 
-#if MDBXC_SYNC_ENABLED
+#           if MDBXC_SYNC_ENABLED
             registry->on_discard(txn);
-#endif
+#           endif
             safe_unbind_txn(registry, txn);
             safe_unregister_txn_handle(registry);
 

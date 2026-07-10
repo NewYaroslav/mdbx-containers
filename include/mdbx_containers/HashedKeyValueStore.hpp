@@ -65,13 +65,13 @@ namespace mdbxc {
                 }
 
                 operator ValueT() const {
-#if __cplusplus >= 201703L
+#                   if __cplusplus >= 201703L
                     std::optional<ValueT> found = m_store.find(m_key);
                     if (found) return *found;
-#else
+#                   else
                     std::pair<bool, ValueT> found = m_store.find_compat(m_key);
                     if (found.first) return found.second;
-#endif
+#                   endif
                     ValueT value{};
                     m_store.insert_or_assign(m_key, value);
                     return value;

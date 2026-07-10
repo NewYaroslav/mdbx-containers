@@ -184,7 +184,7 @@ namespace mdbxc {
         /// \return Optional with value or std::nullopt.
         /// \note If type-tag verification reports a mismatch, the value is
         ///       treated as missing.
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         template <class T>
         std::optional<T> find(const KeyT& key, MDBX_txn* txn = nullptr) const {
             std::optional<T> result;
@@ -229,7 +229,7 @@ namespace mdbxc {
         T get_or(const KeyT& key, T default_value, const Transaction& txn) const {
             return get_or<T>(key, std::move(default_value), txn.handle());
         }
-#else
+#       else
         /// \brief Find value by key returning C++11-compatible result.
         /// \tparam T Expected value type.
         /// \param key Key to search for.
@@ -287,7 +287,7 @@ namespace mdbxc {
         T get_or(const KeyT& key, T default_value, const Transaction& txn) const {
             return get_or<T>(key, std::move(default_value), txn.handle());
         }
-#endif
+#       endif
 
         // --- Meta ---
 

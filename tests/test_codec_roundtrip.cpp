@@ -1,4 +1,4 @@
-#include <mdbx_containers/Sync.hpp>
+#include <mdbx_containers/sync.hpp>
 #include <cstdint>
 #include <cstdio>
 #include <stdexcept>

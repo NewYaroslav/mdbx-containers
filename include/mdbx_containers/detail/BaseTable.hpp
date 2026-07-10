@@ -167,7 +167,7 @@ namespace mdbxc {
             }
         }
 
-#if MDBXC_SYNC_ENABLED
+#       if MDBXC_SYNC_ENABLED
         /// \brief Forwards a successful write to the attached sync capture sink.
         /// \details Called from derived table \c db_* helpers right after a
         /// successful \c mdbx_put / \c mdbx_del. No-op when no sink is attached
@@ -181,7 +181,7 @@ namespace mdbxc {
             if (sink == nullptr) return;
             sink->record_change(txn, m_name, op_type, storage_key, value);
         }
-#endif
+#       endif
     };
     
 }; // namespace mdbxc

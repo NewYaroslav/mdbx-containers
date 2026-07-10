@@ -1,5 +1,5 @@
 #include <mdbx_containers.hpp>
-#include <mdbx_containers/Sync.hpp>
+#include <mdbx_containers/sync.hpp>
 #include <cstdint>
 #include <cstdio>
 #include <map>

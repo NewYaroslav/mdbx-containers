@@ -157,7 +157,7 @@ namespace mdbxc {
         return m_config ? m_config->max_dupsort_value_size : Config().max_dupsort_value_size;
     }
 
-#if MDBXC_SYNC_ENABLED
+#   if MDBXC_SYNC_ENABLED
     inline void Connection::attach_sync_capture(sync::ISyncCaptureSink* sink) {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         m_sync_capture = sink;
@@ -189,7 +189,7 @@ namespace mdbxc {
             // discard must not throw; sink contract is noexcept.
         }
     }
-#endif
+#   endif
 
     inline void Connection::backup_to(const std::string& path, const BackupOptions& options) {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
@@ -278,9 +278,9 @@ namespace mdbxc {
     }
     
     inline void Connection::db_init() {
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         namespace fs = std::filesystem;
-#endif
+#       endif
 
         int rc = 0;
         check_mdbx(

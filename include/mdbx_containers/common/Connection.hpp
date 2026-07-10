@@ -42,11 +42,11 @@ namespace mdbxc {
     /// \see https://libmdbx.dqdkfa.ru/group__c__transactions.html
     /// \see https://libmdbx.dqdkfa.ru/group__c__opening.html
     class Connection : private TransactionTracker {
-#if MDBXC_SYNC_ENABLED
+#   if MDBXC_SYNC_ENABLED
     public:
         void on_pre_commit(MDBX_txn* txn) override;
         void on_discard(MDBX_txn* txn) noexcept override;
-#endif
+#   endif
     private:
         friend class BaseTable;
     public:
@@ -167,7 +167,7 @@ namespace mdbxc {
         /// \return Maximum duplicate value size, or a non-positive value when disabled.
         int64_t max_dupsort_value_size() const;
 
-#if MDBXC_SYNC_ENABLED
+#       if MDBXC_SYNC_ENABLED
         /// \brief Attaches a non-owning \c ISyncCaptureSink.
         /// \details Pass \c nullptr to disable change capture. The pointer is
         /// non-owning; the sink must outlive the \c Connection period during
@@ -184,7 +184,7 @@ namespace mdbxc {
 
         /// \brief Returns the currently attached \c ISyncCaptureSink or \c nullptr.
         sync::ISyncCaptureSink* sync_capture() const;
-#endif
+#       endif
 
         /// \brief Copies the whole MDBX environment to a file or directory path.
         /// \param path Destination path. The target must not already exist;
@@ -244,9 +244,9 @@ namespace mdbxc {
         /// \brief Initializes and opens the MDBX environment.
         void db_init();
 
-#if MDBXC_SYNC_ENABLED
+#       if MDBXC_SYNC_ENABLED
         sync::ISyncCaptureSink* m_sync_capture = nullptr;
-#endif
+#       endif
 
     }; // Connection
 

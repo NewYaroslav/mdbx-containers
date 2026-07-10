@@ -151,7 +151,7 @@ namespace mdbxc {
             return try_get(id, out, txn.handle());
         }
 
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         /// \brief Finds the value at the given index.
         /// \param id Index to look up.
         /// \param txn Optional transaction handle.
@@ -174,7 +174,7 @@ namespace mdbxc {
         std::optional<ValueT> find(uint64_t id, const Transaction& txn) const {
             return find(id, txn.handle());
         }
-#endif
+#       endif
 
         /// \brief Finds the value at the given index in a C++11-compatible form.
         /// \param id Index to look up.
@@ -318,7 +318,7 @@ namespace mdbxc {
             return empty(txn.handle());
         }
 
-#if __cplusplus >= 201703L
+#       if __cplusplus >= 201703L
         /// \brief Returns the first (smallest) index in the table.
         /// \param txn Optional transaction handle.
         /// \return Optional containing the first index, or empty if the table is empty.
@@ -356,7 +356,7 @@ namespace mdbxc {
         std::optional<uint64_t> last_index(const Transaction& txn) const {
             return last_index(txn.handle());
         }
-#endif
+#       endif
 
         /// \brief Returns the first (smallest) index in a C++11-compatible form.
         /// \param txn Optional transaction handle.
@@ -555,7 +555,7 @@ namespace mdbxc {
             }
             check_mdbx(rc, "Failed to append value");
             {
-#if MDBXC_SYNC_ENABLED
+#               if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
@@ -563,7 +563,7 @@ namespace mdbxc {
                     static_cast<std::uint8_t*>(db_val.iov_base),
                     static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
                 record_op(txn, sync::ChangeOpType::Put, kbytes, vbytes);
-#endif
+#               endif
             }
             return next_id;
         }
@@ -604,12 +604,12 @@ namespace mdbxc {
             MDBX_val db_key = make_key(id, sc_key);
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
-#if MDBXC_SYNC_ENABLED
+#               if MDBXC_SYNC_ENABLED
                 const std::vector<std::uint8_t> kbytes(
                     static_cast<std::uint8_t*>(db_key.iov_base),
                     static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
                 record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
-#endif
+#               endif
                 return true;
             }
             if (rc == MDBX_NOTFOUND) return false;
@@ -619,9 +619,9 @@ namespace mdbxc {
 
         void db_clear(MDBX_txn* txn) {
             check_mdbx(mdbx_drop(txn, m_dbi, 0), "Failed to clear SequenceTable");
-#if MDBXC_SYNC_ENABLED
+#           if MDBXC_SYNC_ENABLED
             record_op(txn, sync::ChangeOpType::ClearTable, {}, {});
-#endif
+#           endif
         }
 
         std::size_t db_count(MDBX_txn* txn) const {

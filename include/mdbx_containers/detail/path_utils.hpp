@@ -40,14 +40,14 @@ namespace mdbxc {
     namespace fs = std::filesystem;
 #   endif
 
-#if __cplusplus >= 202002L
+#   if __cplusplus >= 202002L
     /// \brief Converts a UTF-8 string with char8_t characters to std::string.
     inline std::string u8string_to_string(const std::u8string& s) {
         return std::string(s.begin(), s.end());
     }
-#endif
+#   endif
 
-#ifdef _WIN32
+#   ifdef _WIN32
     /// \brief Converts a wide Windows string to a UTF-8 string.
     inline std::string wide_to_utf8(const std::wstring& wide) {
         if (wide.empty()) return std::string();
@@ -85,7 +85,7 @@ namespace mdbxc {
         }
         return wide;
     }
-#endif
+#   endif
 
     /// \brief Check if path starts with explicit relative prefix.
     /// \param s Path string to inspect.
