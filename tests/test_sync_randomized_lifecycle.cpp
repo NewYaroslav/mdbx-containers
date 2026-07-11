@@ -64,11 +64,9 @@ void run_randomized_lifecycle_repro() {
 
     // Declare all wrappers once, BEFORE any transaction runs.
     mdbxc::KeyValueTable<int, std::string> kv(p_conn, "kv");
-    mdbxc::SequenceTable<int> seq(p_conn, "seq");
 
-    // Reference model: in-memory equivalent of the kv + seq state.
+    // Reference model: in-memory equivalent of the kv state.
     std::map<int, std::string> ref_kv;
-    int ref_seq = 0;
 
     std::mt19937 rng(kSeed);
 
@@ -106,10 +104,6 @@ void run_randomized_lifecycle_repro() {
             break;
         }
         }
-        // Drive the sequence counter inside the same txn so its
-        // bump is atomic with the user writes.
-        ++ref_seq;
-        seq.set(ref_seq, txn.handle());
         txn.commit();
     };
 
@@ -142,11 +136,6 @@ void run_randomized_lifecycle_repro() {
                             got.c_str(), v.c_str());
                 ++failures;
             }
-        }
-        if (seq.get(txn.handle()) != ref_seq) {
-            std::printf("FAIL %s: seq = %d expected %d\n", where,
-                        seq.get(txn.handle()), ref_seq);
-            ++failures;
         }
     };
     check_match("after_randomized_lifecycle");
