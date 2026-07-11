@@ -561,6 +561,35 @@ void test_engine_handle_pull_pagination_has_more() {
     cleanup(primary_path); cleanup(replica_path);
 }
 
+void test_engine_handle_pull_lifecycle() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_pull_lifecycle.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine local_engine(conn);
+    local_engine.initialize_local_identity(make_node(0x10), make_node(0x10));
+
+    sync::DirectSyncPeer peer(&local_engine);
+    sync::PullRequest req;
+    req.requester = make_node(0x20);
+    req.db_id     = make_node(0x10);
+    // Many handle_pull() calls in sequence — the read txn guard must abort
+    // (release handle + reader slot) every time, otherwise long-lived
+    // servers would slowly exhaust the reader table (MDBX_READERS limit).
+    // This test will catch a regression back to mdbx_txn_reset().
+    for (int i = 0; i < 256; ++i) {
+        const sync::PullResponse resp = peer.pull(req);
+        if (!resp.ok) {
+            throw std::runtime_error("pull lifecycle: ok=false at i=" +
+                                     std::to_string(i));
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 } // namespace
 
 int main() {
@@ -576,6 +605,7 @@ int main() {
         { "test_engine_handle_pull_wrong_db_id",&test_engine_handle_pull_wrong_db_id },
         { "test_engine_handle_push_wrong_db_id",&test_engine_handle_push_wrong_db_id },
         { "test_engine_handle_pull_pagination", &test_engine_handle_pull_pagination_has_more },
+        { "test_engine_handle_pull_lifecycle", &test_engine_handle_pull_lifecycle },
     };
 
     int rc = 0;

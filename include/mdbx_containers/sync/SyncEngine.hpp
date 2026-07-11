@@ -43,7 +43,6 @@
 #include "../common/Transaction.hpp"
 #include "../detail/utils.hpp"
 #include "stores/AppliedStore.hpp"
-#include "stores/ChangeLogStore.hpp"
 #include "stores/MetaStore.hpp"
 
 namespace mdbxc {
@@ -120,10 +119,8 @@ namespace sync {
         /// name with \c MDBX_CREATE; existing DBIs are reused within \p txn.
         ApplyResult apply_batch(MDBX_txn* txn, const ChangeBatch& batch) {
             MetaStore meta(m_conn->env_handle());
-            ChangeLogStore changelog(m_conn->env_handle());
             AppliedStore applied(m_conn->env_handle());
             meta.open(txn);
-            changelog.open(txn);
             applied.open(txn);
 
             const NodeId local_node = meta.get_node_id(txn);
@@ -164,9 +161,12 @@ namespace sync {
             check_mdbx(mdbx_txn_begin(m_conn->env_handle(), nullptr,
                                       MDBX_TXN_RDONLY, &txn),
                        "SyncEngine: failed to begin read txn for pull");
+            /// RAII guard: aborts (releases handle + reader slot) instead of
+            /// reset, because we never renew the same transaction here — reset
+            /// would leak the MDBX_txn object across calls.
             struct Guard {
                 MDBX_txn* t;
-                ~Guard() { if (t) mdbx_txn_reset(t); }
+                ~Guard() { if (t) mdbx_txn_abort(t); }
             } guard{txn};
 
             MDBX_dbi changelog_dbi = open_changelog_ro(txn);

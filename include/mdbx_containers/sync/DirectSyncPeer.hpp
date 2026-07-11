@@ -18,13 +18,18 @@ namespace sync {
     class DirectSyncPeer : public ISyncPeer {
     public:
         /// \brief Constructs a peer that forwards to \p remote.
-        explicit DirectSyncPeer(SyncEngine* remote) noexcept : m_remote(remote) {}
+        /// \pre \p remote must not be null.
+        explicit DirectSyncPeer(SyncEngine* remote) noexcept : m_remote(remote) {
+            assert(m_remote != nullptr && "DirectSyncPeer: remote engine is null");
+        }
 
         PullResponse pull(const PullRequest& request) override {
+            assert(m_remote != nullptr);
             return m_remote->handle_pull(request);
         }
 
         PushResponse push(const PushRequest& request) override {
+            assert(m_remote != nullptr);
             return m_remote->handle_push(request);
         }
 
