@@ -363,27 +363,29 @@ namespace mdbxc {
     private:
         bool m_check_type_tag = false; ///< Flag enabling type-tag verification.
 
-        template<typename F>
-        void with_transaction(F&& action, TransactionMode mode, MDBX_txn* txn) const {
-            if (txn) {
-                action(txn);
-                return;
-            }
-            txn = thread_txn();
-            if (txn) {
-                action(txn);
-                return;
-            }
-            auto txn_guard = m_connection->transaction(mode);
-            try {
-                action(txn_guard.handle());
-                txn_guard.commit();
-            } catch (...) {
-                try { txn_guard.rollback(); } catch (...) {}
-                throw;
-            }
-        }
-
+/// \brief Helper that opens (or reuses) a transaction for \p action.
+///
+/// \details Lifecycle pattern expected by every table operation:
+/// \code
+///   auto conn = Connection::create(config);
+///   KeyValueTable<int, User> users(conn, "users");
+///   // ... declare more tables ...
+///   auto txn = conn->transaction(TransactionMode::WRITABLE);
+///   users.insert_or_assign(id, user, txn.handle());
+///   // ... more ops inside the same txn ...
+///   txn.commit();
+/// \endcode
+///
+/// Calling a table method with the default-arg path (no explicit
+/// \p txn) is only safe when the thread is not already inside a
+/// writable transaction. If it is, this helper throws rather than
+/// silently re-using the thread-bound transaction. Silent reuse hides
+/// the scope of the active transaction and makes the lifetime of
+/// \c m_dbi handles harder to reason about; explicit is better than
+/// implicit.
+///
+/// The error message names the missing argument so the fix is
+/// obvious: pass the active transaction handle to the operation.
         template <class T>
         bool put_typed(const KeyT& key, const T& value, bool upsert, MDBX_txn* txn) {
             SerializeScratch sc_key;

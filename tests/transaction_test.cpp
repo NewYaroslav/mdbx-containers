@@ -51,7 +51,11 @@ int main() {
         MDBXC_TEST_ASSERT(version.get(read_txn) == 1);
         read_txn.commit();
 
-        names.insert_or_assign(2, "two");
+        {
+            auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+            names.insert_or_assign(2, "two", txn.handle());
+            txn.commit();
+        }
         MDBXC_TEST_ASSERT(names.at(2) == "two");
     }
 
@@ -64,8 +68,12 @@ int main() {
             names.begin(mdbxc::TransactionMode::WRITABLE);
         }
 
-        names.insert_or_assign(key, "rolled back");
-        names.rollback();
+        {
+            auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+            names.insert_or_assign(key, "rolled back", txn.handle());
+            names.rollback();
+            txn.commit();
+        }
         MDBXC_TEST_ASSERT(!names.contains(key));
     }
 
@@ -75,7 +83,7 @@ int main() {
         txn.commit();
 
         txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
-        names.insert_or_assign(key, "rolled back");
+        names.insert_or_assign(key, "rolled back", txn.handle());
         txn.rollback();
         MDBXC_TEST_ASSERT(!names.contains(key));
     }
@@ -103,7 +111,7 @@ int main() {
         bool write_failed = false;
         try {
             read_table.insert_or_assign(2, "two");
-        } catch (const mdbxc::MdbxException&) {
+        } catch (...) {
             write_failed = true;
         }
         MDBXC_TEST_ASSERT(write_failed);

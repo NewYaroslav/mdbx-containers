@@ -253,7 +253,7 @@ void test_explicit_rollback_does_not_flush() {
     }
     {
         auto txn = conn->transaction(TransactionMode::WRITABLE);
-        kv.insert_or_assign(2, 200);
+        kv.insert_or_assign(2, 200, txn.handle());
         txn.rollback();
     }
     {
@@ -340,7 +340,7 @@ void test_aborted_transaction_does_not_flush() {
     }
     {
         auto txn = conn->transaction(TransactionMode::WRITABLE);
-        kv.insert_or_assign(2, 200);
+        kv.insert_or_assign(2, 200, txn.handle());
         /// txn aborts on destruction without commit.
     }
     {

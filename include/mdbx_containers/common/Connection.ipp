@@ -152,6 +152,10 @@ namespace mdbxc {
         return m_env;
     }
 
+    inline MDBX_txn* Connection::thread_txn() const {
+        return TransactionTracker::thread_txn();
+    }
+
     inline int64_t Connection::max_dupsort_value_size() const {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         return m_config ? m_config->max_dupsort_value_size : Config().max_dupsort_value_size;

@@ -186,6 +186,13 @@ namespace mdbxc {
         sync::ISyncCaptureSink* sync_capture() const;
 #       endif
 
+        /// \brief Returns the thread-local MDBX_txn handle if one is bound
+        ///        to this connection's thread, or \c nullptr.
+        /// \details Exposed for table helpers (e.g. \c with_transaction) to
+        /// detect an active transaction so they can require an explicit
+        /// handle from the caller instead of silently reusing it.
+        MDBX_txn* thread_txn() const;
+
         /// \brief Copies the whole MDBX environment to a file or directory path.
         /// \param path Destination path. The target must not already exist;
         ///        the caller is responsible for removing a stale target before
