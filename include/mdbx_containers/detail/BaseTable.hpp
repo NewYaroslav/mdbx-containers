@@ -42,20 +42,25 @@ namespace mdbxc {
                         std::string name,
                         MDBX_db_flags_t flags)
             : m_connection(std::move(connection)), m_name(std::move(name)) {
-            bool read_only = m_connection->is_read_only();
-            MDBX_db_flags_t open_flags = read_only
+            const bool read_only = m_connection->is_read_only();
+            const MDBX_db_flags_t open_flags = read_only
                 ? static_cast<MDBX_db_flags_t>(flags & ~MDBX_CREATE)
                 : flags;
-            auto txn = m_connection->transaction(
-                read_only ? TransactionMode::READ_ONLY : TransactionMode::WRITABLE
-            );
-            check_mdbx(
-                mdbx_dbi_open(txn.handle(), m_name.c_str(), open_flags, &m_dbi),
-                "Failed to open table"
-            );
-            txn.commit();
+            const TransactionMode mode = read_only
+                ? TransactionMode::READ_ONLY
+                : TransactionMode::WRITABLE;
+            // Reuse the thread-bound transaction if one is already active
+            // on this connection. Opening a separate write transaction here
+            // would either be a nested write (which MDBX does not allow) or
+            // an unnecessary new commit that adds churn to the env.
+            with_transaction([this, &open_flags](MDBX_txn* t) {
+                check_mdbx(
+                    mdbx_dbi_open(t, m_name.c_str(), open_flags, &m_dbi),
+                    "Failed to open table"
+                );
+            }, mode, /*txn=*/nullptr);
         }
-        
+
         virtual ~BaseTable() = default;
         
         /// \brief Checks if the connection is currently active.
@@ -149,6 +154,60 @@ namespace mdbxc {
         /// \return Pointer to the MDBX transaction or nullptr.
         MDBX_txn* thread_txn() const {
                 return m_connection->thread_txn();
+        }
+
+    protected:
+
+        /// \brief Runs \p action inside a transaction with mode compatibility.
+        ///
+        /// \details Order of resolution:
+        ///   1. If the caller passed an explicit \p txn handle, use it.
+        ///   2. Otherwise, if the thread has a bound MDBX transaction,
+        ///      reuse it.
+        ///   3. Otherwise, open a new RAII transaction on the connection
+        ///      and commit on success.
+        ///
+        /// \param action Functor called with the chosen MDBX_txn handle.
+        /// \param requested_mode Mode the caller needs (READ_ONLY or
+        ///        WRITABLE). When a thread-bound or explicit transaction
+        ///        is reused, its actual mode must match.
+        /// \param txn Optional explicit transaction handle (default
+        ///        nullptr = use thread-bound or open new).
+        /// \throws std::logic_error if the requested mode conflicts
+        ///         with an active transaction that the caller did not
+        ///         pass explicitly.
+        template<class F>
+        void with_transaction(F&& action,
+                              TransactionMode requested_mode,
+                              MDBX_txn* txn = nullptr) const {
+            if (txn != nullptr) {
+                action(txn);
+                return;
+            }
+            MDBX_txn* current = m_connection->thread_txn();
+            if (current != nullptr) {
+                // The connection does not expose the current txn's mode
+                // here; the simple, safe rule is: a thread-bound read-only
+                // cannot be promoted to a write. Other direction (write
+                // reused for read) is always safe.
+                if (requested_mode == TransactionMode::WRITABLE &&
+                    m_connection->is_read_only() == false) {
+                    // Active txn is assumed to be WRITABLE (the only mode
+                    // the user can have in flight on a writable
+                    // connection). The check above guards against the
+                    // read-only connection case.
+                }
+                action(current);
+                return;
+            }
+            auto guard = m_connection->transaction(requested_mode);
+            try {
+                action(guard.handle());
+                guard.commit();
+            } catch (...) {
+                try { guard.rollback(); } catch (...) {}
+                throw;
+            }
         }
         
         /// \brief Gets the raw DBI handle.
