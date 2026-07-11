@@ -26,6 +26,8 @@
 #include "sync/ISyncPeer.hpp"
 #include "sync/protocol.hpp"
 #include "sync/SyncCursor.hpp"
+#include "sync/SyncEngine.hpp"
+#include "sync/DirectSyncPeer.hpp"
 #include "sync/stores/MetaStore.hpp"
 #include "sync/stores/ChangeLogStore.hpp"
 #include "sync/stores/AppliedStore.hpp"

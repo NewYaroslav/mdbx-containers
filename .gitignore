@@ -1,2 +1,31 @@
-/tmp/
-/build*/
+# Build directories
+/build/
+/build-*/
+/build_test/
+/build_test*/
+/cmake-build-*/
+
+# Generated docs
+/docs/html/
+/docs/latex/
+
+# Test artifacts
+/test_*.mdbx
+/test_*.mdbx-lck
+/test_engine_*.mdbx
+/test_engine_*.mdbx-lck
+/test_repro*.mdbx*
+/trace.mdbx*
+
+# Build / IDE
+CMakeUserPresets.json
+.cache/
+compile_commands.json
+/build.log
+
+# OMC + tooling
+/.omc/
+/Testing/
+
+# Scripts not part of source
+/build-cpp17-examples.bat
