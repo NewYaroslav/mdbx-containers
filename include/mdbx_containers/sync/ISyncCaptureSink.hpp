@@ -43,12 +43,15 @@ namespace sync {
         /// \param dbi_name Name of the user table (the DBI name as passed
         ///        to the table constructor).
         /// \param op_type Kind of write (put/delete/clear).
+        /// \param dbi_flags MDBX DBI flags reported by \c mdbx_dbi_flags()
+        ///        for the user table, used by apply to open compatible DBIs.
         /// \param storage_key Serialized MDBX key bytes of the touched record.
         /// \param value Serialized MDBX value bytes for \c Put; empty for
         ///        \c Delete / \c ClearTable.
         virtual void record_change(MDBX_txn* txn,
                                    const std::string& dbi_name,
                                    ChangeOpType op_type,
+                                   std::uint32_t dbi_flags,
                                    const std::vector<std::uint8_t>& storage_key,
                                    const std::vector<std::uint8_t>& value) = 0;
 

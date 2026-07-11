@@ -67,10 +67,12 @@ namespace sync {
         void record_change(MDBX_txn* txn,
                            const std::string& dbi_name,
                            ChangeOpType op_type,
+                           std::uint32_t dbi_flags,
                            const std::vector<std::uint8_t>& storage_key,
                            const std::vector<std::uint8_t>& value) override {
             PendingOp op;
             op.op_type = op_type;
+            op.dbi_flags = dbi_flags;
             op.dbi_name = dbi_name;
             op.storage_key = storage_key;
             op.value = value;
@@ -104,6 +106,7 @@ namespace sync {
     private:
         struct PendingOp {
             ChangeOpType op_type = ChangeOpType::Put;
+            std::uint32_t dbi_flags = 0;
             std::string dbi_name;
             std::vector<std::uint8_t> storage_key;
             std::vector<std::uint8_t> value;
@@ -142,6 +145,7 @@ namespace sync {
             for (const PendingOp& op : ops) {
                 ChangeOp co;
                 co.op_type = op.op_type;
+                co.dbi_flags = op.dbi_flags;
                 co.dbi_name = op.dbi_name;
                 co.storage_key = op.storage_key;
                 co.value = op.value;

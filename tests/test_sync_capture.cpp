@@ -23,12 +23,14 @@ public:
     void record_change(MDBX_txn* txn,
                        const std::string& dbi_name,
                        mdbxc::sync::ChangeOpType op_type,
+                       std::uint32_t dbi_flags,
                        const std::vector<std::uint8_t>& storage_key,
                        const std::vector<std::uint8_t>& value) override {
         (void)txn;
         std::lock_guard<std::mutex> lk(m_mutex);
         mdbxc::sync::ChangeOp op;
         op.op_type = op_type;
+        op.dbi_flags = dbi_flags;
         op.dbi_name = dbi_name;
         op.storage_key = storage_key;
         op.value = value;
@@ -97,6 +99,9 @@ void test_capture_writes_via_sink() {
     }
     if (sink.m_recorded[0].dbi_name != "t") {
         throw std::runtime_error("dbi_name not propagated");
+    }
+    if ((sink.m_recorded[0].dbi_flags & MDBX_INTEGERKEY) == 0) {
+        throw std::runtime_error("dbi_flags did not propagate MDBX_INTEGERKEY");
     }
 }
 

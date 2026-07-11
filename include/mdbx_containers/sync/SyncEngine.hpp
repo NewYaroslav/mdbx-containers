@@ -116,7 +116,8 @@ namespace sync {
         /// \brief Applies a single \c ChangeBatch to local DBIs inside \p txn.
         /// \details See class-level docs for the seq / apply rules. The
         /// caller commits the transaction. User DBIs are opened lazily by
-        /// name with \c MDBX_CREATE; existing DBIs are reused within \p txn.
+        /// name with the captured \c ChangeOp::dbi_flags plus
+        /// \c MDBX_CREATE so destination tables keep compatible MDBX flags.
         ApplyResult apply_batch(MDBX_txn* txn, const ChangeBatch& batch) {
             MetaStore meta(m_conn->env_handle());
             AppliedStore applied(m_conn->env_handle());
@@ -429,14 +430,31 @@ namespace sync {
 
         static MDBX_dbi resolve_user_dbi(MDBX_txn* txn,
                                          const std::string& name,
+                                         std::uint32_t dbi_flags,
                                          std::unordered_map<std::string, MDBX_dbi>& cache) {
             auto it = cache.find(name);
             if (it != cache.end() && it->second != 0) {
                 return it->second;
             }
             MDBX_dbi dbi = 0;
-            check_mdbx(mdbx_dbi_open(txn, name.c_str(), MDBX_CREATE, &dbi),
-                       "SyncEngine: failed to open user DBI '" + name + "'");
+            const std::uint32_t supported_flags =
+                static_cast<std::uint32_t>(MDBX_REVERSEKEY) |
+                static_cast<std::uint32_t>(MDBX_DUPSORT) |
+                static_cast<std::uint32_t>(MDBX_INTEGERKEY) |
+                static_cast<std::uint32_t>(MDBX_DUPFIXED) |
+                static_cast<std::uint32_t>(MDBX_INTEGERDUP) |
+                static_cast<std::uint32_t>(MDBX_REVERSEDUP);
+            const MDBX_db_flags_t open_flags = static_cast<MDBX_db_flags_t>(
+                (dbi_flags & supported_flags) | static_cast<std::uint32_t>(MDBX_CREATE));
+            int rc = mdbx_dbi_open(txn, name.c_str(), open_flags, &dbi);
+            if (rc == MDBX_INCOMPATIBLE &&
+                (dbi_flags & static_cast<std::uint32_t>(MDBX_INTEGERKEY)) == 0) {
+                const MDBX_db_flags_t integer_flags = static_cast<MDBX_db_flags_t>(
+                    static_cast<std::uint32_t>(open_flags) |
+                    static_cast<std::uint32_t>(MDBX_INTEGERKEY));
+                rc = mdbx_dbi_open(txn, name.c_str(), integer_flags, &dbi);
+            }
+            check_mdbx(rc, "SyncEngine: failed to open user DBI '" + name + "'");
             cache[name] = dbi;
             return dbi;
         }
@@ -444,7 +462,7 @@ namespace sync {
         static void apply_one_op(MDBX_txn* txn,
                                  const ChangeOp& op,
                                  std::unordered_map<std::string, MDBX_dbi>& cache) {
-            MDBX_dbi dbi = resolve_user_dbi(txn, op.dbi_name, cache);
+            MDBX_dbi dbi = resolve_user_dbi(txn, op.dbi_name, op.dbi_flags, cache);
             switch (op.op_type) {
                 case ChangeOpType::Put: {
                     MDBX_val k = { op.storage_key.empty() ? nullptr

@@ -179,7 +179,14 @@ namespace mdbxc {
             if (m_connection->is_read_only()) return;
             sync::ISyncCaptureSink* sink = m_connection->sync_capture();
             if (sink == nullptr) return;
-            sink->record_change(txn, m_name, op_type, storage_key, value);
+            unsigned flags = 0;
+            check_mdbx(
+                mdbx_dbi_flags(txn, m_dbi, &flags),
+                "Failed to read table flags for sync capture"
+            );
+            sink->record_change(txn, m_name, op_type,
+                                static_cast<std::uint32_t>(flags),
+                                storage_key, value);
         }
 #       endif
     };
