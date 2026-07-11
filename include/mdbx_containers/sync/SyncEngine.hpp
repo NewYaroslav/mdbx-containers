@@ -292,6 +292,46 @@ namespace sync {
             return read_applied_cursor(txn, cur);
         }
 
+        /// \brief Builds a \c PushRequest that carries every local batch with
+        /// \c seq in \c [from_seq, to_seq] (inclusive).
+        /// \details Hides the system stores from callers: example code and
+        /// future transports can call this instead of touching
+        /// \c MetaStore / \c ChangeLogStore directly. Opens its own short-lived
+        /// read-only transaction on the bound connection; safe to call from
+        /// any context (including right after a writable commit).
+        /// \param sender_node_id Identity under which the batches were
+        /// appended locally.
+        /// \param from_seq First \c seq to include (use 1 to send from the
+        /// beginning; use the peer's \c applied_cursor + 1 to send a delta).
+        /// \param to_seq Last \c seq to include (use 0 to send up to the
+        /// current local tail, inclusive).
+        /// \return A \c PushRequest ready to send to the peer. Empty
+        /// \c batches when the range is empty.
+        /// \throws MdbxException on database error.
+        PushRequest make_push_request(const NodeId& sender_node_id,
+                                      std::uint64_t from_seq,
+                                      std::uint64_t to_seq) const {
+            PushRequest req;
+            req.sender = sender_node_id;
+            req.db_id  = db_uuid();
+            if (to_seq != 0 && to_seq < from_seq) return req;
+            auto txn = m_conn->transaction(TransactionMode::READ_ONLY);
+            MetaStore meta(m_conn->env_handle());
+            meta.open(txn.handle());
+            ChangeLogStore log(m_conn->env_handle());
+            log.open(txn.handle());
+            if (to_seq == 0) {
+                to_seq = meta.get_local_seq(txn.handle());
+            }
+            if (to_seq < from_seq) return req;
+            std::vector<std::uint8_t> buf;
+            for (std::uint64_t s = from_seq; s <= to_seq; ++s) {
+                if (!log.get(txn.handle(), sender_node_id, s, buf)) continue;
+                req.batches.push_back(ChangeBatchCodec::decode_exact(buf));
+            }
+            return req;
+        }
+
     private:
         /// \brief Returns true when \p request_db_id matches the local
         /// \c db_uuid. A zero \p request_db_id is rejected: callers must

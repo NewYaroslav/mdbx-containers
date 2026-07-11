@@ -287,6 +287,81 @@ void test_replication_incremental_pull() {
     cleanup(p); cleanup(r);
 }
 
+void test_replication_make_push_request_helper() {
+    using namespace mdbxc;
+    const std::string p = "test_rep_make_push_helper.mdbx";
+    const std::string r = "test_rep_make_push_helper_replica.mdbx";
+    cleanup(p); cleanup(r);
+
+    auto primary = open(p);
+    auto replica = open(r);
+    sync::SyncEngine pe(primary), re(replica);
+    pe.initialize_local_identity(make_node(0xA0), make_node(0xD0));
+    re.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    sync::ThreadLocalChangeAccumulator sink(primary);
+    primary->attach_sync_capture(&sink);
+    {
+        KeyValueTable<int, std::string> kv(primary, "kv");
+        kv.insert_or_assign(1, "a");
+        kv.insert_or_assign(2, "b");
+        kv.insert_or_assign(3, "c");
+    }
+    primary->detach_sync_capture();
+
+    // Empty range -> empty request.
+    {
+        const sync::PushRequest empty = pe.make_push_request(
+            make_node(0xA0), /*from_seq=*/100, /*to_seq=*/0);
+        if (!empty.batches.empty()) {
+            throw std::runtime_error("empty range produced non-empty push");
+        }
+    }
+
+    // Full window (from 1 to local tail).
+    {
+        const sync::PushRequest full = pe.make_push_request(
+            make_node(0xA0), /*from_seq=*/1, /*to_seq=*/0);
+        if (full.batches.size() != 3u) {
+            throw std::runtime_error("full window wrong size: " +
+                                     std::to_string(full.batches.size()));
+        }
+        if (full.sender != make_node(0xA0) || full.db_id != make_node(0xD0)) {
+            throw std::runtime_error("push request header fields wrong");
+        }
+        // End-to-end: helper -> DirectSyncPeer -> replica engine -> kv.
+        sync::DirectSyncPeer peer(&re);
+        const sync::PushResponse resp = peer.push(full);
+        if (!resp.ok) { throw std::runtime_error("push via helper failed: " + resp.error); }
+        KeyValueTable<int, std::string> kv_re(replica, "kv");
+        if (kv_or_throw(replica, kv_re, 1, "kv[1] after helper push") != "a") throw std::runtime_error("kv[1] != a");
+        if (kv_or_throw(replica, kv_re, 2, "kv[2] after helper push") != "b") throw std::runtime_error("kv[2] != b");
+        if (kv_or_throw(replica, kv_re, 3, "kv[3] after helper push") != "c") throw std::runtime_error("kv[3] != c");
+    }
+
+    // Partial window (from 2 to 3).
+    {
+        const sync::PushRequest mid = pe.make_push_request(
+            make_node(0xA0), /*from_seq=*/2, /*to_seq=*/3);
+        if (mid.batches.size() != 2u) {
+            throw std::runtime_error("partial window wrong size: " +
+                                     std::to_string(mid.batches.size()));
+        }
+    }
+
+    // Reversed range (to_seq < from_seq) -> empty.
+    {
+        const sync::PushRequest rev = pe.make_push_request(
+            make_node(0xA0), /*from_seq=*/5, /*to_seq=*/2);
+        if (!rev.batches.empty()) {
+            throw std::runtime_error("reversed range produced non-empty push");
+        }
+    }
+
+    primary->disconnect(); replica->disconnect();
+    cleanup(p); cleanup(r);
+}
+
 void test_replication_idempotent_apply() {
     using namespace mdbxc;
     const std::string r = "test_rep_idempotent.mdbx";
@@ -332,6 +407,7 @@ int main() {
         { "test_replication_mixed_ops",          &test_replication_mixed_ops },
         { "test_replication_incremental_pull",   &test_replication_incremental_pull },
         { "test_replication_idempotent_apply",   &test_replication_idempotent_apply },
+        { "test_replication_make_push_request", &test_replication_make_push_request_helper },
     };
     int rc = 0;
     for (std::size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
