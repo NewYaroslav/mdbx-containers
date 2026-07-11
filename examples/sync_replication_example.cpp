@@ -168,25 +168,14 @@ int main() {
     primary_conn->detach_sync_capture();
 
     {
-        // Read only the newly produced changelog batches and push them
-        // directly to the replica. The manual ChangeLogStore walk below
-        // is the low-level demonstration path; a real client would query
-        // the local SyncEngine for the right window (cursor.last + 1).
-        auto txn = primary_conn->transaction(TransactionMode::READ_ONLY);
-        MetaStore meta(primary_conn->env_handle());
-        meta.open(txn.handle());
-        ChangeLogStore log(primary_conn->env_handle());
-        log.open(txn.handle());
-        const std::uint64_t last_seq = meta.get_local_seq(txn.handle());
-        const std::uint64_t first_seq = last_seq > 2 ? (last_seq - 1) : 1;
-        PushRequest push;
-        push.sender = primary_node;
-        push.db_id  = db_uuid;
-        std::vector<std::uint8_t> buf;
-        for (std::uint64_t s = first_seq; s <= last_seq; ++s) {
-            if (!log.get(txn.handle(), primary_node, s, buf)) continue;
-            push.batches.push_back(ChangeBatchCodec::decode_exact(buf));
-        }
+        // Build a PushRequest that covers only the batches the replica has
+        // not seen yet. make_push_request opens its own short-lived read
+        // transaction on the bound connection, so it is safe to call right
+        // after a writable commit (no overlap with user's open txns).
+        const std::uint64_t from_seq =
+            replica_engine.applied_cursor().last_seq_for(primary_node) + 1;
+        const PushRequest push = primary_engine.make_push_request(
+            from_seq, /*to_seq=*/0);
 
         // The replica-side apply is performed inside an atomic writable
         // transaction by handle_push(); gap or conflict aborts the whole
