@@ -67,7 +67,7 @@ void seed_changelog(mdbxc::Connection& conn,
     txn.commit();
 }
 
-void run_state_equality_after_pull() {
+void run_pull_apply_data_and_replay() {
     using namespace mdbxc;
     using namespace mdbxc::sync;
 
@@ -155,7 +155,7 @@ void run_state_equality_after_pull() {
     cleanup(r_path);
 }
 
-void test_push_gap_returns_conflict() {
+void test_make_push_request_rejects_changelog_gap() {
     using namespace mdbxc;
     using namespace mdbxc::sync;
 
@@ -225,8 +225,9 @@ void test_push_gap_returns_conflict() {
 int main() {
     struct Case { const char* name; void (*fn)(); };
     const Case cases[] = {
-        { "test_state_equality_after_pull",  &run_state_equality_after_pull },
-        { "test_push_gap_returns_conflict",   &test_push_gap_returns_conflict },
+        { "test_pull_apply_data_and_replay",  &run_pull_apply_data_and_replay },
+        { "test_make_push_request_rejects_changelog_gap",
+                                             &test_make_push_request_rejects_changelog_gap },
     };
     int rc = 0;
     for (std::size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
