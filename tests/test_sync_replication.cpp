@@ -312,7 +312,7 @@ void test_replication_make_push_request_helper() {
     // Empty range -> empty request.
     {
         const sync::PushRequest empty = pe.make_push_request(
-            make_node(0xA0), /*from_seq=*/100, /*to_seq=*/0);
+            /*from_seq=*/100, /*to_seq=*/0);
         if (!empty.batches.empty()) {
             throw std::runtime_error("empty range produced non-empty push");
         }
@@ -321,7 +321,7 @@ void test_replication_make_push_request_helper() {
     // Full window (from 1 to local tail).
     {
         const sync::PushRequest full = pe.make_push_request(
-            make_node(0xA0), /*from_seq=*/1, /*to_seq=*/0);
+            /*from_seq=*/1, /*to_seq=*/0);
         if (full.batches.size() != 3u) {
             throw std::runtime_error("full window wrong size: " +
                                      std::to_string(full.batches.size()));
@@ -342,7 +342,7 @@ void test_replication_make_push_request_helper() {
     // Partial window (from 2 to 3).
     {
         const sync::PushRequest mid = pe.make_push_request(
-            make_node(0xA0), /*from_seq=*/2, /*to_seq=*/3);
+            /*from_seq=*/2, /*to_seq=*/3);
         if (mid.batches.size() != 2u) {
             throw std::runtime_error("partial window wrong size: " +
                                      std::to_string(mid.batches.size()));
@@ -352,9 +352,40 @@ void test_replication_make_push_request_helper() {
     // Reversed range (to_seq < from_seq) -> empty.
     {
         const sync::PushRequest rev = pe.make_push_request(
-            make_node(0xA0), /*from_seq=*/5, /*to_seq=*/2);
+            /*from_seq=*/5, /*to_seq=*/2);
         if (!rev.batches.empty()) {
             throw std::runtime_error("reversed range produced non-empty push");
+        }
+    }
+
+    // Gap in changelog -> exception, not silent skip.
+    // Delete seq 2 directly via MDBX, then ask for [1, 3].
+    {
+        auto erase_txn = primary->transaction(mdbxc::TransactionMode::WRITABLE);
+        sync::ChangeLogStore log(primary->env_handle());
+        log.open(erase_txn.handle());
+        const sync::NodeId local = make_node(0xA0);
+        std::vector<std::uint8_t> key_buf(24);
+        std::memcpy(key_buf.data(), local.data(), 16);
+        const std::uint64_t seq = 2;
+        for (int i = 0; i < 8; ++i) {
+            key_buf[16 + i] = static_cast<std::uint8_t>((seq >> ((7 - i) * 8)) & 0xff);
+        }
+        MDBX_val k{ key_buf.data(), key_buf.size() };
+        const int del_rc = mdbx_del(erase_txn.handle(), log.handle(), &k, nullptr);
+        if (del_rc != MDBX_SUCCESS && del_rc != MDBX_NOTFOUND) {
+            throw std::runtime_error("test setup: mdbx_del failed");
+        }
+        erase_txn.commit();
+
+        bool threw = false;
+        try {
+            (void)pe.make_push_request(/*from_seq=*/1, /*to_seq=*/3);
+        } catch (const std::runtime_error&) {
+            threw = true;
+        }
+        if (!threw) {
+            throw std::runtime_error("gap in changelog did not throw");
         }
     }
 

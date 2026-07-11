@@ -175,7 +175,7 @@ int main() {
         const std::uint64_t from_seq =
             replica_engine.applied_cursor().last_seq_for(primary_node) + 1;
         const PushRequest push = primary_engine.make_push_request(
-            primary_node, from_seq, /*to_seq=*/0);
+            from_seq, /*to_seq=*/0);
 
         // The replica-side apply is performed inside an atomic writable
         // transaction by handle_push(); gap or conflict aborts the whole
