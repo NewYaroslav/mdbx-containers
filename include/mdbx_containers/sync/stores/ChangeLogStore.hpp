@@ -28,13 +28,17 @@ namespace sync {
                        const std::string& dbi_name = "_mdbxc_changelog")
             : m_env(env), m_dbi_name(dbi_name), m_dbi(0), m_open(false) {}
 
-        /// \brief Opens the DBI inside the supplied write transaction.
+        /// \brief Opens the DBI inside the supplied transaction.
+        /// \details Tries \c MDBX_CREATE first; falls back to a plain open
+        /// when the transaction is read-only and the DBI already exists.
         void open(MDBX_txn* txn) {
             if (m_open) return;
-            check_mdbx(
-                mdbx_dbi_open(txn, m_dbi_name.c_str(), MDBX_CREATE, &m_dbi),
-                "Failed to open ChangeLogStore DBI"
-            );
+            int rc = mdbx_dbi_open(txn, m_dbi_name.c_str(), MDBX_CREATE, &m_dbi);
+            if (rc == MDBX_EACCESS) {
+                rc = mdbx_dbi_open(txn, m_dbi_name.c_str(),
+                                   static_cast<MDBX_db_flags_t>(0), &m_dbi);
+            }
+            check_mdbx(rc, "Failed to open ChangeLogStore DBI");
             m_open = true;
         }
 
