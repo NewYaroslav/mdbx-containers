@@ -54,7 +54,7 @@ typename KVT::value_type::second_type kv_or_throw(
 
 class EmptyPeer : public mdbxc::sync::ISyncPeer {
 public:
-    EmptyPeer() : m_pull_count(0) {}
+    EmptyPeer() : m_pull_count(0), m_cancel_count(0) {}
 
     mdbxc::sync::PullResponse pull(
             const mdbxc::sync::PullRequest& request) override {
@@ -73,6 +73,11 @@ public:
         return mdbxc::sync::PushResponse();
     }
 
+    void request_cancel() override {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        ++m_cancel_count;
+    }
+
     bool wait_for_pulls(int count, std::chrono::milliseconds timeout) const {
         std::unique_lock<std::mutex> lock(m_mutex);
         return m_changed.wait_for(
@@ -80,10 +85,16 @@ public:
             [this, count] { return m_pull_count >= count; });
     }
 
+    int cancel_count() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_cancel_count;
+    }
+
 private:
     mutable std::mutex m_mutex;
     mutable std::condition_variable m_changed;
     int m_pull_count;
+    int m_cancel_count;
 };
 
 class BlockingPeer : public mdbxc::sync::ISyncPeer {
@@ -184,6 +195,8 @@ private:
 
 class FailingPeer : public mdbxc::sync::ISyncPeer {
 public:
+    FailingPeer() : m_cancel_count(0) {}
+
     mdbxc::sync::PullResponse pull(
             const mdbxc::sync::PullRequest& request) override {
         (void)request;
@@ -198,6 +211,20 @@ public:
         (void)request;
         return mdbxc::sync::PushResponse();
     }
+
+    void request_cancel() override {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        ++m_cancel_count;
+    }
+
+    int cancel_count() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_cancel_count;
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    int m_cancel_count;
 };
 
 class SelfStoppingPeer : public mdbxc::sync::ISyncPeer {
@@ -342,6 +369,9 @@ void test_worker_start_stop_idle() {
     if (worker.state() != sync::SyncWorkerState::Stopped) {
         throw std::runtime_error("worker did not stop");
     }
+    if (peer.cancel_count() != 0) {
+        throw std::runtime_error("idle stop should not cancel peer transport");
+    }
 
     conn->disconnect();
     cleanup(path);
@@ -373,6 +403,9 @@ void test_worker_backoff_on_pull_error() {
     worker.stop();
     if (worker.state() != sync::SyncWorkerState::Stopped) {
         throw std::runtime_error("backoff worker did not stop");
+    }
+    if (peer.cancel_count() != 0) {
+        throw std::runtime_error("backoff stop should not cancel peer transport");
     }
 
     conn->disconnect();
