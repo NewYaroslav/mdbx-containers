@@ -181,6 +181,9 @@ namespace sync {
         /// \param txn Active transaction.
         /// \return \c true when every changelog origin has one matching index
         /// entry with the same max seq, and the index has no extra origins.
+        /// \complexity O(changelog entries + indexed origins).
+        /// \note Intended for startup diagnostics, manual repair, or rare
+        /// integrity checks. Do not call from the normal pull/sync hot path.
         bool origin_index_matches_changelog(MDBX_txn* txn) const {
             ensure_open();
             const std::vector<OriginTail> expected =
@@ -212,6 +215,8 @@ namespace sync {
         /// \param txn Active transaction.
         /// \return Number of origins written to the rebuilt index.
         /// \pre Transaction must be writable.
+        /// \complexity O(changelog entries + indexed origins).
+        /// \note Explicit maintenance operation; ordinary pull does not call it.
         std::size_t rebuild_origin_index(MDBX_txn* txn) {
             ensure_open();
             const std::vector<OriginTail> tails =
