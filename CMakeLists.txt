@@ -16,6 +16,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE PATH "")
 # ---------------------------------------
 option(MDBXC_BUILD_EXAMPLES     "Build examples"                                  ON)
 option(MDBXC_BUILD_TESTS        "Build tests with CTest"                           ON)
+option(MDBXC_BUILD_BENCHMARKS   "Build benchmark executables"                      OFF)
 option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmdbx)" ON)
 
 # Three-mode dependency policy for MDBX: AUTO | SYSTEM | BUNDLED
@@ -25,6 +26,7 @@ set_property(CACHE MDBXC_DEPS_MODE PROPERTY STRINGS AUTO SYSTEM BUNDLED)
 message(STATUS "MDBXC_DEPS_MODE         = ${MDBXC_DEPS_MODE}")
 message(STATUS "MDBXC_BUILD_EXAMPLES    = ${MDBXC_BUILD_EXAMPLES}")
 message(STATUS "MDBXC_BUILD_TESTS       = ${MDBXC_BUILD_TESTS}")
+message(STATUS "MDBXC_BUILD_BENCHMARKS  = ${MDBXC_BUILD_BENCHMARKS}")
 message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
 
 set(MDBXC_HAS_ASAN OFF CACHE BOOL "Compiler+linker support -fsanitize=address")
@@ -175,6 +177,24 @@ if(MDBXC_BUILD_TESTS)
             )
         endif()
         
+    endforeach()
+endif()
+
+# ---------------------------------------
+# Benchmarks (manual targets; not registered as tests)
+# ---------------------------------------
+if(MDBXC_BUILD_BENCHMARKS)
+    file(GLOB BENCHMARKS CONFIGURE_DEPENDS benchmarks/*.cpp)
+    foreach(benchmark_file IN LISTS BENCHMARKS)
+        get_filename_component(benchmark_name ${benchmark_file} NAME_WE)
+        add_executable(${benchmark_name} ${benchmark_file})
+        set_target_properties(${benchmark_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/benchmarks
+        )
+        target_compile_features(${benchmark_name} PRIVATE cxx_std_11)
+        target_link_libraries(${benchmark_name} PRIVATE ${_PKG_TARGET})
+        target_compile_definitions(${benchmark_name} PRIVATE MDBXC_SYNC_ENABLED=1)
+        message(STATUS "Benchmark ${benchmark_name} -> ${_PKG_TARGET}")
     endforeach()
 endif()
 
