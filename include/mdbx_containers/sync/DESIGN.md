@@ -16,7 +16,7 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 - Public types in `include/mdbx_containers/sync/`:
   `Common`, `ChangeBatch`, `ChangeOp`, `CodecFlags`, `CodecBounds`,
   `Protocol`, `SyncCursor`, `ConflictPolicy`, `ISyncPeer`,
-  `IdentityProvider`, `ChangeBatchCodec`.
+  `IdentityProvider`, `ChangeBatchCodec`, `SyncWorker`.
 - Five system stores under `include/mdbx_containers/sync/stores/`:
   `MetaStore`, `ChangeLogStore`, `OriginIndexStore`, `AppliedStore`,
   `IdentityIndexStore`.
@@ -194,6 +194,40 @@ A: detects request_full_snapshot
 B: applies each batch as above
     -> onward sync is incremental pull-from-have
 ```
+
+## Background worker lifecycle
+
+`SyncWorker` is the minimal background driver for `SyncEngine + ISyncPeer`.
+It owns its thread but does not own the engine, peer, or connection. The
+runtime state shape is:
+
+```
+Stopped -> Starting -> Idle -> Pulling -> Applying -> Idle
+                              -> Backoff -> Idle
+                              -> Stopping -> Stopped
+                              -> Failed
+```
+
+Worker invariants:
+
+- no local MDBX transaction is held while waiting in `ISyncPeer::pull()`;
+- no local MDBX transaction is held during idle or backoff sleeps;
+- pulled pages are applied through `SyncEngine::handle_push()`, so each page
+  uses one short local write transaction;
+- stop requests do not interrupt a blocking peer call, but a page returned
+  after stop was requested is not applied;
+- `stop()`, `join()`, and destruction may wait for an in-flight peer call to
+  return; timeout/cancellation belongs to the concrete transport adapter;
+- lifecycle mutations (`start`, `stop`, `join`, `run_once`) are caller-serialized,
+  while `request_stop`, `state`, `last_error`, and `wait_until_state` are
+  thread-safe;
+- the `SyncWorker` object must outlive its background thread and must not be
+  destroyed from callbacks running on that worker thread;
+- `Transaction`, raw `MDBX_txn*`, and cursors stay on the thread that opened
+  them and never cross the worker boundary.
+
+The worker is a lifecycle/concurrency helper, not a transport. HTTP/WebSocket
+peers remain separate adapters over `ISyncPeer`.
 
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
