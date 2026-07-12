@@ -53,6 +53,12 @@ namespace mdbxc {
                 mdbx_dbi_open(txn.handle(), m_name.c_str(), open_flags, &m_dbi),
                 "Failed to open table"
             );
+            unsigned dbi_flags = 0;
+            check_mdbx(
+                mdbx_dbi_flags(txn.handle(), m_dbi, &dbi_flags),
+                "Failed to read table flags"
+            );
+            m_dbi_flags = static_cast<std::uint32_t>(dbi_flags);
             txn.commit();
         }
         
@@ -143,6 +149,7 @@ namespace mdbxc {
 
         std::shared_ptr<Connection>  m_connection;   ///< Shared connection to MDBX environment.
         MDBX_dbi                     m_dbi{};         ///< DBI handle for the opened table.
+        std::uint32_t                m_dbi_flags{};   ///< Persistent MDBX DBI flags for sync capture.
         std::string                  m_name;          ///< DBI name (used for sync capture).
 
         /// \brief Returns the transaction bound to the current thread, if any.
@@ -179,13 +186,7 @@ namespace mdbxc {
             if (m_connection->is_read_only()) return;
             sync::ISyncCaptureSink* sink = m_connection->sync_capture();
             if (sink == nullptr) return;
-            unsigned flags = 0;
-            check_mdbx(
-                mdbx_dbi_flags(txn, m_dbi, &flags),
-                "Failed to read table flags for sync capture"
-            );
-            sink->record_change(txn, m_name, op_type,
-                                static_cast<std::uint32_t>(flags),
+            sink->record_change(txn, m_name, op_type, m_dbi_flags,
                                 storage_key, value);
         }
 #       endif

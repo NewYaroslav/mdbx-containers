@@ -63,24 +63,30 @@ void sync_primary_to_replica(mdbxc::sync::SyncEngine& primary_engine,
     request.db_id = db_id;
     request.have = replica_engine.applied_cursor();
 
-    const mdbxc::sync::PullResponse response = peer.pull(request);
-    if (!response.ok) {
-        throw std::runtime_error("pull failed: " + response.error);
-    }
-    if (response.batches.empty()) {
-        return;
-    }
-
-    auto txn = replica_conn->transaction(mdbxc::TransactionMode::WRITABLE);
-    for (std::vector<mdbxc::sync::ChangeBatch>::const_iterator it = response.batches.begin();
-         it != response.batches.end(); ++it) {
-        const mdbxc::sync::ApplyResult result =
-            replica_engine.apply_batch(txn.handle(), *it);
-        if (result == mdbxc::sync::ApplyResult::Conflict) {
-            throw std::runtime_error("replica apply returned Conflict");
+    bool has_more = false;
+    do {
+        const mdbxc::sync::PullResponse response = peer.pull(request);
+        if (!response.ok) {
+            throw std::runtime_error("pull failed: " + response.error);
         }
-    }
-    txn.commit();
+        if (!response.batches.empty()) {
+            auto txn = replica_conn->transaction(mdbxc::TransactionMode::WRITABLE);
+            for (std::vector<mdbxc::sync::ChangeBatch>::const_iterator it = response.batches.begin();
+                 it != response.batches.end(); ++it) {
+                const mdbxc::sync::ApplyResult result =
+                    replica_engine.apply_batch(txn.handle(), *it);
+                if (result == mdbxc::sync::ApplyResult::Conflict) {
+                    throw std::runtime_error("replica apply returned Conflict");
+                }
+            }
+            txn.commit();
+        } else if (response.has_more) {
+            throw std::runtime_error("pull reported has_more without batches");
+        }
+
+        has_more = response.has_more;
+        request.have = replica_engine.applied_cursor();
+    } while (has_more);
 }
 
 void apply_random_operation(const std::shared_ptr<mdbxc::Connection>& conn,

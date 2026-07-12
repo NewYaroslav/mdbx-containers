@@ -449,6 +449,9 @@ namespace sync {
             int rc = mdbx_dbi_open(txn, name.c_str(), open_flags, &dbi);
             if (rc == MDBX_INCOMPATIBLE &&
                 (dbi_flags & static_cast<std::uint32_t>(MDBX_INTEGERKEY)) == 0) {
+                // Compatibility path for batches produced before dbi_flags
+                // capture was implemented. Existing integer-key DBIs may
+                // reject open_flags=MDBX_CREATE with MDBX_INCOMPATIBLE.
                 const MDBX_db_flags_t integer_flags = static_cast<MDBX_db_flags_t>(
                     static_cast<std::uint32_t>(open_flags) |
                     static_cast<std::uint32_t>(MDBX_INTEGERKEY));
