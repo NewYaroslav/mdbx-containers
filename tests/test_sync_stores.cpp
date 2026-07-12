@@ -143,6 +143,17 @@ void test_origin_index_store() {
         }
     }
 
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        OriginIndexStore writable(conn->env_handle());
+        writable.open(txn.handle());
+        const std::size_t removed = writable.clear(txn.handle());
+        if (removed != 2u || !writable.empty(txn.handle())) {
+            throw std::runtime_error("origin index clear mismatch");
+        }
+        txn.commit();
+    }
+
     conn->disconnect();
     cleanup(p);
 }
@@ -276,6 +287,83 @@ void test_changelog_backfills_legacy_origins_on_append() {
         }
         if (!origins.last_seq(txn.handle(), origin_b, seq) || seq != 1u) {
             throw std::runtime_error("new origin was not indexed");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_changelog_rebuilds_partial_origin_index() {
+    using namespace mdbxc::sync;
+    const std::string p = "test_sync_stores_changelog_origin_rebuild.mdbx";
+    cleanup(p);
+
+    mdbxc::Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = mdbxc::Connection::create(cfg);
+
+    const NodeId origin_a = make_node(0x10);
+    const NodeId origin_b = make_node(0x40);
+    const NodeId stale_origin = make_node(0x70);
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        MDBX_dbi raw = 0;
+        mdbxc::check_mdbx(mdbx_dbi_open(txn.handle(), "_mdbxc_changelog",
+                                        MDBX_CREATE, &raw),
+                          "open raw changelog failed");
+        put_raw_changelog(txn.handle(), raw, origin_a, 1, { 0xA1 });
+        put_raw_changelog(txn.handle(), raw, origin_a, 2, { 0xA2 });
+        put_raw_changelog(txn.handle(), raw, origin_b, 1, { 0xB1 });
+
+        OriginIndexStore origins(conn->env_handle());
+        origins.open(txn.handle());
+        origins.note_origin(txn.handle(), origin_a, 2);
+        origins.note_origin(txn.handle(), stale_origin, 9);
+        txn.commit();
+    }
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+        ChangeLogStore log(conn->env_handle());
+        log.open(txn.handle());
+        if (log.origin_index_matches_changelog(txn.handle())) {
+            throw std::runtime_error("partial origin index should not validate");
+        }
+    }
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        ChangeLogStore log(conn->env_handle());
+        log.open(txn.handle());
+        const std::size_t origins_written = log.rebuild_origin_index(txn.handle());
+        if (origins_written != 2u) {
+            throw std::runtime_error("origin rebuild wrote wrong count");
+        }
+        if (!log.origin_index_matches_changelog(txn.handle())) {
+            throw std::runtime_error("rebuilt origin index should validate");
+        }
+        txn.commit();
+    }
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+        OriginIndexStore origins(conn->env_handle());
+        if (!origins.open_existing(txn.handle())) {
+            throw std::runtime_error("rebuilt origin index should exist");
+        }
+        std::uint64_t seq = 0;
+        if (!origins.last_seq(txn.handle(), origin_a, seq) || seq != 2u) {
+            throw std::runtime_error("rebuilt origin_a tail mismatch");
+        }
+        if (!origins.last_seq(txn.handle(), origin_b, seq) || seq != 1u) {
+            throw std::runtime_error("rebuilt origin_b tail mismatch");
+        }
+        if (origins.last_seq(txn.handle(), stale_origin, seq)) {
+            throw std::runtime_error("rebuilt index kept stale origin");
         }
     }
 
@@ -574,11 +662,17 @@ void test_stores_require_open() {
                             [&] { (void)change.erase(txn.handle(), make_node(0xC0), 1); });
         expect_open_required("ChangeLogStore::prune_up_to", change,
                             [&] { (void)change.prune_up_to(txn.handle(), make_node(0xC0), 1); });
+        expect_open_required("ChangeLogStore::origin_index_matches_changelog", change,
+                            [&change, &txn] { (void)change.origin_index_matches_changelog(txn.handle()); });
+        expect_open_required("ChangeLogStore::rebuild_origin_index", change,
+                            [&change, &txn] { (void)change.rebuild_origin_index(txn.handle()); });
 
         OriginIndexStore origins(conn->env_handle());
         std::uint64_t seq = 0;
         expect_open_required("OriginIndexStore::empty", origins,
                             [&origins, &txn] { (void)origins.empty(txn.handle()); });
+        expect_open_required("OriginIndexStore::clear", origins,
+                            [&origins, &txn] { (void)origins.clear(txn.handle()); });
         expect_open_required("OriginIndexStore::note_origin", origins,
                             [&origins, &txn] { origins.note_origin(txn.handle(), make_node(0xD0), 1); });
         expect_open_required("OriginIndexStore::last_seq", origins,
@@ -610,6 +704,7 @@ int main() {
     test_changelog_store();
     test_changelog_updates_origin_index();
     test_changelog_backfills_legacy_origins_on_append();
+    test_changelog_rebuilds_partial_origin_index();
     test_applied_store();
     test_identity_index_store();
     test_changelog_prune_up_to_boundary();

@@ -177,7 +177,58 @@ namespace sync {
             return removed;
         }
 
+        /// \brief Checks whether \c _mdbxc_origins exactly mirrors changelog tails.
+        /// \param txn Active transaction.
+        /// \return \c true when every changelog origin has one matching index
+        /// entry with the same max seq, and the index has no extra origins.
+        bool origin_index_matches_changelog(MDBX_txn* txn) const {
+            ensure_open();
+            const std::vector<OriginTail> expected =
+                collect_changelog_origin_tails(txn);
+
+            OriginIndexStore origins(m_env);
+            if (!origins.open_existing(txn)) {
+                return expected.empty();
+            }
+
+            const std::vector<NodeId> actual_origins = origins.origins(txn);
+            if (actual_origins.size() != expected.size()) {
+                return false;
+            }
+            for (std::size_t i = 0; i < expected.size(); ++i) {
+                if (actual_origins[i] != expected[i].origin) {
+                    return false;
+                }
+                std::uint64_t actual_seq = 0;
+                if (!origins.last_seq(txn, actual_origins[i], actual_seq) ||
+                    actual_seq != expected[i].seq) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// \brief Rebuilds \c _mdbxc_origins from changelog keys.
+        /// \param txn Active transaction.
+        /// \return Number of origins written to the rebuilt index.
+        /// \pre Transaction must be writable.
+        std::size_t rebuild_origin_index(MDBX_txn* txn) {
+            ensure_open();
+            const std::vector<OriginTail> tails =
+                collect_changelog_origin_tails(txn);
+            m_origins.open(txn);
+            m_origins.clear(txn);
+            write_origin_tails(txn, tails);
+            m_origin_index_ready = true;
+            return tails.size();
+        }
+
     private:
+        struct OriginTail {
+            NodeId origin;
+            std::uint64_t seq;
+        };
+
         static void encode_key(const NodeId& origin, std::uint64_t seq,
                                std::vector<std::uint8_t>& out) {
             out.resize(24);
@@ -211,6 +262,46 @@ namespace sync {
             return seq;
         }
 
+        std::vector<OriginTail> collect_changelog_origin_tails(MDBX_txn* txn) const {
+            std::vector<OriginTail> out;
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
+                       "ChangeLogStore origin scan cursor open failed");
+            try {
+                MDBX_val k, v;
+                int rc = mdbx_cursor_get(raw, &k, &v, MDBX_FIRST);
+                while (rc == MDBX_SUCCESS) {
+                    const NodeId origin = decode_key_origin(k);
+                    const std::uint64_t seq = decode_key_seq(k);
+                    if (out.empty() ||
+                        compare_node_id(out.back().origin, origin) != 0) {
+                        OriginTail tail;
+                        tail.origin = origin;
+                        tail.seq = seq;
+                        out.push_back(tail);
+                    } else {
+                        out.back().seq = seq;
+                    }
+                    rc = mdbx_cursor_get(raw, &k, &v, MDBX_NEXT);
+                }
+                if (rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "ChangeLogStore origin scan cursor walk failed");
+                }
+            } catch (...) {
+                mdbx_cursor_close(raw);
+                throw;
+            }
+            mdbx_cursor_close(raw);
+            return out;
+        }
+
+        void write_origin_tails(MDBX_txn* txn,
+                                const std::vector<OriginTail>& tails) {
+            for (std::size_t i = 0; i < tails.size(); ++i) {
+                m_origins.note_origin(txn, tails[i].origin, tails[i].seq);
+            }
+        }
+
         void ensure_origin_index_ready(MDBX_txn* txn) {
             if (m_origin_index_ready) {
                 return;
@@ -225,42 +316,9 @@ namespace sync {
         }
 
         void backfill_origin_index(MDBX_txn* txn) {
-            MDBX_cursor* raw = nullptr;
-            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
-                       "ChangeLogStore origin backfill cursor open failed");
-            try {
-                MDBX_val k, v;
-                NodeId current_origin{};
-                std::uint64_t current_seq = 0;
-                bool have_current = false;
-                int rc = mdbx_cursor_get(raw, &k, &v, MDBX_FIRST);
-                while (rc == MDBX_SUCCESS) {
-                    const NodeId origin = decode_key_origin(k);
-                    const std::uint64_t seq = decode_key_seq(k);
-                    if (!have_current) {
-                        current_origin = origin;
-                        current_seq = seq;
-                        have_current = true;
-                    } else if (compare_node_id(current_origin, origin) == 0) {
-                        current_seq = seq;
-                    } else {
-                        m_origins.note_origin(txn, current_origin, current_seq);
-                        current_origin = origin;
-                        current_seq = seq;
-                    }
-                    rc = mdbx_cursor_get(raw, &k, &v, MDBX_NEXT);
-                }
-                if (rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "ChangeLogStore origin backfill cursor walk failed");
-                }
-                if (have_current) {
-                    m_origins.note_origin(txn, current_origin, current_seq);
-                }
-            } catch (...) {
-                mdbx_cursor_close(raw);
-                throw;
-            }
-            mdbx_cursor_close(raw);
+            const std::vector<OriginTail> tails =
+                collect_changelog_origin_tails(txn);
+            write_origin_tails(txn, tails);
         }
 
         MDBX_env*     m_env;
