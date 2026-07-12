@@ -72,14 +72,49 @@ namespace sync {
     /// can use \c apply_batch_ex() when it needs to distinguish retryable
     /// sequence gaps from schema/DBI incompatibilities.
     struct ApplyOutcome {
+        /// \brief Compact apply result, matching \c apply_batch().
         ApplyResult          result = ApplyResult::Applied;
+
+        /// \brief Specific reason when \c result is \c ApplyResult::Conflict.
+        /// \details Remains \c ApplyConflictReason::None for \c Applied and
+        /// \c Skipped outcomes.
         ApplyConflictReason  conflict_reason = ApplyConflictReason::None;
+
+        /// \brief Origin of the incoming batch for all outcome kinds.
         NodeId               origin_node_id{};
+
+        /// \brief Last contiguous seq for \c origin_node_id before apply.
+        /// \details For \c SequenceGap this is the receiver-side seq that
+        /// made \c batch_seq non-contiguous. For successful \c Applied
+        /// outcomes this is updated to the applied \c batch_seq.
         std::uint64_t        last_applied_seq = 0;
+
+        /// \brief Incoming batch seq for all outcome kinds.
         std::uint64_t        batch_seq = 0;
+
+        /// \brief DBI name for DBI-related conflicts.
+        /// \details Set for \c InconsistentBatchDbiFlags and
+        /// \c ExistingDbiFlagsMismatch.
         std::string          dbi_name;
+
+        /// \brief Previously seen flags for \c InconsistentBatchDbiFlags.
+        /// \details Not used for \c ExistingDbiFlagsMismatch; use
+        /// \c actual_dbi_flags when available.
         std::uint32_t        expected_dbi_flags = 0;
+
+        /// \brief Incoming persistent DBI flags for DBI-related conflicts.
         std::uint32_t        incoming_dbi_flags = 0;
+
+        /// \brief Whether \c actual_dbi_flags contains probed existing flags.
+        /// \details Only meaningful for \c ExistingDbiFlagsMismatch.
+        bool                 actual_dbi_flags_available = false;
+
+        /// \brief Existing persistent DBI flags when probe succeeds.
+        /// \details Valid only when \c actual_dbi_flags_available is true.
+        std::uint32_t        actual_dbi_flags = 0;
+
+        /// \brief MDBX error code that caused a DBI preflight mismatch.
+        /// \details Currently set for \c ExistingDbiFlagsMismatch.
         int                  mdbx_error_code = MDBX_SUCCESS;
     };
 
@@ -178,10 +213,11 @@ namespace sync {
                 outcome.conflict_reason = ApplyConflictReason::SequenceGap;
                 return outcome;
             }
-            if (!batch_has_consistent_dbi_flags(batch, &outcome)) return outcome;
+            std::vector<BatchDbiFlags> batch_dbis;
+            if (!collect_batch_dbi_flags(batch, batch_dbis, &outcome)) return outcome;
 
             std::unordered_map<std::string, MDBX_dbi> dbi_cache;
-            if (!preflight_batch_user_dbis(txn, batch, dbi_cache, &outcome)) {
+            if (!preflight_batch_user_dbis(txn, batch_dbis, dbi_cache, &outcome)) {
                 return outcome;
             }
             for (const ChangeOp& op : batch.ops) {
@@ -418,8 +454,14 @@ namespace sync {
                        ApplyConflictReason::ExistingDbiFlagsMismatch) {
                 message += " (dbi='" + outcome.dbi_name +
                            "', incoming_flags=" +
-                           std::to_string(outcome.incoming_dbi_flags) +
-                           ", mdbx_error_code=" +
+                           std::to_string(outcome.incoming_dbi_flags);
+                if (outcome.actual_dbi_flags_available) {
+                    message += ", actual_flags=" +
+                               std::to_string(outcome.actual_dbi_flags);
+                } else {
+                    message += ", actual_flags=unknown";
+                }
+                message += ", mdbx_error_code=" +
                            std::to_string(outcome.mdbx_error_code) + ")";
             }
             return message;
@@ -438,20 +480,37 @@ namespace sync {
             return dbi_flags & persistent_dbi_flags_mask();
         }
 
-        static bool batch_has_consistent_dbi_flags(const ChangeBatch& batch,
-                                                   ApplyOutcome* outcome) {
-            std::unordered_map<std::string, std::uint32_t> flags_by_name;
+        struct BatchDbiFlags {
+            std::string name;
+            std::uint32_t flags;
+        };
+
+        static bool collect_batch_dbi_flags(const ChangeBatch& batch,
+                                            std::vector<BatchDbiFlags>& dbis,
+                                            ApplyOutcome* outcome) {
+            dbis.clear();
+            std::unordered_map<std::string, std::vector<BatchDbiFlags>::size_type> index_by_name;
             for (const ChangeOp& op : batch.ops) {
                 const std::uint32_t flags = persistent_dbi_flags(op.dbi_flags);
-                const std::pair<std::unordered_map<std::string, std::uint32_t>::iterator, bool> inserted =
-                    flags_by_name.insert(std::make_pair(op.dbi_name, flags));
-                if (!inserted.second && inserted.first->second != flags) {
+                const std::pair<
+                    std::unordered_map<std::string, std::vector<BatchDbiFlags>::size_type>::iterator,
+                    bool> inserted =
+                    index_by_name.insert(std::make_pair(op.dbi_name, dbis.size()));
+                if (inserted.second) {
+                    BatchDbiFlags entry;
+                    entry.name = op.dbi_name;
+                    entry.flags = flags;
+                    dbis.push_back(entry);
+                    continue;
+                }
+                const BatchDbiFlags& existing = dbis[inserted.first->second];
+                if (existing.flags != flags) {
                     if (outcome != nullptr) {
                         outcome->result = ApplyResult::Conflict;
                         outcome->conflict_reason =
                             ApplyConflictReason::InconsistentBatchDbiFlags;
                         outcome->dbi_name = op.dbi_name;
-                        outcome->expected_dbi_flags = inserted.first->second;
+                        outcome->expected_dbi_flags = existing.flags;
                         outcome->incoming_dbi_flags = flags;
                     }
                     return false;
@@ -488,33 +547,51 @@ namespace sync {
             return true;
         }
 
+        static bool read_existing_user_dbi_flags(MDBX_txn* txn,
+                                                 const std::string& name,
+                                                 std::uint32_t& actual_flags) {
+            actual_flags = 0;
+            MDBX_dbi dbi = 0;
+            const int rc = mdbx_dbi_open(txn, name.c_str(), MDBX_DB_ACCEDE, &dbi);
+            if (rc == MDBX_NOTFOUND ||
+                rc == MDBX_INCOMPATIBLE ||
+                rc == MDBX_EINVAL) {
+                return false;
+            }
+            check_mdbx(rc, "SyncEngine: failed to probe existing user DBI '" + name + "'");
+
+            unsigned raw_flags = 0;
+            check_mdbx(mdbx_dbi_flags(txn, dbi, &raw_flags),
+                       "SyncEngine: failed to read flags for existing user DBI '" + name + "'");
+            actual_flags = persistent_dbi_flags(raw_flags);
+            return true;
+        }
+
         static bool preflight_batch_user_dbis(MDBX_txn* txn,
-                                              const ChangeBatch& batch,
+                                              const std::vector<BatchDbiFlags>& dbis,
                                               std::unordered_map<std::string, MDBX_dbi>& cache,
                                               ApplyOutcome* outcome) {
-            std::unordered_map<std::string, std::uint32_t> flags_by_name;
-            for (const ChangeOp& op : batch.ops) {
-                flags_by_name.insert(std::make_pair(op.dbi_name, persistent_dbi_flags(op.dbi_flags)));
-            }
-
-            for (std::unordered_map<std::string, std::uint32_t>::const_iterator it =
-                     flags_by_name.begin();
-                 it != flags_by_name.end(); ++it) {
+            for (std::vector<BatchDbiFlags>::const_iterator it = dbis.begin();
+                 it != dbis.end(); ++it) {
                 MDBX_dbi dbi = 0;
                 int error_code = MDBX_SUCCESS;
-                if (!open_existing_user_dbi(txn, it->first, it->second, dbi, error_code)) {
+                if (!open_existing_user_dbi(txn, it->name, it->flags, dbi, error_code)) {
                     if (outcome != nullptr) {
                         outcome->result = ApplyResult::Conflict;
                         outcome->conflict_reason =
                             ApplyConflictReason::ExistingDbiFlagsMismatch;
-                        outcome->dbi_name = it->first;
-                        outcome->incoming_dbi_flags = it->second;
+                        outcome->dbi_name = it->name;
+                        outcome->incoming_dbi_flags = it->flags;
+                        outcome->actual_dbi_flags_available =
+                            read_existing_user_dbi_flags(txn,
+                                                         it->name,
+                                                         outcome->actual_dbi_flags);
                         outcome->mdbx_error_code = error_code;
                     }
                     return false;
                 }
                 if (dbi != 0) {
-                    cache[it->first] = dbi;
+                    cache[it->name] = dbi;
                 }
             }
             return true;
