@@ -82,6 +82,36 @@ namespace sync {
             return false;
         }
 
+        /// \brief Removes all indexed origins.
+        /// \param txn Active transaction.
+        /// \return Number of removed origin entries.
+        /// \pre Transaction must be writable.
+        std::size_t clear(MDBX_txn* txn) {
+            ensure_open();
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
+                       "OriginIndexStore clear cursor open failed");
+            std::size_t removed = 0;
+            try {
+                MDBX_val k, v;
+                int rc = mdbx_cursor_get(raw, &k, &v, MDBX_FIRST);
+                while (rc == MDBX_SUCCESS) {
+                    check_mdbx(mdbx_cursor_del(raw, MDBX_CURRENT),
+                               "OriginIndexStore clear cursor_del failed");
+                    ++removed;
+                    rc = mdbx_cursor_get(raw, &k, &v, MDBX_NEXT);
+                }
+                if (rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "OriginIndexStore clear cursor walk failed");
+                }
+            } catch (...) {
+                mdbx_cursor_close(raw);
+                throw;
+            }
+            mdbx_cursor_close(raw);
+            return removed;
+        }
+
         /// \brief Records \p origin with at least \p seq as its known tail.
         void note_origin(MDBX_txn* txn, const NodeId& origin, std::uint64_t seq) {
             ensure_open();
@@ -127,6 +157,9 @@ namespace sync {
                 while (rc == MDBX_SUCCESS) {
                     if (k.iov_len != 16) {
                         throw std::runtime_error("OriginIndexStore key has invalid size");
+                    }
+                    if (v.iov_len != 8) {
+                        throw std::runtime_error("OriginIndexStore value has invalid size");
                     }
                     NodeId origin{};
                     std::memcpy(origin.data(), k.iov_base, 16);

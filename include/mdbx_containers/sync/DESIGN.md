@@ -109,6 +109,16 @@ backfills the index by scanning existing changelog keys. Read-only pull keeps
 a compatibility fallback: if `_mdbxc_origins` is absent or empty, origin
 discovery scans `_mdbxc_changelog`.
 
+`ChangeLogStore::origin_index_matches_changelog()` compares the index against
+the changelog-derived origin tails. `ChangeLogStore::rebuild_origin_index()`
+is the explicit maintenance path for a manually damaged or otherwise partial
+`_mdbxc_origins` DBI; ordinary pull does not rebuild metadata in a read-only
+transaction.
+
+These maintenance operations scan the changelog. Use them for startup
+diagnostics, manual repair, or rare integrity checks; do not place them in the
+normal background-sync loop or per-pull hot path.
+
 ### `_mdbxc_applied` (AppliedStore)
 
 | | |
