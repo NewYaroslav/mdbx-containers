@@ -15,6 +15,7 @@
 ///  - \c seq <= last_applied_seq: \c Skipped (redundant replay).
 ///  - \c seq == last_applied_seq + 1: \c Applied, ops applied in order.
 ///  - \c seq >  last_applied_seq + 1: \c Conflict (gap; caller must re-pull).
+///  - contradictory persistent DBI flags inside one batch: \c Conflict.
 ///
 /// Self-origin batches are always \c Skipped (the receiver already has them).
 ///
@@ -28,6 +29,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <mdbx.h>
@@ -132,6 +134,7 @@ namespace sync {
             const std::uint64_t last = applied.last_applied_seq(txn, batch.origin_node_id);
             if (batch.seq <= last) return ApplyResult::Skipped;
             if (batch.seq != last + 1) return ApplyResult::Conflict;
+            if (!batch_has_consistent_dbi_flags(batch)) return ApplyResult::Conflict;
 
             std::unordered_map<std::string, MDBX_dbi> dbi_cache;
             for (const ChangeOp& op : batch.ops) {
@@ -141,12 +144,14 @@ namespace sync {
             return ApplyResult::Applied;
         }
 
-                /// \brief Handles a pull request: scans the local \c ChangeLogStore
+        /// \brief Handles a pull request: scans the local \c ChangeLogStore
         /// for batches newer than the requester's cursor.
         /// \details When \c request.have is empty, returns a full snapshot
-        /// (all known origins, batches from seq=1). Validates
-        /// \c request.db_id against the local \c db_uuid; mismatched peers
-        /// receive an empty response with \c ok=false.
+        /// (all known origins, batches from seq=1). Non-empty cursors still
+        /// scan all origins so newly discovered origins and multi-origin
+        /// pagination are not stranded. Validates \c request.db_id against
+        /// the local \c db_uuid; mismatched peers receive an empty response
+        /// with \c ok=false.
         /// \c has_more is set to \c true when the loop stopped because of
         /// \c request.max_batches or \c request.max_bytes rather than
         /// running out of changelog entries.
@@ -176,42 +181,15 @@ namespace sync {
                 return out;
             }
 
-            if (request.have.last_seq_by_origin.empty()) {
-                return pull_full_snapshot(txn, changelog_dbi, request);
-            }
-
-            std::vector<std::uint8_t> buf;
-            std::size_t total_bytes = 0;
-            bool truncated = false;
-            for (const auto& kv : request.have.last_seq_by_origin) {
-                const NodeId& origin = kv.first;
-                const std::uint64_t have_seq = kv.second;
-                std::uint64_t next_seq = have_seq + 1;
-                while (out.batches.size() < request.max_batches &&
-                       total_bytes < request.max_bytes) {
-                    if (!changelog_get_ro(txn, changelog_dbi, origin,
-                                          next_seq, buf)) {
-                        break;
-                    }
-                    const ChangeBatch b = ChangeBatchCodec::decode_exact(buf);
-                    out.batches.push_back(b);
-                    total_bytes += buf.size();
-                    ++next_seq;
-                }
-                if (out.batches.size() >= request.max_batches ||
-                    total_bytes >= request.max_bytes) {
-                    truncated = true;
-                    break;
-                }
-            }
-            out.has_more = truncated;
-            out.remote_have = read_applied_cursor(txn, out.remote_have);
-            return out;
+            return pull_full_snapshot(txn, changelog_dbi, request);
         }
 
-        /// \brief Walks the changelog with a cursor and returns every batch.
-        /// \details Sets \c has_more=true when the walk stopped because of
-        /// \c request.max_batches or \c request.max_bytes.
+        /// \brief Walks the changelog and returns batches newer than
+        /// \c request.have.
+        /// \details Empty \c request.have returns a full snapshot. Non-empty
+        /// cursors filter each origin independently and still include origins
+        /// missing from the cursor. Sets \c has_more=true when the walk
+        /// stopped because of \c request.max_batches or \c request.max_bytes.
         PullResponse pull_full_snapshot(MDBX_txn* txn, MDBX_dbi dbi,
                                         const PullRequest& request) {
             PullResponse out;
@@ -224,16 +202,21 @@ namespace sync {
                 MDBX_val k, v;
                 int rc = mdbx_cursor_get(raw, &k, &v, MDBX_FIRST);
                 while (rc == MDBX_SUCCESS) {
+                    std::vector<std::uint8_t> buf(v.iov_len);
+                    if (v.iov_len > 0) {
+                        std::memcpy(buf.data(), v.iov_base, v.iov_len);
+                    }
+                    const ChangeBatch batch = ChangeBatchCodec::decode_exact(buf);
+                    if (batch.seq <= request.have.last_seq_for(batch.origin_node_id)) {
+                        rc = mdbx_cursor_get(raw, &k, &v, MDBX_NEXT);
+                        continue;
+                    }
                     if (out.batches.size() >= request.max_batches ||
                         total_bytes >= request.max_bytes) {
                         truncated = true;
                         break;
                     }
-                    std::vector<std::uint8_t> buf(v.iov_len);
-                    if (v.iov_len > 0) {
-                        std::memcpy(buf.data(), v.iov_base, v.iov_len);
-                    }
-                    out.batches.push_back(ChangeBatchCodec::decode_exact(buf));
+                    out.batches.push_back(batch);
                     total_bytes += v.iov_len;
                     rc = mdbx_cursor_get(raw, &k, &v, MDBX_NEXT);
                 }
@@ -354,6 +337,32 @@ namespace sync {
             return compare_node_id(request_db_id, db_uuid()) == 0;
         }
 
+        static std::uint32_t persistent_dbi_flags_mask() {
+            return static_cast<std::uint32_t>(MDBX_REVERSEKEY) |
+                   static_cast<std::uint32_t>(MDBX_DUPSORT) |
+                   static_cast<std::uint32_t>(MDBX_INTEGERKEY) |
+                   static_cast<std::uint32_t>(MDBX_DUPFIXED) |
+                   static_cast<std::uint32_t>(MDBX_INTEGERDUP) |
+                   static_cast<std::uint32_t>(MDBX_REVERSEDUP);
+        }
+
+        static std::uint32_t persistent_dbi_flags(std::uint32_t dbi_flags) {
+            return dbi_flags & persistent_dbi_flags_mask();
+        }
+
+        static bool batch_has_consistent_dbi_flags(const ChangeBatch& batch) {
+            std::unordered_map<std::string, std::uint32_t> flags_by_name;
+            for (const ChangeOp& op : batch.ops) {
+                const std::uint32_t flags = persistent_dbi_flags(op.dbi_flags);
+                const std::pair<std::unordered_map<std::string, std::uint32_t>::iterator, bool> inserted =
+                    flags_by_name.insert(std::make_pair(op.dbi_name, flags));
+                if (!inserted.second && inserted.first->second != flags) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /// \brief Opens \c _mdbxc_changelog read-only when it exists; 0 otherwise.
         static MDBX_dbi open_changelog_ro(MDBX_txn* txn) {
             return open_store_ro(txn, "_mdbxc_changelog");
@@ -408,26 +417,6 @@ namespace sync {
             return cur;
         }
 
-        static bool changelog_get_ro(MDBX_txn* txn, MDBX_dbi dbi,
-                                     const NodeId& origin, std::uint64_t seq,
-                                     std::vector<std::uint8_t>& out) {
-            std::vector<std::uint8_t> key_buf(24);
-            std::memcpy(key_buf.data(), origin.data(), 16);
-            for (int i = 0; i < 8; ++i) {
-                key_buf[16 + i] = static_cast<std::uint8_t>((seq >> ((7 - i) * 8)) & 0xff);
-            }
-            MDBX_val k = { key_buf.empty() ? nullptr : &key_buf[0], key_buf.size() };
-            MDBX_val v;
-            const int rc = mdbx_get(txn, dbi, &k, &v);
-            if (rc == MDBX_NOTFOUND) return false;
-            check_mdbx(rc, "changelog read failed");
-            out.resize(v.iov_len);
-            if (v.iov_len > 0) {
-                std::memcpy(out.data(), v.iov_base, v.iov_len);
-            }
-            return true;
-        }
-
         static MDBX_dbi resolve_user_dbi(MDBX_txn* txn,
                                          const std::string& name,
                                          std::uint32_t dbi_flags,
@@ -437,18 +426,12 @@ namespace sync {
                 return it->second;
             }
             MDBX_dbi dbi = 0;
-            const std::uint32_t supported_flags =
-                static_cast<std::uint32_t>(MDBX_REVERSEKEY) |
-                static_cast<std::uint32_t>(MDBX_DUPSORT) |
-                static_cast<std::uint32_t>(MDBX_INTEGERKEY) |
-                static_cast<std::uint32_t>(MDBX_DUPFIXED) |
-                static_cast<std::uint32_t>(MDBX_INTEGERDUP) |
-                static_cast<std::uint32_t>(MDBX_REVERSEDUP);
+            const std::uint32_t open_dbi_flags = persistent_dbi_flags(dbi_flags);
             const MDBX_db_flags_t open_flags = static_cast<MDBX_db_flags_t>(
-                (dbi_flags & supported_flags) | static_cast<std::uint32_t>(MDBX_CREATE));
+                open_dbi_flags | static_cast<std::uint32_t>(MDBX_CREATE));
             int rc = mdbx_dbi_open(txn, name.c_str(), open_flags, &dbi);
             if (rc == MDBX_INCOMPATIBLE &&
-                (dbi_flags & static_cast<std::uint32_t>(MDBX_INTEGERKEY)) == 0) {
+                (open_dbi_flags & static_cast<std::uint32_t>(MDBX_INTEGERKEY)) == 0) {
                 // Compatibility path for batches produced before dbi_flags
                 // capture was implemented. Existing integer-key DBIs may
                 // reject open_flags=MDBX_CREATE with MDBX_INCOMPATIBLE.

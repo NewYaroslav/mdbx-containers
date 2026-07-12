@@ -71,6 +71,34 @@ void assign_bytes(std::vector<std::uint8_t>& out, const MDBX_val& val) {
     out.assign(begin, begin + val.iov_len);
 }
 
+mdbxc::sync::ChangeBatch make_raw_batch(const mdbxc::sync::NodeId& origin,
+                                        std::uint64_t seq,
+                                        const std::string& dbi_name,
+                                        std::uint8_t key_seed) {
+    mdbxc::sync::ChangeBatch batch;
+    batch.origin_node_id = origin;
+    batch.seq = seq;
+    mdbxc::sync::ChangeOp op;
+    op.op_type = mdbxc::sync::ChangeOpType::Put;
+    op.dbi_name = dbi_name;
+    op.storage_key = { key_seed, static_cast<std::uint8_t>(seq & 0xff) };
+    op.value = { static_cast<std::uint8_t>(0x80u | key_seed),
+                 static_cast<std::uint8_t>(seq & 0xff) };
+    batch.ops.push_back(op);
+    return batch;
+}
+
+void append_raw_batch(mdbxc::sync::ChangeLogStore& log,
+                      MDBX_txn* txn,
+                      const mdbxc::sync::NodeId& origin,
+                      std::uint64_t seq,
+                      const std::string& dbi_name,
+                      std::uint8_t key_seed) {
+    const mdbxc::sync::ChangeBatch batch = make_raw_batch(origin, seq, dbi_name, key_seed);
+    const std::vector<std::uint8_t> bytes = mdbxc::sync::ChangeBatchCodec::encode(batch);
+    log.append(txn, origin, seq, bytes);
+}
+
 void test_engine_round_trip_kv() {
     using namespace mdbxc;
     const std::string primary_path = "test_engine_primary.mdbx";
@@ -247,6 +275,50 @@ void test_engine_applies_legacy_zero_flags_to_integer_dbi() {
 
     if (kv_or_throw(conn, kv, key, "legacy zero-flags kv") != value) {
         throw std::runtime_error("legacy zero-flags kv value mismatch");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_conflicting_dbi_flags_returns_conflict() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_conflicting_dbi_flags.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    seed_node_id(conn, make_node(0x10));
+    sync::SyncEngine engine(conn);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = make_node(0x20);
+    batch.seq = 1;
+
+    sync::ChangeOp first;
+    first.op_type = sync::ChangeOpType::Put;
+    first.dbi_name = "kv";
+    first.dbi_flags = static_cast<std::uint32_t>(MDBX_INTEGERKEY);
+    first.storage_key = { 0x01 };
+    first.value = { 0x11 };
+    batch.ops.push_back(first);
+
+    sync::ChangeOp second = first;
+    second.dbi_flags = static_cast<std::uint32_t>(MDBX_REVERSEKEY);
+    second.storage_key = { 0x02 };
+    second.value = { 0x22 };
+    batch.ops.push_back(second);
+
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        const sync::ApplyResult result = engine.apply_batch(txn.handle(), batch);
+        if (result != sync::ApplyResult::Conflict) {
+            throw std::runtime_error("conflicting dbi_flags batch should return Conflict");
+        }
+        txn.commit();
+    }
+
+    if (engine.applied_cursor().last_seq_for(make_node(0x20)) != 0u) {
+        throw std::runtime_error("conflicting dbi_flags batch advanced cursor");
     }
 
     conn->disconnect();
@@ -614,6 +686,98 @@ void test_engine_handle_pull_pagination_has_more() {
     cleanup(primary_path); cleanup(replica_path);
 }
 
+void test_engine_handle_pull_multi_origin_pagination() {
+    using namespace mdbxc;
+    const std::string primary_path = "test_engine_pull_multi_origin.mdbx";
+    const std::string replica_path = "test_engine_pull_multi_origin_replica.mdbx";
+    cleanup(primary_path); cleanup(replica_path);
+
+    auto primary_conn = open_env(primary_path);
+    auto replica_conn = open_env(replica_path);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_uuid = make_node(0xD0);
+    const sync::NodeId origin_a = make_node(0x20);
+    const sync::NodeId origin_b = make_node(0x40);
+
+    sync::SyncEngine primary_engine(primary_conn);
+    sync::SyncEngine replica_engine(replica_conn);
+    primary_engine.initialize_local_identity(primary_node, db_uuid);
+    replica_engine.initialize_local_identity(replica_node, db_uuid);
+
+    {
+        auto txn = primary_conn->transaction(TransactionMode::WRITABLE);
+        sync::ChangeLogStore log(primary_conn->env_handle());
+        log.open(txn.handle());
+        append_raw_batch(log, txn.handle(), origin_a, 1, "kv", 0xA1);
+        append_raw_batch(log, txn.handle(), origin_a, 2, "kv", 0xA2);
+        append_raw_batch(log, txn.handle(), origin_b, 1, "kv", 0xB1);
+        append_raw_batch(log, txn.handle(), origin_b, 2, "kv", 0xB2);
+        txn.commit();
+    }
+
+    sync::DirectSyncPeer peer(&primary_engine);
+    sync::PullRequest req;
+    req.requester = replica_node;
+    req.db_id = db_uuid;
+    req.max_batches = 2;
+    const sync::PullResponse first = peer.pull(req);
+    if (first.batches.size() != 2u || !first.has_more) {
+        throw std::runtime_error("first multi-origin page should contain 2 batches and has_more");
+    }
+    if (first.batches[0].origin_node_id != origin_a ||
+        first.batches[1].origin_node_id != origin_a) {
+        throw std::runtime_error("first multi-origin page should stop inside origin A");
+    }
+
+    {
+        auto txn = replica_conn->transaction(TransactionMode::WRITABLE);
+        for (const sync::ChangeBatch& batch : first.batches) {
+            if (replica_engine.apply_batch(txn.handle(), batch) != sync::ApplyResult::Applied) {
+                throw std::runtime_error("first multi-origin page apply failed");
+            }
+        }
+        txn.commit();
+    }
+
+    sync::PullRequest req2;
+    req2.requester = replica_node;
+    req2.db_id = db_uuid;
+    req2.have = replica_engine.applied_cursor();
+    req2.max_batches = 2;
+    const sync::PullResponse second = peer.pull(req2);
+    if (second.batches.size() != 2u) {
+        throw std::runtime_error("second multi-origin page should contain origin B batches");
+    }
+    if (second.has_more) {
+        throw std::runtime_error("second multi-origin page should drain changelog");
+    }
+    if (second.batches[0].origin_node_id != origin_b ||
+        second.batches[1].origin_node_id != origin_b) {
+        throw std::runtime_error("second multi-origin page should include origin B");
+    }
+
+    {
+        auto txn = replica_conn->transaction(TransactionMode::WRITABLE);
+        for (const sync::ChangeBatch& batch : second.batches) {
+            if (replica_engine.apply_batch(txn.handle(), batch) != sync::ApplyResult::Applied) {
+                throw std::runtime_error("second multi-origin page apply failed");
+            }
+        }
+        txn.commit();
+    }
+
+    const sync::SyncCursor cursor = replica_engine.applied_cursor();
+    if (cursor.last_seq_for(origin_a) != 2u || cursor.last_seq_for(origin_b) != 2u) {
+        throw std::runtime_error("multi-origin pagination did not apply both origins");
+    }
+
+    primary_conn->disconnect();
+    replica_conn->disconnect();
+    cleanup(primary_path); cleanup(replica_path);
+}
+
 void test_engine_handle_pull_lifecycle() {
     using namespace mdbxc;
     const std::string p = "test_engine_pull_lifecycle.mdbx";
@@ -652,6 +816,7 @@ int main() {
         { "test_engine_skips_self_origin",      &test_engine_skips_self_origin },
         { "test_engine_idempotent_replay",      &test_engine_idempotent_replay },
         { "test_engine_legacy_zero_flags",      &test_engine_applies_legacy_zero_flags_to_integer_dbi },
+        { "test_engine_conflicting_dbi_flags",  &test_engine_conflicting_dbi_flags_returns_conflict },
         { "test_engine_gap_returns_conflict",   &test_engine_gap_returns_conflict },
         { "test_engine_applied_cursor",         &test_engine_applied_cursor },
         { "test_engine_handle_push_to_remote",  &test_engine_handle_push_to_remote },
@@ -659,6 +824,7 @@ int main() {
         { "test_engine_handle_pull_wrong_db_id",&test_engine_handle_pull_wrong_db_id },
         { "test_engine_handle_push_wrong_db_id",&test_engine_handle_push_wrong_db_id },
         { "test_engine_handle_pull_pagination", &test_engine_handle_pull_pagination_has_more },
+        { "test_engine_handle_pull_multi_origin",&test_engine_handle_pull_multi_origin_pagination },
         { "test_engine_handle_pull_lifecycle", &test_engine_handle_pull_lifecycle },
     };
 
