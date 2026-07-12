@@ -33,6 +33,38 @@ int main() {
     mdbxc::ValueTable<int> version(conn, "txn_version");
 
     {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+
+        bool nested_raii_blocked = false;
+        try {
+            auto nested = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+            (void)nested;
+        } catch (const std::logic_error&) {
+            nested_raii_blocked = true;
+        }
+        MDBXC_TEST_ASSERT(nested_raii_blocked);
+
+        bool manual_begin_blocked = false;
+        try {
+            conn->begin(mdbxc::TransactionMode::WRITABLE);
+        } catch (const std::logic_error&) {
+            manual_begin_blocked = true;
+        }
+        MDBXC_TEST_ASSERT(manual_begin_blocked);
+
+        bool table_ctor_blocked = false;
+        try {
+            mdbxc::KeyValueTable<int, std::string> nested_table(conn, "txn_nested_ctor");
+            (void)nested_table;
+        } catch (const std::logic_error&) {
+            table_ctor_blocked = true;
+        }
+        MDBXC_TEST_ASSERT(table_ctor_blocked);
+
+        txn.rollback();
+    }
+
+    {
         auto txn = make_moved_writable_transaction(conn);
         names.clear(txn);
         version.clear(txn);

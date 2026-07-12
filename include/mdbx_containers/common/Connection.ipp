@@ -95,6 +95,12 @@ namespace mdbxc {
         if (!m_env) {
             throw std::logic_error("Connection is not connected.");
         }
+        if (current_thread_has_txn()) {
+            throw std::logic_error(
+                "A transaction is already active on this connection's thread. "
+                "Reuse it through table operations or pass the active transaction explicitly."
+            );
+        }
         return Transaction(static_cast<TransactionTracker*>(this), m_env, mode);
     }
 
@@ -110,6 +116,12 @@ namespace mdbxc {
         auto it = m_transactions.find(tid);
         if (it != m_transactions.end()) {
             throw std::logic_error("Transaction already started for this thread.");
+        }
+        if (current_thread_has_txn()) {
+            throw std::logic_error(
+                "A transaction is already active on this connection's thread. "
+                "Commit or roll it back before starting a manual transaction."
+            );
         }
         auto txn = std::make_shared<Transaction>(static_cast<TransactionTracker*>(this), m_env, mode);
         m_transactions[tid] = txn;

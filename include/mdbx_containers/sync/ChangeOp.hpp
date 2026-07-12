@@ -23,17 +23,19 @@ namespace sync {
 
     /// \brief Single raw DBI operation captured by the change recorder.
     /// \details \c storage_key is the MDBX key serialized by the table.
-    /// \c identity_key is the application-level identity (empty when equal to
-    /// storage_key). \c revision_key is an optional application-level version.
+    /// \c dbi_flags carries the persistent MDBX DBI flags needed to open the
+    /// destination DBI compatibly during apply. \c identity_key is the
+    /// application-level identity (empty when equal to storage_key).
+    /// \c revision_key is an optional application-level version.
     struct ChangeOp {
-        ChangeOpType           op_type   = ChangeOpType::Put; ///< Per-batch feature flags (BATCH_NONE, BATCH_HAS_MORE, ...).
-        std::uint32_t          op_flags  = OP_NONE;           ///< Identifier of the node that produced this batch.
-        std::uint32_t          dbi_flags = 0;                 ///< Monotonic per-node sequence number assigned by MetaStore::increment_local_seq.
-        std::string            dbi_name;                      ///< List of operations in this batch; order is preserved on apply.
-        std::vector<std::uint8_t> storage_key;                ///< Operation kind: Put/Delete/ClearTable.
-        std::vector<std::uint8_t> value;                      ///< Per-op feature flags (OP_HAS_IDENTITY_KEY, OP_HAS_REVISION_KEY, OP_TOMBSTONE).
-        std::vector<std::uint8_t> identity_key;               ///< Raw MDBX_DBI flags passed to mdbx_dbi_open for the DBI named in `dbi_name.
-        std::vector<std::uint8_t> revision_key;               ///< Name of the user table (also the DBI name).
+        ChangeOpType           op_type   = ChangeOpType::Put; ///< Operation kind: Put/Delete/ClearTable.
+        std::uint32_t          op_flags  = OP_NONE;           ///< Per-op feature flags.
+        std::uint32_t          dbi_flags = 0;                 ///< Raw MDBX DBI flags for \c dbi_name.
+        std::string            dbi_name;                      ///< User table name (MDBX DBI name).
+        std::vector<std::uint8_t> storage_key;                ///< Serialized MDBX key bytes.
+        std::vector<std::uint8_t> value;                      ///< Serialized value bytes for Put.
+        std::vector<std::uint8_t> identity_key;               ///< Optional logical identity key.
+        std::vector<std::uint8_t> revision_key;               ///< Optional application revision/version key.
     };
 
 } // namespace sync

@@ -62,6 +62,15 @@ void seed_node_id(std::shared_ptr<mdbxc::Connection> conn,
     txn.commit();
 }
 
+void assign_bytes(std::vector<std::uint8_t>& out, const MDBX_val& val) {
+    out.clear();
+    if (val.iov_len == 0) {
+        return;
+    }
+    const std::uint8_t* begin = static_cast<const std::uint8_t*>(val.iov_base);
+    out.assign(begin, begin + val.iov_len);
+}
+
 void test_engine_round_trip_kv() {
     using namespace mdbxc;
     const std::string primary_path = "test_engine_primary.mdbx";
@@ -194,6 +203,50 @@ void test_engine_idempotent_replay() {
             throw std::runtime_error("second apply should be Skipped");
         }
         txn.commit();
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_applies_legacy_zero_flags_to_integer_dbi() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_legacy_zero_flags.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    seed_node_id(conn, make_node(0x10));
+    sync::SyncEngine engine(conn);
+    KeyValueTable<int, int> kv(conn, "kv");
+
+    const int key = 42;
+    const int value = 77;
+    SerializeScratch key_scratch;
+    SerializeScratch value_scratch;
+    const MDBX_val db_key = serialize_key<true>(key, key_scratch);
+    const MDBX_val db_value = serialize_value(value, value_scratch);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = make_node(0x20);
+    batch.seq = 1;
+    sync::ChangeOp op;
+    op.op_type = sync::ChangeOpType::Put;
+    op.dbi_flags = 0;
+    op.dbi_name = "kv";
+    assign_bytes(op.storage_key, db_key);
+    assign_bytes(op.value, db_value);
+    batch.ops.push_back(op);
+
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        if (engine.apply_batch(txn.handle(), batch) != sync::ApplyResult::Applied) {
+            throw std::runtime_error("legacy zero-flags batch should apply");
+        }
+        txn.commit();
+    }
+
+    if (kv_or_throw(conn, kv, key, "legacy zero-flags kv") != value) {
+        throw std::runtime_error("legacy zero-flags kv value mismatch");
     }
 
     conn->disconnect();
@@ -598,6 +651,7 @@ int main() {
         { "test_engine_round_trip_kv",          &test_engine_round_trip_kv },
         { "test_engine_skips_self_origin",      &test_engine_skips_self_origin },
         { "test_engine_idempotent_replay",      &test_engine_idempotent_replay },
+        { "test_engine_legacy_zero_flags",      &test_engine_applies_legacy_zero_flags_to_integer_dbi },
         { "test_engine_gap_returns_conflict",   &test_engine_gap_returns_conflict },
         { "test_engine_applied_cursor",         &test_engine_applied_cursor },
         { "test_engine_handle_push_to_remote",  &test_engine_handle_push_to_remote },
