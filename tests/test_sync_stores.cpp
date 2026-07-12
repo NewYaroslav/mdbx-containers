@@ -2,6 +2,7 @@
 #include <mdbx_containers/sync.hpp>
 #include <cstdio>
 #include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -18,6 +19,30 @@ mdbxc::sync::NodeId make_node(std::uint8_t seed) {
         n[i] = static_cast<std::uint8_t>(seed + i);
     }
     return n;
+}
+
+std::vector<std::uint8_t> make_changelog_key(const mdbxc::sync::NodeId& origin,
+                                             std::uint64_t seq) {
+    std::vector<std::uint8_t> out(24);
+    std::memcpy(out.data(), origin.data(), 16);
+    for (int i = 0; i < 8; ++i) {
+        out[16 + i] =
+            static_cast<std::uint8_t>((seq >> ((7 - i) * 8)) & 0xff);
+    }
+    return out;
+}
+
+void put_raw_changelog(MDBX_txn* txn,
+                       MDBX_dbi dbi,
+                       const mdbxc::sync::NodeId& origin,
+                       std::uint64_t seq,
+                       const std::vector<std::uint8_t>& bytes) {
+    std::vector<std::uint8_t> key = make_changelog_key(origin, seq);
+    MDBX_val k = { key.empty() ? nullptr : &key[0], key.size() };
+    MDBX_val v = { bytes.empty() ? nullptr : const_cast<std::uint8_t*>(&bytes[0]),
+                   bytes.size() };
+    mdbxc::check_mdbx(mdbx_put(txn, dbi, &k, &v, MDBX_NOOVERWRITE),
+                      "raw changelog put failed");
 }
 
 void test_meta_store() {
@@ -70,6 +95,58 @@ void test_meta_store() {
     cleanup(p);
 }
 
+void test_origin_index_store() {
+    using namespace mdbxc::sync;
+    const std::string p = "test_sync_stores_origins.mdbx";
+    cleanup(p);
+
+    mdbxc::Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = mdbxc::Connection::create(cfg);
+
+    OriginIndexStore store(conn->env_handle());
+    const NodeId origin_a = make_node(0x10);
+    const NodeId origin_b = make_node(0x20);
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        store.open(txn.handle());
+        if (!store.empty(txn.handle())) {
+            throw std::runtime_error("new origin index should be empty");
+        }
+        store.note_origin(txn.handle(), origin_a, 7);
+        store.note_origin(txn.handle(), origin_b, 3);
+        store.note_origin(txn.handle(), origin_a, 2);
+        txn.commit();
+    }
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+        OriginIndexStore ro(conn->env_handle());
+        if (!ro.open_existing(txn.handle())) {
+            throw std::runtime_error("origin index should exist");
+        }
+        std::uint64_t seq = 0;
+        if (!ro.last_seq(txn.handle(), origin_a, seq) || seq != 7u) {
+            throw std::runtime_error("origin_a last seq mismatch");
+        }
+        if (!ro.last_seq(txn.handle(), origin_b, seq) || seq != 3u) {
+            throw std::runtime_error("origin_b last seq mismatch");
+        }
+        const std::vector<NodeId> origins = ro.origins(txn.handle());
+        if (origins.size() != 2u ||
+            origins[0] != origin_a ||
+            origins[1] != origin_b) {
+            throw std::runtime_error("origin index order mismatch");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_changelog_store() {
     using namespace mdbxc::sync;
     const std::string p = "test_sync_stores_changelog.mdbx";
@@ -113,6 +190,92 @@ void test_changelog_store() {
         if (decoded.seq != 7) throw std::runtime_error("decoded seq mismatch");
         if (decoded.origin_node_id != origin) {
             throw std::runtime_error("decoded origin mismatch");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_changelog_updates_origin_index() {
+    using namespace mdbxc::sync;
+    const std::string p = "test_sync_stores_changelog_origins.mdbx";
+    cleanup(p);
+
+    mdbxc::Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = mdbxc::Connection::create(cfg);
+
+    ChangeLogStore log(conn->env_handle());
+    const NodeId origin = make_node(0x30);
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        log.open(txn.handle());
+        log.append(txn.handle(), origin, 1, { 0x01 });
+        log.append(txn.handle(), origin, 3, { 0x03 });
+        txn.commit();
+    }
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+        OriginIndexStore origins(conn->env_handle());
+        if (!origins.open_existing(txn.handle())) {
+            throw std::runtime_error("origin index should exist after append");
+        }
+        std::uint64_t seq = 0;
+        if (!origins.last_seq(txn.handle(), origin, seq) || seq != 3u) {
+            throw std::runtime_error("changelog did not update origin tail");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_changelog_backfills_legacy_origins_on_append() {
+    using namespace mdbxc::sync;
+    const std::string p = "test_sync_stores_changelog_origin_backfill.mdbx";
+    cleanup(p);
+
+    mdbxc::Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = mdbxc::Connection::create(cfg);
+
+    const NodeId origin_a = make_node(0x10);
+    const NodeId origin_b = make_node(0x40);
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        MDBX_dbi raw = 0;
+        mdbxc::check_mdbx(mdbx_dbi_open(txn.handle(), "_mdbxc_changelog",
+                                        MDBX_CREATE, &raw),
+                          "open raw changelog failed");
+        put_raw_changelog(txn.handle(), raw, origin_a, 1, { 0xA1 });
+        put_raw_changelog(txn.handle(), raw, origin_a, 2, { 0xA2 });
+
+        ChangeLogStore log(conn->env_handle());
+        log.open(txn.handle());
+        log.append(txn.handle(), origin_b, 1, { 0xB1 });
+        txn.commit();
+    }
+
+    {
+        auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+        OriginIndexStore origins(conn->env_handle());
+        if (!origins.open_existing(txn.handle())) {
+            throw std::runtime_error("origin index should exist after backfill");
+        }
+        std::uint64_t seq = 0;
+        if (!origins.last_seq(txn.handle(), origin_a, seq) || seq != 2u) {
+            throw std::runtime_error("legacy origin was not backfilled");
+        }
+        if (!origins.last_seq(txn.handle(), origin_b, seq) || seq != 1u) {
+            throw std::runtime_error("new origin was not indexed");
         }
     }
 
@@ -412,6 +575,17 @@ void test_stores_require_open() {
         expect_open_required("ChangeLogStore::prune_up_to", change,
                             [&] { (void)change.prune_up_to(txn.handle(), make_node(0xC0), 1); });
 
+        OriginIndexStore origins(conn->env_handle());
+        std::uint64_t seq = 0;
+        expect_open_required("OriginIndexStore::empty", origins,
+                            [&origins, &txn] { (void)origins.empty(txn.handle()); });
+        expect_open_required("OriginIndexStore::note_origin", origins,
+                            [&origins, &txn] { origins.note_origin(txn.handle(), make_node(0xD0), 1); });
+        expect_open_required("OriginIndexStore::last_seq", origins,
+                            [&origins, &txn, &seq] { (void)origins.last_seq(txn.handle(), make_node(0xD0), seq); });
+        expect_open_required("OriginIndexStore::origins", origins,
+                            [&origins, &txn] { (void)origins.origins(txn.handle()); });
+
         IdentityIndexStore identity(conn->env_handle());
         IdentityIndexValue iv;
         expect_open_required("IdentityIndexStore::put", identity,
@@ -432,7 +606,10 @@ void test_stores_require_open() {
 
 int main() {
     test_meta_store();
+    test_origin_index_store();
     test_changelog_store();
+    test_changelog_updates_origin_index();
+    test_changelog_backfills_legacy_origins_on_append();
     test_applied_store();
     test_identity_index_store();
     test_changelog_prune_up_to_boundary();

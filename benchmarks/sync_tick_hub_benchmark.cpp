@@ -181,6 +181,18 @@ void seed_changelog(const std::shared_ptr<mdbxc::Connection>& conn,
     txn.commit();
 }
 
+std::uint64_t count_origin_index_entries(
+        const std::shared_ptr<mdbxc::Connection>& conn) {
+    auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+    mdbxc::sync::OriginIndexStore origins(conn->env_handle());
+    if (!origins.open_existing(txn.handle())) {
+        return 0;
+    }
+    const std::vector<mdbxc::sync::NodeId> indexed =
+        origins.origins(txn.handle());
+    return static_cast<std::uint64_t>(indexed.size());
+}
+
 std::uint64_t pull_incremental(mdbxc::sync::SyncEngine& engine,
                                const BenchmarkConfig& config,
                                std::uint64_t& pages) {
@@ -238,6 +250,12 @@ int run(int argc, char** argv) {
     seed_changelog(conn, config);
     const std::chrono::steady_clock::time_point seed_finish =
         std::chrono::steady_clock::now();
+    const std::uint64_t origin_index_entries = count_origin_index_entries(conn);
+    if (origin_index_entries != config.origins) {
+        throw std::runtime_error("wrong number of origin index entries: expected " +
+                                 std::to_string(config.origins) + ", got " +
+                                 std::to_string(origin_index_entries));
+    }
 
     std::uint64_t pages = 0;
     const std::chrono::steady_clock::time_point pull_start =
@@ -271,6 +289,7 @@ int run(int argc, char** argv) {
               << "  ticks_per_chunk=" << config.ticks_per_chunk << "\n"
               << "  max_batches=" << config.max_batches << "\n"
               << "  seeded_batches=" << seeded << "\n"
+              << "  origin_index_entries=" << origin_index_entries << "\n"
               << "  pulled_batches=" << pulled << "\n"
               << "  pull_pages=" << pages << "\n"
               << "  seed_ms=" << seed_ms << "\n"

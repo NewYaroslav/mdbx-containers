@@ -47,6 +47,7 @@
 #include "../detail/utils.hpp"
 #include "stores/AppliedStore.hpp"
 #include "stores/MetaStore.hpp"
+#include "stores/OriginIndexStore.hpp"
 
 namespace mdbxc {
 namespace sync {
@@ -245,14 +246,14 @@ namespace sync {
             return "unknown";
         }
 
-        /// \brief Handles a pull request: scans the local \c ChangeLogStore
+        /// \brief Handles a pull request: reads the local changelog
         /// for batches newer than the requester's cursor.
         /// \details When \c request.have is empty, returns a full snapshot
         /// (all known origins, batches from seq=1). Non-empty cursors still
-        /// scan all origins so newly discovered origins and multi-origin
-        /// pagination are not stranded. Validates \c request.db_id against
-        /// the local \c db_uuid; mismatched peers receive an empty response
-        /// with \c ok=false.
+        /// consider all known origins so newly discovered origins and
+        /// multi-origin pagination are not stranded. Validates
+        /// \c request.db_id against the local \c db_uuid; mismatched peers
+        /// receive an empty response with \c ok=false.
         /// \c has_more is set to \c true when the loop stopped because of
         /// \c request.max_batches or \c request.max_bytes rather than
         /// running out of changelog entries.
@@ -285,19 +286,20 @@ namespace sync {
             return pull_full_snapshot(txn, changelog_dbi, request);
         }
 
-        /// \brief Range-scans the changelog and returns batches newer than
-        /// \c request.have.
+        /// \brief Returns batches newer than \c request.have.
         /// \details Empty \c request.have returns a full snapshot. Non-empty
         /// cursors filter each origin independently and still include origins
-        /// missing from the cursor. Uses changelog keys to seek to
-        /// \c have_seq+1 for each origin so old values are not decoded.
+        /// missing from the cursor. Origin discovery uses \c _mdbxc_origins
+        /// when available, with a changelog scan fallback for pre-index
+        /// databases. Uses changelog keys to seek to \c have_seq+1 for each
+        /// origin so old values are not decoded.
         /// Sets \c has_more=true when the walk stopped because of
         /// \c request.max_batches or \c request.max_bytes.
         PullResponse pull_full_snapshot(MDBX_txn* txn, MDBX_dbi dbi,
                                         const PullRequest& request) {
             PullResponse out;
             out.remote_have = read_applied_cursor(txn, out.remote_have);
-            const std::vector<NodeId> origins = collect_changelog_origins(txn, dbi);
+            const std::vector<NodeId> origins = collect_known_origins(txn, dbi);
             std::size_t total_bytes = 0;
             bool truncated = false;
             for (std::size_t i = 0; i < origins.size(); ++i) {
@@ -669,6 +671,23 @@ namespace sync {
                 check_mdbx(rc, "pull_full: origin cursor walk failed");
             }
             return origins;
+        }
+
+        std::vector<NodeId> collect_indexed_origins(MDBX_txn* txn) const {
+            OriginIndexStore origins(m_conn->env_handle());
+            if (!origins.open_existing(txn)) {
+                return std::vector<NodeId>();
+            }
+            return origins.origins(txn);
+        }
+
+        std::vector<NodeId> collect_known_origins(MDBX_txn* txn,
+                                                  MDBX_dbi changelog_dbi) const {
+            const std::vector<NodeId> indexed = collect_indexed_origins(txn);
+            if (!indexed.empty()) {
+                return indexed;
+            }
+            return collect_changelog_origins(txn, changelog_dbi);
         }
 
         static bool pull_origin_batches(MDBX_txn* txn,
