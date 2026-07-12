@@ -251,8 +251,8 @@ void test_engine_applies_legacy_zero_flags_to_integer_dbi() {
     cleanup(p);
 
     auto conn = open_env(p);
-    seed_node_id(conn, make_node(0x10));
     sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
     KeyValueTable<int, int> kv(conn, "kv");
 
     const int key = 42;
@@ -295,8 +295,8 @@ void test_engine_conflicting_dbi_flags_returns_conflict() {
     cleanup(p);
 
     auto conn = open_env(p);
-    seed_node_id(conn, make_node(0x10));
     sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
 
     sync::ChangeBatch batch;
     batch.origin_node_id = make_node(0x20);
@@ -318,9 +318,15 @@ void test_engine_conflicting_dbi_flags_returns_conflict() {
 
     {
         auto txn = conn->transaction(TransactionMode::WRITABLE);
-        const sync::ApplyResult result = engine.apply_batch(txn.handle(), batch);
-        if (result != sync::ApplyResult::Conflict) {
+        const sync::ApplyOutcome outcome = engine.apply_batch_ex(txn.handle(), batch);
+        if (outcome.result != sync::ApplyResult::Conflict) {
             throw std::runtime_error("conflicting dbi_flags batch should return Conflict");
+        }
+        if (outcome.conflict_reason != sync::ApplyConflictReason::InconsistentBatchDbiFlags) {
+            throw std::runtime_error("conflicting dbi_flags batch returned wrong reason");
+        }
+        if (outcome.dbi_name != "kv") {
+            throw std::runtime_error("conflicting dbi_flags batch returned wrong DBI name");
         }
         txn.commit();
     }
@@ -387,9 +393,18 @@ void test_engine_existing_dbi_flag_mismatch_returns_conflict() {
 
     {
         auto txn = conn->transaction(TransactionMode::WRITABLE);
-        const sync::ApplyResult result = engine.apply_batch(txn.handle(), bad);
-        if (result != sync::ApplyResult::Conflict) {
+        const sync::ApplyOutcome outcome = engine.apply_batch_ex(txn.handle(), bad);
+        if (outcome.result != sync::ApplyResult::Conflict) {
             throw std::runtime_error("existing DBI flag mismatch should return Conflict");
+        }
+        if (outcome.conflict_reason != sync::ApplyConflictReason::ExistingDbiFlagsMismatch) {
+            throw std::runtime_error("existing DBI flag mismatch returned wrong reason");
+        }
+        if (outcome.dbi_name != "kv") {
+            throw std::runtime_error("existing DBI flag mismatch returned wrong DBI name");
+        }
+        if (outcome.incoming_dbi_flags != static_cast<std::uint32_t>(MDBX_REVERSEKEY)) {
+            throw std::runtime_error("existing DBI flag mismatch returned wrong flags");
         }
         txn.commit();
     }
@@ -431,8 +446,14 @@ void test_engine_gap_returns_conflict() {
     if (engine.apply_batch(txn.handle(), make_batch(1)) != sync::ApplyResult::Applied) {
         throw std::runtime_error("seq=1 should apply");
     }
-    if (engine.apply_batch(txn.handle(), make_batch(3)) != sync::ApplyResult::Conflict) {
+    const sync::ApplyOutcome gap = engine.apply_batch_ex(txn.handle(), make_batch(3));
+    if (gap.result != sync::ApplyResult::Conflict) {
         throw std::runtime_error("seq=3 should be Conflict (gap after seq=1)");
+    }
+    if (gap.conflict_reason != sync::ApplyConflictReason::SequenceGap ||
+        gap.last_applied_seq != 1u ||
+        gap.batch_seq != 3u) {
+        throw std::runtime_error("seq=3 returned wrong conflict details");
     }
     if (engine.apply_batch(txn.handle(), make_batch(2)) != sync::ApplyResult::Applied) {
         throw std::runtime_error("seq=2 should apply after seq=1");
@@ -553,8 +574,8 @@ void test_engine_push_gap_rolls_back() {
     cleanup(p);
 
     auto conn = open_env(p);
-    seed_node_id(conn, make_node(0x10));
     sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
 
     auto make_batch = [](std::uint64_t seq) {
         sync::ChangeBatch b;
@@ -583,12 +604,15 @@ void test_engine_push_gap_rolls_back() {
         sync::DirectSyncPeer peer(&engine);
         sync::PushRequest req;
         req.sender = make_node(0x20);
-        req.db_id  = make_node(0x10);  // peer db_id == local db_uuid
+        req.db_id  = make_node(0xD0);
         req.batches.push_back(make_batch(3));
 
         const sync::PushResponse resp = peer.push(req);
         if (resp.ok) {
             throw std::runtime_error("push with gap should return ok=false");
+        }
+        if (resp.error.find("sequence_gap") == std::string::npos) {
+            throw std::runtime_error("push with gap should return sequence_gap error");
         }
     }
 
