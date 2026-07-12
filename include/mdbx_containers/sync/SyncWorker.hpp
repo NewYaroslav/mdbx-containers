@@ -70,6 +70,8 @@ namespace sync {
     /// \brief Drives incremental pull/apply sync in a caller-owned lifecycle.
     /// \details The worker owns only its std::thread. It does not own the
     /// supplied \c SyncEngine or \c ISyncPeer; both must outlive the worker.
+    /// The \c SyncWorker object itself must outlive its worker thread and must
+    /// not be destroyed from callbacks running on that worker thread.
     /// Lifecycle mutations (\c start(), \c stop(), \c join(), \c run_once())
     /// must be serialized by the caller. Observers and stop signalling
     /// (\c state(), \c last_error(), \c wait_until_state(),
@@ -100,6 +102,7 @@ namespace sync {
 
         /// \brief Requests stop and waits for the background worker to finish.
         /// \details May block until an in-flight \c ISyncPeer::pull() returns.
+        /// The worker object must not be destroyed from its own worker thread.
         ~SyncWorker() {
             request_stop();
             join();
