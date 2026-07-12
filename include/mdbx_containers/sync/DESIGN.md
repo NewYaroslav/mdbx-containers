@@ -9,7 +9,7 @@
 ## Scope
 
 Multi-master replication of logical MDBX tables between node-local envs.
-Wire is transport-agnostic, codec is versioned, storage is four named DBIs.
+Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 
 ## Already implemented (merged into main)
 
@@ -17,8 +17,9 @@ Wire is transport-agnostic, codec is versioned, storage is four named DBIs.
   `Common`, `ChangeBatch`, `ChangeOp`, `CodecFlags`, `CodecBounds`,
   `Protocol`, `SyncCursor`, `ConflictPolicy`, `ISyncPeer`,
   `IdentityProvider`, `ChangeBatchCodec`.
-- Four system stores under `include/mdbx_containers/sync/stores/`:
-  `MetaStore`, `ChangeLogStore`, `AppliedStore`, `IdentityIndexStore`.
+- Five system stores under `include/mdbx_containers/sync/stores/`:
+  `MetaStore`, `ChangeLogStore`, `OriginIndexStore`, `AppliedStore`,
+  `IdentityIndexStore`.
 - `ChangeBatchCodec` strict versioned wire format (magic, codec version,
   batch version, batch flags, then payload); rejects unknown mandatory
   flags and version mismatches at both encode and decode.
@@ -94,6 +95,20 @@ any new payload integer: little-endian.
 deletes each hit, then closes. The boundary comparison is on the bytewise
 key, which is why `seq` is big-endian in the key.
 
+### `_mdbxc_origins` (OriginIndexStore)
+
+| | |
+|---|---|
+| Key | `origin_node_id` (16 raw bytes) |
+| Value | u64 LE - max known changelog `seq` for that origin |
+
+This index is a discovery accelerator for hub-style pull. `ChangeLogStore::append`
+updates it atomically with the changelog row. When an upgraded database has
+legacy changelog rows but no `_mdbxc_origins`, the first writable append
+backfills the index by scanning existing changelog keys. Read-only pull keeps
+a compatibility fallback: if `_mdbxc_origins` is absent or empty, origin
+discovery scans `_mdbxc_changelog`.
+
 ### `_mdbxc_applied` (AppliedStore)
 
 | | |
@@ -145,7 +160,8 @@ multi-master:
 ```
 origin A writes
     -> Transaction::commit pre-commit hook
-        -> ChangeAccumulator.flush (writes ChangeLogStore + IdentityIndexStore)
+        -> ChangeAccumulator.flush (writes ChangeLogStore + OriginIndexStore
+           + IdentityIndexStore)
             -> mdbx_txn_commit() — changes land atomically
 
 receiver B

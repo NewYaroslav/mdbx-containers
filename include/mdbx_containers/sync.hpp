@@ -29,6 +29,7 @@
 #include "sync/SyncEngine.hpp"
 #include "sync/DirectSyncPeer.hpp"
 #include "sync/stores/MetaStore.hpp"
+#include "sync/stores/OriginIndexStore.hpp"
 #include "sync/stores/ChangeLogStore.hpp"
 #include "sync/stores/AppliedStore.hpp"
 #include "sync/stores/IdentityIndexStore.hpp"

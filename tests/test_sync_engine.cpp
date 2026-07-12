@@ -88,6 +88,30 @@ mdbxc::sync::ChangeBatch make_raw_batch(const mdbxc::sync::NodeId& origin,
     return batch;
 }
 
+std::vector<std::uint8_t> make_changelog_key(const mdbxc::sync::NodeId& origin,
+                                             std::uint64_t seq) {
+    std::vector<std::uint8_t> out(24);
+    std::memcpy(out.data(), origin.data(), 16);
+    for (int i = 0; i < 8; ++i) {
+        out[16 + i] =
+            static_cast<std::uint8_t>((seq >> ((7 - i) * 8)) & 0xff);
+    }
+    return out;
+}
+
+void put_raw_changelog(MDBX_txn* txn,
+                       MDBX_dbi dbi,
+                       const mdbxc::sync::NodeId& origin,
+                       std::uint64_t seq,
+                       const std::vector<std::uint8_t>& bytes) {
+    std::vector<std::uint8_t> key = make_changelog_key(origin, seq);
+    MDBX_val k = { key.empty() ? nullptr : &key[0], key.size() };
+    MDBX_val v = { bytes.empty() ? nullptr : const_cast<std::uint8_t*>(&bytes[0]),
+                   bytes.size() };
+    mdbxc::check_mdbx(mdbx_put(txn, dbi, &k, &v, MDBX_NOOVERWRITE),
+                      "raw changelog put failed");
+}
+
 void append_raw_batch(mdbxc::sync::ChangeLogStore& log,
                       MDBX_txn* txn,
                       const mdbxc::sync::NodeId& origin,
@@ -943,6 +967,60 @@ void test_engine_handle_pull_multi_origin_pagination() {
     cleanup(primary_path); cleanup(replica_path);
 }
 
+void test_engine_handle_pull_legacy_changelog_without_origin_index() {
+    using namespace mdbxc;
+    const std::string primary_path = "test_engine_pull_legacy_origins.mdbx";
+    cleanup(primary_path);
+
+    auto primary_conn = open_env(primary_path);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_uuid = make_node(0xD0);
+    const sync::NodeId origin = make_node(0x20);
+
+    sync::SyncEngine primary_engine(primary_conn);
+    primary_engine.initialize_local_identity(primary_node, db_uuid);
+
+    {
+        auto txn = primary_conn->transaction(TransactionMode::WRITABLE);
+        MDBX_dbi raw = 0;
+        check_mdbx(mdbx_dbi_open(txn.handle(), "_mdbxc_changelog",
+                                 MDBX_CREATE, &raw),
+                   "open raw changelog failed");
+        const sync::ChangeBatch batch = make_raw_batch(origin, 1, "kv", 0xA1);
+        const std::vector<std::uint8_t> bytes = sync::ChangeBatchCodec::encode(batch);
+        put_raw_changelog(txn.handle(), raw, origin, 1, bytes);
+        txn.commit();
+    }
+
+    {
+        auto txn = primary_conn->transaction(TransactionMode::READ_ONLY);
+        sync::OriginIndexStore origins(primary_conn->env_handle());
+        if (origins.open_existing(txn.handle())) {
+            throw std::runtime_error("legacy setup should not create origin index");
+        }
+    }
+
+    sync::DirectSyncPeer peer(&primary_engine);
+    sync::PullRequest req;
+    req.requester = replica_node;
+    req.db_id = db_uuid;
+    const sync::PullResponse response = peer.pull(req);
+    if (!response.ok) {
+        throw std::runtime_error("legacy origin-index fallback pull failed: " +
+                                 response.error);
+    }
+    if (response.batches.size() != 1u ||
+        response.batches[0].origin_node_id != origin ||
+        response.batches[0].seq != 1u) {
+        throw std::runtime_error("legacy origin-index fallback returned wrong batch");
+    }
+
+    primary_conn->disconnect();
+    cleanup(primary_path);
+}
+
 void test_engine_handle_pull_skips_old_batches_without_decoding() {
     using namespace mdbxc;
     const std::string primary_path = "test_engine_pull_skip_old_decode.mdbx";
@@ -1039,6 +1117,7 @@ int main() {
         { "test_engine_handle_push_wrong_db_id",&test_engine_handle_push_wrong_db_id },
         { "test_engine_handle_pull_pagination", &test_engine_handle_pull_pagination_has_more },
         { "test_engine_handle_pull_multi_origin",&test_engine_handle_pull_multi_origin_pagination },
+        { "test_engine_handle_pull_legacy_origin_index",&test_engine_handle_pull_legacy_changelog_without_origin_index },
         { "test_engine_handle_pull_skip_old_decode",&test_engine_handle_pull_skips_old_batches_without_decoding },
         { "test_engine_handle_pull_lifecycle", &test_engine_handle_pull_lifecycle },
     };

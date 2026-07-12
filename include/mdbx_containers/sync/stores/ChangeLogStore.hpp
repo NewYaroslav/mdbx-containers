@@ -13,6 +13,8 @@
 
 #include <mdbx.h>
 
+#include "OriginIndexStore.hpp"
+
 namespace mdbxc {
 namespace sync {
 
@@ -26,7 +28,12 @@ namespace sync {
         /// \brief Constructs a wrapper bound to \p env.
         ChangeLogStore(MDBX_env* env,
                        const std::string& dbi_name = "_mdbxc_changelog")
-            : m_env(env), m_dbi_name(dbi_name), m_dbi(0), m_open(false) {}
+            : m_env(env),
+              m_dbi_name(dbi_name),
+              m_dbi(0),
+              m_open(false),
+              m_origin_index_ready(false),
+              m_origins(env) {}
 
         /// \brief Opens the DBI inside the supplied transaction.
         /// \details Tries \c MDBX_CREATE first; falls back to a plain open
@@ -48,7 +55,11 @@ namespace sync {
         /// \brief Resets the open flag so the next \c open() reopens the DBI
         /// inside the supplied transaction. Use between transactions to avoid
         /// using a stale handle from a prior committed/closed transaction.
-        void reset_open() { m_open = false; }
+        void reset_open() {
+            m_open = false;
+            m_origin_index_ready = false;
+            m_origins.reset_open();
+        }
 
         /// \brief Throws when the DBI has not been opened yet.
         void ensure_open() const {
@@ -63,6 +74,7 @@ namespace sync {
         void append(MDBX_txn* txn, const NodeId& origin,
                     std::uint64_t seq, const std::vector<std::uint8_t>& bytes) {
             ensure_open();
+            ensure_origin_index_ready(txn);
             std::vector<std::uint8_t> key_buf;
             encode_key(origin, seq, key_buf);
             MDBX_val k = { key_buf.empty() ? nullptr : &key_buf[0], key_buf.size() };
@@ -72,6 +84,7 @@ namespace sync {
                 mdbx_put(txn, m_dbi, &k, &v, MDBX_NOOVERWRITE),
                 "ChangeLogStore append failed"
             );
+            m_origins.note_origin(txn, origin, seq);
         }
 
         /// \brief Returns true when a record exists for (\p origin, \p seq).
@@ -177,10 +190,85 @@ namespace sync {
             }
         }
 
+        static NodeId decode_key_origin(const MDBX_val& key) {
+            if (key.iov_len != 24) {
+                throw std::runtime_error("ChangeLogStore key has invalid size");
+            }
+            NodeId origin{};
+            std::memcpy(origin.data(), key.iov_base, 16);
+            return origin;
+        }
+
+        static std::uint64_t decode_key_seq(const MDBX_val& key) {
+            if (key.iov_len != 24) {
+                throw std::runtime_error("ChangeLogStore key has invalid size");
+            }
+            const std::uint8_t* bytes = static_cast<const std::uint8_t*>(key.iov_base);
+            std::uint64_t seq = 0;
+            for (int i = 0; i < 8; ++i) {
+                seq = (seq << 8) | static_cast<std::uint64_t>(bytes[16 + i]);
+            }
+            return seq;
+        }
+
+        void ensure_origin_index_ready(MDBX_txn* txn) {
+            if (m_origin_index_ready) {
+                return;
+            }
+            m_origins.open(txn);
+            if (!m_origins.empty(txn)) {
+                m_origin_index_ready = true;
+                return;
+            }
+            backfill_origin_index(txn);
+            m_origin_index_ready = true;
+        }
+
+        void backfill_origin_index(MDBX_txn* txn) {
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
+                       "ChangeLogStore origin backfill cursor open failed");
+            try {
+                MDBX_val k, v;
+                NodeId current_origin{};
+                std::uint64_t current_seq = 0;
+                bool have_current = false;
+                int rc = mdbx_cursor_get(raw, &k, &v, MDBX_FIRST);
+                while (rc == MDBX_SUCCESS) {
+                    const NodeId origin = decode_key_origin(k);
+                    const std::uint64_t seq = decode_key_seq(k);
+                    if (!have_current) {
+                        current_origin = origin;
+                        current_seq = seq;
+                        have_current = true;
+                    } else if (compare_node_id(current_origin, origin) == 0) {
+                        current_seq = seq;
+                    } else {
+                        m_origins.note_origin(txn, current_origin, current_seq);
+                        current_origin = origin;
+                        current_seq = seq;
+                    }
+                    rc = mdbx_cursor_get(raw, &k, &v, MDBX_NEXT);
+                }
+                if (rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND) {
+                    check_mdbx(rc, "ChangeLogStore origin backfill cursor walk failed");
+                }
+                if (have_current) {
+                    m_origins.note_origin(txn, current_origin, current_seq);
+                }
+            } catch (...) {
+                mdbx_cursor_close(raw);
+                throw;
+            }
+            mdbx_cursor_close(raw);
+        }
+
         MDBX_env*     m_env;
         std::string   m_dbi_name;
         MDBX_dbi      m_dbi;
         bool          m_open;
+        bool          m_origin_index_ready;
+        OriginIndexStore m_origins;
     };
 
 } // namespace sync
