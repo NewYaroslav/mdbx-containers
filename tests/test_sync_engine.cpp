@@ -406,6 +406,10 @@ void test_engine_existing_dbi_flag_mismatch_returns_conflict() {
         if (outcome.incoming_dbi_flags != static_cast<std::uint32_t>(MDBX_REVERSEKEY)) {
             throw std::runtime_error("existing DBI flag mismatch returned wrong flags");
         }
+        if (!outcome.actual_dbi_flags_available ||
+            outcome.actual_dbi_flags != static_cast<std::uint32_t>(MDBX_INTEGERKEY)) {
+            throw std::runtime_error("existing DBI flag mismatch returned wrong actual flags");
+        }
         txn.commit();
     }
 
@@ -414,6 +418,63 @@ void test_engine_existing_dbi_flag_mismatch_returns_conflict() {
     }
     if (kv_has(conn, kv, 2)) {
         throw std::runtime_error("existing DBI flag mismatch applied data");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_existing_dbi_flag_mismatch_reports_first_batch_dbi() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_existing_dbi_flag_mismatch_first.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    seed_node_id(conn, make_node(0x10));
+    sync::SyncEngine engine(conn);
+    KeyValueTable<int, int> beta(conn, "beta");
+    KeyValueTable<int, int> alpha(conn, "alpha");
+    (void)beta;
+    (void)alpha;
+
+    SerializeScratch key_scratch;
+    SerializeScratch value_scratch;
+    const MDBX_val key = serialize_key<true>(1, key_scratch);
+    const MDBX_val value = serialize_value(100, value_scratch);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = make_node(0x20);
+    batch.seq = 1;
+
+    sync::ChangeOp beta_op;
+    beta_op.op_type = sync::ChangeOpType::Put;
+    beta_op.dbi_name = "beta";
+    beta_op.dbi_flags = static_cast<std::uint32_t>(MDBX_REVERSEKEY);
+    assign_bytes(beta_op.storage_key, key);
+    assign_bytes(beta_op.value, value);
+    batch.ops.push_back(beta_op);
+
+    sync::ChangeOp alpha_op = beta_op;
+    alpha_op.dbi_name = "alpha";
+    batch.ops.push_back(alpha_op);
+
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        const sync::ApplyOutcome outcome = engine.apply_batch_ex(txn.handle(), batch);
+        if (outcome.result != sync::ApplyResult::Conflict) {
+            throw std::runtime_error("multi-DBI mismatch should return Conflict");
+        }
+        if (outcome.conflict_reason != sync::ApplyConflictReason::ExistingDbiFlagsMismatch) {
+            throw std::runtime_error("multi-DBI mismatch returned wrong reason");
+        }
+        if (outcome.dbi_name != "beta") {
+            throw std::runtime_error("multi-DBI mismatch did not report first batch DBI");
+        }
+        if (!outcome.actual_dbi_flags_available ||
+            outcome.actual_dbi_flags != static_cast<std::uint32_t>(MDBX_INTEGERKEY)) {
+            throw std::runtime_error("multi-DBI mismatch returned wrong actual flags");
+        }
+        txn.commit();
     }
 
     conn->disconnect();
@@ -969,6 +1030,7 @@ int main() {
         { "test_engine_legacy_zero_flags",      &test_engine_applies_legacy_zero_flags_to_integer_dbi },
         { "test_engine_conflicting_dbi_flags",  &test_engine_conflicting_dbi_flags_returns_conflict },
         { "test_engine_existing_dbi_flag_mismatch",&test_engine_existing_dbi_flag_mismatch_returns_conflict },
+        { "test_engine_existing_dbi_flag_mismatch_first",&test_engine_existing_dbi_flag_mismatch_reports_first_batch_dbi },
         { "test_engine_gap_returns_conflict",   &test_engine_gap_returns_conflict },
         { "test_engine_applied_cursor",         &test_engine_applied_cursor },
         { "test_engine_handle_push_to_remote",  &test_engine_handle_push_to_remote },
