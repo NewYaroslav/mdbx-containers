@@ -65,6 +65,7 @@ void sync_primary_to_replica(mdbxc::sync::SyncEngine& primary_engine,
 
     bool has_more = false;
     do {
+        const mdbxc::sync::SyncCursor before = request.have;
         const mdbxc::sync::PullResponse response = peer.pull(request);
         if (!response.ok) {
             throw std::runtime_error("pull failed: " + response.error);
@@ -86,6 +87,10 @@ void sync_primary_to_replica(mdbxc::sync::SyncEngine& primary_engine,
 
         has_more = response.has_more;
         request.have = replica_engine.applied_cursor();
+        if (has_more &&
+            request.have.last_seq_by_origin == before.last_seq_by_origin) {
+            throw std::runtime_error("pull pagination made no cursor progress");
+        }
     } while (has_more);
 }
 

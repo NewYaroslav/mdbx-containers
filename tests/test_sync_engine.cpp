@@ -253,6 +253,50 @@ void test_engine_applies_legacy_zero_flags_to_integer_dbi() {
     cleanup(p);
 }
 
+void test_engine_conflicting_dbi_flags_returns_conflict() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_conflicting_dbi_flags.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    seed_node_id(conn, make_node(0x10));
+    sync::SyncEngine engine(conn);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = make_node(0x20);
+    batch.seq = 1;
+
+    sync::ChangeOp first;
+    first.op_type = sync::ChangeOpType::Put;
+    first.dbi_name = "kv";
+    first.dbi_flags = static_cast<std::uint32_t>(MDBX_INTEGERKEY);
+    first.storage_key = { 0x01 };
+    first.value = { 0x11 };
+    batch.ops.push_back(first);
+
+    sync::ChangeOp second = first;
+    second.dbi_flags = static_cast<std::uint32_t>(MDBX_REVERSEKEY);
+    second.storage_key = { 0x02 };
+    second.value = { 0x22 };
+    batch.ops.push_back(second);
+
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        const sync::ApplyResult result = engine.apply_batch(txn.handle(), batch);
+        if (result != sync::ApplyResult::Conflict) {
+            throw std::runtime_error("conflicting dbi_flags batch should return Conflict");
+        }
+        txn.commit();
+    }
+
+    if (engine.applied_cursor().last_seq_for(make_node(0x20)) != 0u) {
+        throw std::runtime_error("conflicting dbi_flags batch advanced cursor");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_engine_gap_returns_conflict() {
     using namespace mdbxc;
     const std::string p = "test_engine_gap.mdbx";
@@ -652,6 +696,7 @@ int main() {
         { "test_engine_skips_self_origin",      &test_engine_skips_self_origin },
         { "test_engine_idempotent_replay",      &test_engine_idempotent_replay },
         { "test_engine_legacy_zero_flags",      &test_engine_applies_legacy_zero_flags_to_integer_dbi },
+        { "test_engine_conflicting_dbi_flags",  &test_engine_conflicting_dbi_flags_returns_conflict },
         { "test_engine_gap_returns_conflict",   &test_engine_gap_returns_conflict },
         { "test_engine_applied_cursor",         &test_engine_applied_cursor },
         { "test_engine_handle_push_to_remote",  &test_engine_handle_push_to_remote },

@@ -15,6 +15,7 @@
 ///  - \c seq <= last_applied_seq: \c Skipped (redundant replay).
 ///  - \c seq == last_applied_seq + 1: \c Applied, ops applied in order.
 ///  - \c seq >  last_applied_seq + 1: \c Conflict (gap; caller must re-pull).
+///  - contradictory persistent DBI flags inside one batch: \c Conflict.
 ///
 /// Self-origin batches are always \c Skipped (the receiver already has them).
 ///
@@ -28,6 +29,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <mdbx.h>
@@ -132,6 +134,7 @@ namespace sync {
             const std::uint64_t last = applied.last_applied_seq(txn, batch.origin_node_id);
             if (batch.seq <= last) return ApplyResult::Skipped;
             if (batch.seq != last + 1) return ApplyResult::Conflict;
+            if (!batch_has_consistent_dbi_flags(batch)) return ApplyResult::Conflict;
 
             std::unordered_map<std::string, MDBX_dbi> dbi_cache;
             for (const ChangeOp& op : batch.ops) {
@@ -354,6 +357,32 @@ namespace sync {
             return compare_node_id(request_db_id, db_uuid()) == 0;
         }
 
+        static std::uint32_t persistent_dbi_flags_mask() {
+            return static_cast<std::uint32_t>(MDBX_REVERSEKEY) |
+                   static_cast<std::uint32_t>(MDBX_DUPSORT) |
+                   static_cast<std::uint32_t>(MDBX_INTEGERKEY) |
+                   static_cast<std::uint32_t>(MDBX_DUPFIXED) |
+                   static_cast<std::uint32_t>(MDBX_INTEGERDUP) |
+                   static_cast<std::uint32_t>(MDBX_REVERSEDUP);
+        }
+
+        static std::uint32_t persistent_dbi_flags(std::uint32_t dbi_flags) {
+            return dbi_flags & persistent_dbi_flags_mask();
+        }
+
+        static bool batch_has_consistent_dbi_flags(const ChangeBatch& batch) {
+            std::unordered_map<std::string, std::uint32_t> flags_by_name;
+            for (const ChangeOp& op : batch.ops) {
+                const std::uint32_t flags = persistent_dbi_flags(op.dbi_flags);
+                const std::pair<std::unordered_map<std::string, std::uint32_t>::iterator, bool> inserted =
+                    flags_by_name.insert(std::make_pair(op.dbi_name, flags));
+                if (!inserted.second && inserted.first->second != flags) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /// \brief Opens \c _mdbxc_changelog read-only when it exists; 0 otherwise.
         static MDBX_dbi open_changelog_ro(MDBX_txn* txn) {
             return open_store_ro(txn, "_mdbxc_changelog");
@@ -437,18 +466,12 @@ namespace sync {
                 return it->second;
             }
             MDBX_dbi dbi = 0;
-            const std::uint32_t supported_flags =
-                static_cast<std::uint32_t>(MDBX_REVERSEKEY) |
-                static_cast<std::uint32_t>(MDBX_DUPSORT) |
-                static_cast<std::uint32_t>(MDBX_INTEGERKEY) |
-                static_cast<std::uint32_t>(MDBX_DUPFIXED) |
-                static_cast<std::uint32_t>(MDBX_INTEGERDUP) |
-                static_cast<std::uint32_t>(MDBX_REVERSEDUP);
+            const std::uint32_t open_dbi_flags = persistent_dbi_flags(dbi_flags);
             const MDBX_db_flags_t open_flags = static_cast<MDBX_db_flags_t>(
-                (dbi_flags & supported_flags) | static_cast<std::uint32_t>(MDBX_CREATE));
+                open_dbi_flags | static_cast<std::uint32_t>(MDBX_CREATE));
             int rc = mdbx_dbi_open(txn, name.c_str(), open_flags, &dbi);
             if (rc == MDBX_INCOMPATIBLE &&
-                (dbi_flags & static_cast<std::uint32_t>(MDBX_INTEGERKEY)) == 0) {
+                (open_dbi_flags & static_cast<std::uint32_t>(MDBX_INTEGERKEY)) == 0) {
                 // Compatibility path for batches produced before dbi_flags
                 // capture was implemented. Existing integer-key DBIs may
                 // reject open_flags=MDBX_CREATE with MDBX_INCOMPATIBLE.
