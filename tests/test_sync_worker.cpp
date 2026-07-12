@@ -1,0 +1,344 @@
+/// \file test_sync_worker.cpp
+/// \brief Background SyncWorker lifecycle tests.
+
+#include <mdbx_containers.hpp>
+#include <mdbx_containers/sync.hpp>
+
+#include <chrono>
+#include <condition_variable>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <memory>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace {
+
+void cleanup(const std::string& path) {
+    std::remove(path.c_str());
+    std::remove((path + "-lck").c_str());
+}
+
+mdbxc::sync::NodeId make_node(std::uint8_t seed) {
+    mdbxc::sync::NodeId node{};
+    for (int i = 0; i < 16; ++i) {
+        node[i] = static_cast<std::uint8_t>(seed + i);
+    }
+    return node;
+}
+
+std::shared_ptr<mdbxc::Connection> open_env(const std::string& path) {
+    mdbxc::Config config;
+    config.pathname = path;
+    config.max_dbs = 16;
+    config.no_subdir = true;
+    return mdbxc::Connection::create(config);
+}
+
+template<class KVT>
+typename KVT::value_type::second_type kv_or_throw(
+        const std::shared_ptr<mdbxc::Connection>& conn,
+        KVT& kv,
+        const typename KVT::value_type::first_type& key,
+        const char* what) {
+    typename KVT::value_type::second_type out{};
+    auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+    if (!kv.try_get(key, out, txn.handle())) {
+        throw std::runtime_error(std::string("missing: ") + what);
+    }
+    return out;
+}
+
+class EmptyPeer : public mdbxc::sync::ISyncPeer {
+public:
+    EmptyPeer() : m_pull_count(0) {}
+
+    mdbxc::sync::PullResponse pull(
+            const mdbxc::sync::PullRequest& request) override {
+        (void)request;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            ++m_pull_count;
+        }
+        m_changed.notify_all();
+        return mdbxc::sync::PullResponse();
+    }
+
+    mdbxc::sync::PushResponse push(
+            const mdbxc::sync::PushRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PushResponse();
+    }
+
+    bool wait_for_pulls(int count, std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this, count] { return m_pull_count >= count; });
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    int m_pull_count;
+};
+
+class BlockingPeer : public mdbxc::sync::ISyncPeer {
+public:
+    explicit BlockingPeer(const mdbxc::sync::PullResponse& response)
+        : m_response(response), m_entered(false), m_release(false) {}
+
+    mdbxc::sync::PullResponse pull(
+            const mdbxc::sync::PullRequest& request) override {
+        (void)request;
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_entered = true;
+        m_changed.notify_all();
+        m_changed.wait(lock, [this] { return m_release; });
+        return m_response;
+    }
+
+    mdbxc::sync::PushResponse push(
+            const mdbxc::sync::PushRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PushResponse();
+    }
+
+    bool wait_until_entered(std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this] { return m_entered; });
+    }
+
+    void release() {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_release = true;
+        }
+        m_changed.notify_all();
+    }
+
+private:
+    mdbxc::sync::PullResponse m_response;
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    bool m_entered;
+    bool m_release;
+};
+
+class FailingPeer : public mdbxc::sync::ISyncPeer {
+public:
+    mdbxc::sync::PullResponse pull(
+            const mdbxc::sync::PullRequest& request) override {
+        (void)request;
+        mdbxc::sync::PullResponse response;
+        response.ok = false;
+        response.error = "synthetic pull failure";
+        return response;
+    }
+
+    mdbxc::sync::PushResponse push(
+            const mdbxc::sync::PushRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PushResponse();
+    }
+};
+
+void test_worker_run_once_drains_paginated_pull() {
+    using namespace mdbxc;
+    const std::string primary_path = "test_worker_primary.mdbx";
+    const std::string replica_path = "test_worker_replica.mdbx";
+    cleanup(primary_path);
+    cleanup(replica_path);
+
+    std::shared_ptr<Connection> primary_conn = open_env(primary_path);
+    std::shared_ptr<Connection> replica_conn = open_env(replica_path);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+
+    sync::SyncEngine primary_engine(primary_conn);
+    sync::SyncEngine replica_engine(replica_conn);
+    primary_engine.initialize_local_identity(primary_node, db_id);
+    replica_engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ThreadLocalChangeAccumulator sink(primary_conn);
+    primary_conn->attach_sync_capture(&sink);
+    {
+        KeyValueTable<int, int> kv(primary_conn, "kv");
+        for (int i = 1; i <= 5; ++i) {
+            kv.insert_or_assign(i, i * 10);
+        }
+    }
+    primary_conn->detach_sync_capture();
+
+    sync::DirectSyncPeer peer(&primary_engine);
+    sync::SyncWorkerOptions options;
+    options.max_batches = 2;
+    options.idle_interval = std::chrono::milliseconds(1);
+
+    sync::SyncWorker worker(replica_engine, peer, options);
+    const sync::SyncWorkerRoundResult result = worker.run_once();
+    if (!result.ok) {
+        throw std::runtime_error("worker run_once failed: " + result.error);
+    }
+    if (result.pages_pulled != 3u || result.batches_applied != 5u) {
+        throw std::runtime_error("worker did not drain paginated pull");
+    }
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("worker run_once should finish Stopped");
+    }
+
+    KeyValueTable<int, int> replica_kv(replica_conn, "kv");
+    for (int i = 1; i <= 5; ++i) {
+        if (kv_or_throw(replica_conn, replica_kv, i, "replica kv") != i * 10) {
+            throw std::runtime_error("replica value mismatch after worker sync");
+        }
+    }
+
+    primary_conn->disconnect();
+    replica_conn->disconnect();
+    cleanup(primary_path);
+    cleanup(replica_path);
+}
+
+void test_worker_start_stop_idle() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_idle.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    EmptyPeer peer;
+    sync::SyncWorkerOptions options;
+    options.idle_interval = std::chrono::milliseconds(10000);
+    sync::SyncWorker worker(engine, peer, options);
+
+    worker.start();
+    if (!peer.wait_for_pulls(1, std::chrono::milliseconds(2000))) {
+        throw std::runtime_error("worker did not perform initial pull");
+    }
+    if (!worker.wait_until_state(sync::SyncWorkerState::Idle,
+                                 std::chrono::milliseconds(2000))) {
+        throw std::runtime_error("worker did not enter Idle");
+    }
+    worker.stop();
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("worker did not stop");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_worker_backoff_on_pull_error() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_backoff.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    FailingPeer peer;
+    sync::SyncWorkerOptions options;
+    options.initial_backoff = std::chrono::milliseconds(10000);
+    options.max_backoff = std::chrono::milliseconds(10000);
+    sync::SyncWorker worker(engine, peer, options);
+
+    worker.start();
+    if (!worker.wait_until_state(sync::SyncWorkerState::Backoff,
+                                 std::chrono::milliseconds(2000))) {
+        throw std::runtime_error("worker did not enter Backoff after pull error");
+    }
+    if (worker.last_error().find("synthetic pull failure") == std::string::npos) {
+        throw std::runtime_error("worker did not record pull error");
+    }
+    worker.stop();
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("backoff worker did not stop");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_worker_stop_while_pull_blocked_does_not_apply_returned_page() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_blocked_stop.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId remote_origin = make_node(0xA0);
+    const sync::NodeId db_id = make_node(0xD0);
+
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = remote_origin;
+    batch.seq = 1;
+
+    sync::PullResponse response;
+    response.batches.push_back(batch);
+
+    BlockingPeer peer(response);
+    sync::SyncWorkerOptions options;
+    options.idle_interval = std::chrono::milliseconds(10000);
+    sync::SyncWorker worker(engine, peer, options);
+
+    worker.start();
+    if (!peer.wait_until_entered(std::chrono::milliseconds(2000))) {
+        throw std::runtime_error("worker did not enter blocking pull");
+    }
+    worker.request_stop();
+    peer.release();
+    worker.join();
+
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("blocked worker did not stop");
+    }
+    if (engine.applied_cursor().last_seq_for(remote_origin) != 0u) {
+        throw std::runtime_error("worker applied a page returned after stop");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+} // namespace
+
+int main() {
+    struct Case { const char* name; void (*fn)(); };
+    const Case cases[] = {
+        { "test_worker_run_once_drains_paginated_pull",
+          &test_worker_run_once_drains_paginated_pull },
+        { "test_worker_start_stop_idle", &test_worker_start_stop_idle },
+        { "test_worker_backoff_on_pull_error", &test_worker_backoff_on_pull_error },
+        { "test_worker_stop_while_pull_blocked",
+          &test_worker_stop_while_pull_blocked_does_not_apply_returned_page },
+    };
+
+    int rc = 0;
+    for (std::size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        try {
+            cases[i].fn();
+            std::printf("PASS %s\n", cases[i].name);
+        } catch (const std::exception& e) {
+            std::printf("FAIL %s: %s\n", cases[i].name, e.what());
+            rc = static_cast<int>(i + 1);
+        } catch (...) {
+            std::printf("FAIL %s: non-std exception\n", cases[i].name);
+            rc = static_cast<int>(i + 1);
+        }
+    }
+    return rc;
+}
