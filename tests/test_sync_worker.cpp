@@ -148,6 +148,63 @@ public:
     }
 };
 
+class SelfStoppingPeer : public mdbxc::sync::ISyncPeer {
+public:
+    SelfStoppingPeer() : m_worker(nullptr), m_saw_logic_error(false) {}
+
+    void set_worker(mdbxc::sync::SyncWorker* worker) {
+        m_worker = worker;
+    }
+
+    mdbxc::sync::PullResponse pull(
+            const mdbxc::sync::PullRequest& request) override {
+        (void)request;
+        if (m_worker == nullptr) {
+            throw std::runtime_error("self-stopping peer has no worker");
+        }
+        try {
+            m_worker->stop();
+        } catch (const std::logic_error& e) {
+            if (std::string(e.what()).find("cannot join itself") ==
+                std::string::npos) {
+                throw;
+            }
+            m_saw_logic_error = true;
+        }
+        return mdbxc::sync::PullResponse();
+    }
+
+    mdbxc::sync::PushResponse push(
+            const mdbxc::sync::PushRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PushResponse();
+    }
+
+    bool saw_logic_error() const {
+        return m_saw_logic_error;
+    }
+
+private:
+    mdbxc::sync::SyncWorker* m_worker;
+    bool m_saw_logic_error;
+};
+
+void expect_invalid_options(mdbxc::sync::SyncEngine& engine,
+                            mdbxc::sync::ISyncPeer& peer,
+                            const mdbxc::sync::SyncWorkerOptions& options,
+                            const char* name) {
+    bool threw = false;
+    try {
+        mdbxc::sync::SyncWorker worker(engine, peer, options);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    if (!threw) {
+        throw std::runtime_error(
+            std::string("SyncWorker accepted invalid options: ") + name);
+    }
+}
+
 void test_worker_run_once_drains_paginated_pull() {
     using namespace mdbxc;
     const std::string primary_path = "test_worker_primary.mdbx";
@@ -270,6 +327,47 @@ void test_worker_backoff_on_pull_error() {
     cleanup(path);
 }
 
+void test_worker_rejects_invalid_options() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_invalid_options.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    EmptyPeer peer;
+    sync::SyncWorkerOptions options;
+
+    sync::SyncWorkerOptions invalid = options;
+    invalid.max_batches = 0;
+    expect_invalid_options(engine, peer, invalid, "max_batches");
+
+    invalid = options;
+    invalid.max_bytes = 0;
+    expect_invalid_options(engine, peer, invalid, "max_bytes");
+
+    invalid = options;
+    invalid.idle_interval = std::chrono::milliseconds(-1);
+    expect_invalid_options(engine, peer, invalid, "idle_interval");
+
+    invalid = options;
+    invalid.initial_backoff = std::chrono::milliseconds(-1);
+    expect_invalid_options(engine, peer, invalid, "initial_backoff");
+
+    invalid = options;
+    invalid.max_backoff = std::chrono::milliseconds(-1);
+    expect_invalid_options(engine, peer, invalid, "max_backoff");
+
+    invalid = options;
+    invalid.initial_backoff = std::chrono::milliseconds(10);
+    invalid.max_backoff = std::chrono::milliseconds(9);
+    expect_invalid_options(engine, peer, invalid, "max_backoff ordering");
+
+    conn->disconnect();
+    cleanup(path);
+}
+
 void test_worker_stop_while_pull_blocked_does_not_apply_returned_page() {
     using namespace mdbxc;
     const std::string path = "test_worker_blocked_stop.mdbx";
@@ -314,6 +412,33 @@ void test_worker_stop_while_pull_blocked_does_not_apply_returned_page() {
     cleanup(path);
 }
 
+void test_worker_rejects_self_join() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_self_join.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    SelfStoppingPeer peer;
+    sync::SyncWorker worker(engine, peer);
+    peer.set_worker(&worker);
+
+    worker.start();
+    worker.join();
+
+    if (!peer.saw_logic_error()) {
+        throw std::runtime_error("worker did not reject self-join");
+    }
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("self-join worker did not stop");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
 } // namespace
 
 int main() {
@@ -323,8 +448,11 @@ int main() {
           &test_worker_run_once_drains_paginated_pull },
         { "test_worker_start_stop_idle", &test_worker_start_stop_idle },
         { "test_worker_backoff_on_pull_error", &test_worker_backoff_on_pull_error },
+        { "test_worker_rejects_invalid_options",
+          &test_worker_rejects_invalid_options },
         { "test_worker_stop_while_pull_blocked",
           &test_worker_stop_while_pull_blocked_does_not_apply_returned_page },
+        { "test_worker_rejects_self_join", &test_worker_rejects_self_join },
     };
 
     int rc = 0;

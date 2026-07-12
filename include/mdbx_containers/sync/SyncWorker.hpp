@@ -5,7 +5,6 @@
 /// \file SyncWorker.hpp
 /// \brief Background pull/apply loop for \c SyncEngine.
 
-#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -71,11 +70,17 @@ namespace sync {
     /// \brief Drives incremental pull/apply sync in a caller-owned lifecycle.
     /// \details The worker owns only its std::thread. It does not own the
     /// supplied \c SyncEngine or \c ISyncPeer; both must outlive the worker.
+    /// Lifecycle mutations (\c start(), \c stop(), \c join(), \c run_once())
+    /// must be serialized by the caller. Observers and stop signalling
+    /// (\c state(), \c last_error(), \c wait_until_state(),
+    /// \c request_stop()) are thread-safe.
     ///
     /// The implementation never keeps a local MDBX transaction open while
     /// waiting in \c ISyncPeer::pull(), idle sleep, or backoff sleep. Pulled
     /// batches are applied through \c SyncEngine::handle_push(), which opens
     /// and commits a short local write transaction for each pulled page.
+    /// Stop requests do not interrupt a blocking peer call; \c stop(),
+    /// \c join(), and the destructor may wait until the peer returns.
     class SyncWorker {
     public:
         /// \brief Constructs a worker over a local engine and remote peer.
@@ -89,8 +94,12 @@ namespace sync {
               m_peer(peer),
               m_options(options),
               m_state(SyncWorkerState::Stopped),
-              m_stop_requested(false) {}
+              m_stop_requested(false) {
+            validate_options(m_options);
+        }
 
+        /// \brief Requests stop and waits for the background worker to finish.
+        /// \details May block until an in-flight \c ISyncPeer::pull() returns.
         ~SyncWorker() {
             request_stop();
             join();
@@ -145,13 +154,19 @@ namespace sync {
         }
 
         /// \brief Joins the background worker thread if it is running.
+        /// \throws std::logic_error if called from the worker thread.
         void join() {
             if (m_thread.joinable()) {
+                if (m_thread.get_id() == std::this_thread::get_id()) {
+                    throw std::logic_error("SyncWorker cannot join itself");
+                }
                 m_thread.join();
             }
         }
 
         /// \brief Requests stop and joins the background worker thread.
+        /// \details May block until an in-flight \c ISyncPeer::pull() returns.
+        /// \throws std::logic_error if called from the worker thread.
         void stop() {
             request_stop();
             join();
@@ -211,6 +226,33 @@ namespace sync {
         }
 
     private:
+        static void validate_options(const SyncWorkerOptions& options) {
+            if (options.max_batches == 0) {
+                throw std::invalid_argument(
+                    "SyncWorkerOptions::max_batches must be greater than zero");
+            }
+            if (options.max_bytes == 0) {
+                throw std::invalid_argument(
+                    "SyncWorkerOptions::max_bytes must be greater than zero");
+            }
+            if (options.idle_interval < std::chrono::milliseconds::zero()) {
+                throw std::invalid_argument(
+                    "SyncWorkerOptions::idle_interval must not be negative");
+            }
+            if (options.initial_backoff < std::chrono::milliseconds::zero()) {
+                throw std::invalid_argument(
+                    "SyncWorkerOptions::initial_backoff must not be negative");
+            }
+            if (options.max_backoff < std::chrono::milliseconds::zero()) {
+                throw std::invalid_argument(
+                    "SyncWorkerOptions::max_backoff must not be negative");
+            }
+            if (options.max_backoff < options.initial_backoff) {
+                throw std::invalid_argument(
+                    "SyncWorkerOptions::max_backoff must be at least initial_backoff");
+            }
+        }
+
         SyncWorkerRoundResult run_once_impl() {
             SyncWorkerRoundResult result;
             try {
@@ -328,8 +370,13 @@ namespace sync {
 
         std::chrono::milliseconds next_backoff(
                 std::chrono::milliseconds current) const {
-            const std::chrono::milliseconds doubled(current.count() * 2);
-            return std::min(doubled, m_options.max_backoff);
+            if (current >= m_options.max_backoff) {
+                return m_options.max_backoff;
+            }
+            if (current.count() >= m_options.max_backoff.count() / 2) {
+                return m_options.max_backoff;
+            }
+            return current + current;
         }
 
         bool stop_requested() const {

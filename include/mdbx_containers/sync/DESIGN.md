@@ -216,6 +216,11 @@ Worker invariants:
   uses one short local write transaction;
 - stop requests do not interrupt a blocking peer call, but a page returned
   after stop was requested is not applied;
+- `stop()`, `join()`, and destruction may wait for an in-flight peer call to
+  return; timeout/cancellation belongs to the concrete transport adapter;
+- lifecycle mutations (`start`, `stop`, `join`, `run_once`) are caller-serialized,
+  while `request_stop`, `state`, `last_error`, and `wait_until_state` are
+  thread-safe;
 - `Transaction`, raw `MDBX_txn*`, and cursors stay on the thread that opened
   them and never cross the worker boundary.
 
