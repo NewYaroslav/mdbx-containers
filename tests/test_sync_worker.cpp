@@ -130,6 +130,58 @@ private:
     bool m_release;
 };
 
+class CancelableBlockingPeer : public mdbxc::sync::ISyncPeer {
+public:
+    explicit CancelableBlockingPeer(const mdbxc::sync::PullResponse& response)
+        : m_response(response), m_entered(false), m_cancelled(false),
+          m_cancel_count(0) {}
+
+    mdbxc::sync::PullResponse pull(
+            const mdbxc::sync::PullRequest& request) override {
+        (void)request;
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_entered = true;
+        m_changed.notify_all();
+        m_changed.wait(lock, [this] { return m_cancelled; });
+        return m_response;
+    }
+
+    mdbxc::sync::PushResponse push(
+            const mdbxc::sync::PushRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PushResponse();
+    }
+
+    void request_cancel() override {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_cancelled = true;
+            ++m_cancel_count;
+        }
+        m_changed.notify_all();
+    }
+
+    bool wait_until_entered(std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this] { return m_entered; });
+    }
+
+    int cancel_count() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_cancel_count;
+    }
+
+private:
+    mdbxc::sync::PullResponse m_response;
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    bool m_entered;
+    bool m_cancelled;
+    int  m_cancel_count;
+};
+
 class FailingPeer : public mdbxc::sync::ISyncPeer {
 public:
     mdbxc::sync::PullResponse pull(
@@ -412,6 +464,52 @@ void test_worker_stop_while_pull_blocked_does_not_apply_returned_page() {
     cleanup(path);
 }
 
+void test_worker_stop_cancels_blocking_peer() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_cancel_peer.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId remote_origin = make_node(0xA0);
+    const sync::NodeId db_id = make_node(0xD0);
+
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = remote_origin;
+    batch.seq = 1;
+
+    sync::PullResponse response;
+    response.batches.push_back(batch);
+
+    CancelableBlockingPeer peer(response);
+    sync::SyncWorkerOptions options;
+    options.idle_interval = std::chrono::milliseconds(10000);
+    sync::SyncWorker worker(engine, peer, options);
+
+    worker.start();
+    if (!peer.wait_until_entered(std::chrono::milliseconds(2000))) {
+        throw std::runtime_error("worker did not enter cancellable pull");
+    }
+    worker.request_stop();
+    worker.join();
+
+    if (peer.cancel_count() == 0) {
+        throw std::runtime_error("worker did not request peer cancellation");
+    }
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("cancelled worker did not stop");
+    }
+    if (engine.applied_cursor().last_seq_for(remote_origin) != 0u) {
+        throw std::runtime_error("worker applied a page returned after cancel");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
 void test_worker_rejects_self_join() {
     using namespace mdbxc;
     const std::string path = "test_worker_self_join.mdbx";
@@ -452,6 +550,8 @@ int main() {
           &test_worker_rejects_invalid_options },
         { "test_worker_stop_while_pull_blocked",
           &test_worker_stop_while_pull_blocked_does_not_apply_returned_page },
+        { "test_worker_stop_cancels_blocking_peer",
+          &test_worker_stop_cancels_blocking_peer },
         { "test_worker_rejects_self_join", &test_worker_rejects_self_join },
     };
 

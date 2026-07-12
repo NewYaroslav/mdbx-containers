@@ -81,8 +81,9 @@ namespace sync {
     /// waiting in \c ISyncPeer::pull(), idle sleep, or backoff sleep. Pulled
     /// batches are applied through \c SyncEngine::handle_push(), which opens
     /// and commits a short local write transaction for each pulled page.
-    /// Stop requests do not interrupt a blocking peer call; \c stop(),
-    /// \c join(), and the destructor may wait until the peer returns.
+    /// Stop requests call \c ISyncPeer::request_cancel(), but cancellation is
+    /// best-effort: \c stop(), \c join(), and the destructor may still wait
+    /// until the peer returns.
     class SyncWorker {
     public:
         /// \brief Constructs a worker over a local engine and remote peer.
@@ -142,16 +143,22 @@ namespace sync {
         }
 
         /// \brief Requests background worker shutdown.
-        /// \details Does not interrupt an in-flight peer call. The worker exits
-        /// before applying a page returned after stop was requested.
+        /// \details Calls \c ISyncPeer::request_cancel() outside the worker
+        /// mutex. Cancellation is best-effort; the worker exits before applying
+        /// a page returned after stop was requested.
         void request_stop() {
+            bool cancel_peer = false;
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 m_stop_requested = true;
                 if (m_state != SyncWorkerState::Stopped &&
                     m_state != SyncWorkerState::Failed) {
                     m_state = SyncWorkerState::Stopping;
+                    cancel_peer = true;
                 }
+            }
+            if (cancel_peer) {
+                request_peer_cancel();
             }
             m_state_changed.notify_all();
         }
@@ -328,6 +335,17 @@ namespace sync {
                 result.error = "unknown sync worker error";
             }
             return result;
+        }
+
+        void request_peer_cancel() const {
+            try {
+                m_peer.request_cancel();
+            } catch (const std::exception& e) {
+                set_last_error(std::string("peer cancellation failed: ") +
+                               e.what());
+            } catch (...) {
+                set_last_error("peer cancellation failed");
+            }
         }
 
         void thread_main() {
