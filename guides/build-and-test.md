@@ -80,7 +80,10 @@ tmp/build-bench/bin/benchmarks/sync_tick_hub_benchmark
 ```
 
 `sync_tick_hub_benchmark` prints CSV rows for full cold-replica sync,
-incremental hot sync, and incremental sync after reopening both databases.
+incremental hot sync, and incremental sync after restarting both connections
+and sync engines. It uses `DirectSyncPeer` in one process, so the timings measure
+the sync core, pagination, and local apply path rather than network transport
+latency.
 Pass positional arguments to run one custom scenario:
 
 ```bash

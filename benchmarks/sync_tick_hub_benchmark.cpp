@@ -49,7 +49,7 @@ struct PhaseMetrics {
     std::uint64_t applied_batches = 0;
     std::uint64_t pull_pages = 0;
     double        seed_ms = 0.0;
-    double        reopen_ms = 0.0;
+    double        restart_ms = 0.0;
     double        pull_ms = 0.0;
     double        apply_ms = 0.0;
     std::uint64_t primary_bytes = 0;
@@ -402,7 +402,7 @@ PhaseMetrics run_sync_phase(const std::string& phase,
                             std::uint64_t chunks_per_origin,
                             std::uint64_t seeded_batches,
                             double seed_ms,
-                            double reopen_ms,
+                            double restart_ms,
                             const std::shared_ptr<mdbxc::Connection>& primary_conn,
                             const std::shared_ptr<mdbxc::Connection>& replica_conn,
                             mdbxc::sync::SyncEngine& primary_engine,
@@ -432,7 +432,7 @@ PhaseMetrics run_sync_phase(const std::string& phase,
     metrics.applied_batches = sync.applied_batches;
     metrics.pull_pages = sync.pull_pages;
     metrics.seed_ms = seed_ms;
-    metrics.reopen_ms = reopen_ms;
+    metrics.restart_ms = restart_ms;
     metrics.pull_ms = sync.pull_ms;
     metrics.apply_ms = sync.apply_ms;
     metrics.primary_bytes = used_database_bytes(primary_conn);
@@ -451,14 +451,14 @@ void print_csv_header() {
         << "scenario,phase,origins,historical_chunks_per_origin,"
         << "new_chunks_per_origin,chunks_per_origin,ticks_per_chunk,"
         << "max_batches,max_bytes,seeded_batches,pulled_batches,"
-        << "applied_batches,pull_pages,seed_ms,reopen_ms,pull_ms,"
+        << "applied_batches,pull_pages,seed_ms,restart_ms,pull_ms,"
         << "apply_ms,total_ms,batches_per_sec,primary_bytes,replica_bytes\n";
 }
 
 void print_csv_row(const Scenario& scenario,
                    const PhaseMetrics& metrics) {
     const double total_ms =
-        metrics.seed_ms + metrics.reopen_ms + metrics.pull_ms + metrics.apply_ms;
+        metrics.seed_ms + metrics.restart_ms + metrics.pull_ms + metrics.apply_ms;
     const double batches_per_sec =
         (metrics.pull_ms + metrics.apply_ms) <= 0.0
             ? 0.0
@@ -478,7 +478,7 @@ void print_csv_row(const Scenario& scenario,
               << metrics.applied_batches << ','
               << metrics.pull_pages << ','
               << metrics.seed_ms << ','
-              << metrics.reopen_ms << ','
+              << metrics.restart_ms << ','
               << metrics.pull_ms << ','
               << metrics.apply_ms << ','
               << total_ms << ','
@@ -499,99 +499,109 @@ void run_scenario(const Scenario& scenario, const std::string& id) {
 
     std::shared_ptr<mdbxc::Connection> primary_conn = open_env(paths.primary);
     std::shared_ptr<mdbxc::Connection> replica_conn = open_env(paths.replica);
-    mdbxc::sync::SyncEngine primary_engine(primary_conn);
-    mdbxc::sync::SyncEngine replica_engine(replica_conn);
-    initialize_engine(primary_engine, primary_node, db_id);
-    initialize_engine(replica_engine, replica_node, db_id);
 
-    const std::chrono::steady_clock::time_point historical_seed_start =
-        std::chrono::steady_clock::now();
-    const std::uint64_t historical_seeded =
-        append_changelog_range(primary_conn, scenario, 1,
-                               scenario.historical_chunks_per_origin);
-    const std::chrono::steady_clock::time_point historical_seed_finish =
-        std::chrono::steady_clock::now();
-    verify_origin_index(primary_conn, scenario,
-                        scenario.historical_chunks_per_origin == 0 ? 0 : scenario.origins);
+    {
+        mdbxc::sync::SyncEngine primary_engine(primary_conn);
+        mdbxc::sync::SyncEngine replica_engine(replica_conn);
+        initialize_engine(primary_engine, primary_node, db_id);
+        initialize_engine(replica_engine, replica_node, db_id);
 
-    PhaseMetrics full = run_sync_phase(
-        "full_cold_replica",
-        scenario.historical_chunks_per_origin,
-        historical_seeded,
-        elapsed_ms(historical_seed_start, historical_seed_finish),
-        0.0,
-        primary_conn,
-        replica_conn,
-        primary_engine,
-        replica_engine,
-        scenario,
-        replica_node,
-        db_id);
-    print_csv_row(scenario, full);
+        const std::chrono::steady_clock::time_point historical_seed_start =
+            std::chrono::steady_clock::now();
+        const std::uint64_t historical_seeded =
+            append_changelog_range(primary_conn, scenario, 1,
+                                   scenario.historical_chunks_per_origin);
+        const std::chrono::steady_clock::time_point historical_seed_finish =
+            std::chrono::steady_clock::now();
+        verify_origin_index(primary_conn, scenario,
+                            scenario.historical_chunks_per_origin == 0
+                                ? 0
+                                : scenario.origins);
 
-    const std::uint64_t hot_first_seq = scenario.historical_chunks_per_origin + 1;
-    const std::chrono::steady_clock::time_point hot_seed_start =
-        std::chrono::steady_clock::now();
-    const std::uint64_t hot_seeded =
-        append_changelog_range(primary_conn, scenario, hot_first_seq,
-                               scenario.new_chunks_per_origin);
-    const std::chrono::steady_clock::time_point hot_seed_finish =
-        std::chrono::steady_clock::now();
-    verify_origin_index(primary_conn, scenario, scenario.origins);
+        PhaseMetrics full = run_sync_phase(
+            "full_cold_replica",
+            scenario.historical_chunks_per_origin,
+            historical_seeded,
+            elapsed_ms(historical_seed_start, historical_seed_finish),
+            0.0,
+            primary_conn,
+            replica_conn,
+            primary_engine,
+            replica_engine,
+            scenario,
+            replica_node,
+            db_id);
+        print_csv_row(scenario, full);
 
-    PhaseMetrics hot = run_sync_phase(
-        "incremental_hot",
-        scenario.new_chunks_per_origin,
-        hot_seeded,
-        elapsed_ms(hot_seed_start, hot_seed_finish),
-        0.0,
-        primary_conn,
-        replica_conn,
-        primary_engine,
-        replica_engine,
-        scenario,
-        replica_node,
-        db_id);
-    print_csv_row(scenario, hot);
+        const std::uint64_t hot_first_seq = scenario.historical_chunks_per_origin + 1;
+        const std::chrono::steady_clock::time_point hot_seed_start =
+            std::chrono::steady_clock::now();
+        const std::uint64_t hot_seeded =
+            append_changelog_range(primary_conn, scenario, hot_first_seq,
+                                   scenario.new_chunks_per_origin);
+        const std::chrono::steady_clock::time_point hot_seed_finish =
+            std::chrono::steady_clock::now();
+        verify_origin_index(primary_conn, scenario, scenario.origins);
 
-    const std::chrono::steady_clock::time_point close_start =
+        PhaseMetrics hot = run_sync_phase(
+            "incremental_hot",
+            scenario.new_chunks_per_origin,
+            hot_seeded,
+            elapsed_ms(hot_seed_start, hot_seed_finish),
+            0.0,
+            primary_conn,
+            replica_conn,
+            primary_engine,
+            replica_engine,
+            scenario,
+            replica_node,
+            db_id);
+        print_csv_row(scenario, hot);
+    }
+
+    const std::chrono::steady_clock::time_point restart_start =
         std::chrono::steady_clock::now();
     primary_conn->disconnect();
     replica_conn->disconnect();
+    primary_conn.reset();
+    replica_conn.reset();
     primary_conn = open_env(paths.primary);
     replica_conn = open_env(paths.replica);
-    mdbxc::sync::SyncEngine restarted_primary(primary_conn);
-    mdbxc::sync::SyncEngine restarted_replica(replica_conn);
-    initialize_engine(restarted_primary, primary_node, db_id);
-    initialize_engine(restarted_replica, replica_node, db_id);
-    const std::chrono::steady_clock::time_point close_finish =
-        std::chrono::steady_clock::now();
 
-    const std::uint64_t restart_first_seq =
-        scenario.historical_chunks_per_origin + scenario.new_chunks_per_origin + 1;
-    const std::chrono::steady_clock::time_point restart_seed_start =
-        std::chrono::steady_clock::now();
-    const std::uint64_t restart_seeded =
-        append_changelog_range(primary_conn, scenario, restart_first_seq,
-                               scenario.new_chunks_per_origin);
-    const std::chrono::steady_clock::time_point restart_seed_finish =
-        std::chrono::steady_clock::now();
-    verify_origin_index(primary_conn, scenario, scenario.origins);
+    {
+        mdbxc::sync::SyncEngine restarted_primary(primary_conn);
+        mdbxc::sync::SyncEngine restarted_replica(replica_conn);
+        initialize_engine(restarted_primary, primary_node, db_id);
+        initialize_engine(restarted_replica, replica_node, db_id);
+        const std::chrono::steady_clock::time_point restart_finish =
+            std::chrono::steady_clock::now();
 
-    PhaseMetrics restarted = run_sync_phase(
-        "incremental_after_restart",
-        scenario.new_chunks_per_origin,
-        restart_seeded,
-        elapsed_ms(restart_seed_start, restart_seed_finish),
-        elapsed_ms(close_start, close_finish),
-        primary_conn,
-        replica_conn,
-        restarted_primary,
-        restarted_replica,
-        scenario,
-        replica_node,
-        db_id);
-    print_csv_row(scenario, restarted);
+        const std::uint64_t restart_first_seq =
+            scenario.historical_chunks_per_origin + scenario.new_chunks_per_origin + 1;
+        const std::chrono::steady_clock::time_point restart_seed_start =
+            std::chrono::steady_clock::now();
+        const std::uint64_t restart_seeded =
+            append_changelog_range(primary_conn, scenario, restart_first_seq,
+                                   scenario.new_chunks_per_origin);
+        const std::chrono::steady_clock::time_point restart_seed_finish =
+            std::chrono::steady_clock::now();
+        verify_origin_index(primary_conn, scenario, scenario.origins);
+
+        PhaseMetrics restarted = run_sync_phase(
+            "incremental_after_restart",
+            scenario.new_chunks_per_origin,
+            restart_seeded,
+            elapsed_ms(restart_seed_start, restart_seed_finish),
+            elapsed_ms(restart_start, restart_finish),
+            primary_conn,
+            replica_conn,
+            restarted_primary,
+            restarted_replica,
+            scenario,
+            replica_node,
+            db_id);
+        print_csv_row(scenario, restarted);
+    }
 
     primary_conn->disconnect();
     replica_conn->disconnect();
