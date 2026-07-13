@@ -17,6 +17,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE PATH "")
 option(MDBXC_BUILD_EXAMPLES     "Build examples"                                  ON)
 option(MDBXC_BUILD_TESTS        "Build tests with CTest"                           ON)
 option(MDBXC_BUILD_BENCHMARKS   "Build benchmark executables"                      OFF)
+option(MDBXC_ENABLE_STRESS_TESTS "Register long stress tests with CTest"           OFF)
 option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmdbx)" ON)
 
 # Three-mode dependency policy for MDBX: AUTO | SYSTEM | BUNDLED
@@ -27,6 +28,7 @@ message(STATUS "MDBXC_DEPS_MODE         = ${MDBXC_DEPS_MODE}")
 message(STATUS "MDBXC_BUILD_EXAMPLES    = ${MDBXC_BUILD_EXAMPLES}")
 message(STATUS "MDBXC_BUILD_TESTS       = ${MDBXC_BUILD_TESTS}")
 message(STATUS "MDBXC_BUILD_BENCHMARKS  = ${MDBXC_BUILD_BENCHMARKS}")
+message(STATUS "MDBXC_ENABLE_STRESS_TESTS = ${MDBXC_ENABLE_STRESS_TESTS}")
 message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
 
 set(MDBXC_HAS_ASAN OFF CACHE BOOL "Compiler+linker support -fsanitize=address")
@@ -168,15 +170,26 @@ if(MDBXC_BUILD_TESTS)
         # Enable the optional sync subsystem when its headers are exercised.
         target_compile_definitions(${test_name} PRIVATE MDBXC_SYNC_ENABLED=1)
 
-        # IMPORTANT: we do NOT define INTERACTIVE_TEST for tests.
-        add_test(NAME ${test_name} COMMAND ${test_name})
-        
-        if(MDBXC_HAS_ASAN)
-            set_tests_properties(${test_name} PROPERTIES
-                ENVIRONMENT "ASAN_OPTIONS=abort_on_error=1,detect_leaks=0,allocator_may_return_null=1"
-            )
+        set(_mdbxc_is_stress_test FALSE)
+        if(test_name MATCHES "stress")
+            set(_mdbxc_is_stress_test TRUE)
         endif()
-        
+
+        if(NOT _mdbxc_is_stress_test OR MDBXC_ENABLE_STRESS_TESTS)
+            # IMPORTANT: we do NOT define INTERACTIVE_TEST for tests.
+            add_test(NAME ${test_name} COMMAND ${test_name})
+
+            if(_mdbxc_is_stress_test)
+                set_tests_properties(${test_name} PROPERTIES LABELS stress TIMEOUT 300)
+            endif()
+
+            if(MDBXC_HAS_ASAN)
+                set_tests_properties(${test_name} PROPERTIES
+                    ENVIRONMENT "ASAN_OPTIONS=abort_on_error=1,detect_leaks=0,allocator_may_return_null=1"
+                )
+            endif()
+        endif()
+
     endforeach()
 endif()
 

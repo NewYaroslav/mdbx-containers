@@ -17,6 +17,7 @@ All project options use the `MDBXC_` prefix.
 | `MDBXC_BUILD_EXAMPLES` | `ON` | Build examples from `examples/`. |
 | `MDBXC_BUILD_TESTS` | `ON` | Build tests from `tests/` and register them with CTest. |
 | `MDBXC_BUILD_BENCHMARKS` | `OFF` | Build manual benchmark executables from `benchmarks/`. |
+| `MDBXC_ENABLE_STRESS_TESTS` | `OFF` | Register long stress tests with CTest. Stress executables are still built when tests are enabled. |
 | `MDBXC_USE_ASAN` | `ON` | Enable AddressSanitizer for tests/examples when supported. |
 
 When `mdbx-containers` is added as a subproject, existing parent-provided
@@ -61,6 +62,23 @@ ctest --test-dir tmp/build-cpp11 --output-on-failure
 On Windows, the repository includes helper scripts such as
 `build-mingw-17-tests.bat`, `build-mingw-11-tests.bat`, and
 `build-mingw-17-examples.bat`.
+
+## Stress Tests
+
+Long stress tests are compiled with the normal test targets, but are not
+registered in default CTest runs. Enable them explicitly for local or scheduled
+stress verification:
+
+```bash
+cmake -S . -B tmp/build-stress \
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_TESTS=ON \
+    -DMDBXC_ENABLE_STRESS_TESTS=ON \
+    -DCMAKE_CXX_STANDARD=17
+
+cmake --build tmp/build-stress --target test_sync_stress
+ctest --test-dir tmp/build-stress -L stress --output-on-failure
+```
 
 ## Benchmarks
 
