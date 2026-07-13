@@ -4,12 +4,15 @@
 #include <mdbx_containers.hpp>
 #include <mdbx_containers/sync.hpp>
 
+#include <cerrno>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -17,6 +20,8 @@
 namespace {
 
 const std::uint64_t default_max_bytes = 4ULL * 1024ULL * 1024ULL;
+const std::uint64_t max_ticks_per_chunk = 1000000ULL;
+const std::size_t tick_payload_bytes = 32;
 
 struct Scenario {
     std::string   name;
@@ -91,6 +96,43 @@ Paths make_paths(const std::string& id, const std::string& scenario_name) {
     return paths;
 }
 
+std::runtime_error overflow_error(const char* name) {
+    return std::runtime_error(std::string(name) + " overflows benchmark bounds");
+}
+
+std::uint64_t checked_add_u64(std::uint64_t lhs,
+                              std::uint64_t rhs,
+                              const char* name) {
+    const std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
+    if (lhs > max - rhs) {
+        throw overflow_error(name);
+    }
+    return lhs + rhs;
+}
+
+std::uint64_t checked_mul_u64(std::uint64_t lhs,
+                              std::uint64_t rhs,
+                              const char* name) {
+    const std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
+    if (lhs != 0 && rhs > max / lhs) {
+        throw overflow_error(name);
+    }
+    return lhs * rhs;
+}
+
+std::size_t checked_mul_size(std::uint64_t lhs,
+                             std::size_t rhs,
+                             const char* name) {
+    const std::uint64_t product =
+        checked_mul_u64(lhs, static_cast<std::uint64_t>(rhs), name);
+    const std::uint64_t max_size =
+        static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max());
+    if (product > max_size) {
+        throw overflow_error(name);
+    }
+    return static_cast<std::size_t>(product);
+}
+
 std::uint64_t parse_arg(int argc,
                         char** argv,
                         int index,
@@ -99,10 +141,20 @@ std::uint64_t parse_arg(int argc,
     if (index >= argc) {
         return fallback;
     }
+    if (argv[index][0] == '-') {
+        throw std::runtime_error(std::string("invalid ") + name + ": " + argv[index]);
+    }
     char* end = nullptr;
+    errno = 0;
     const unsigned long long value = std::strtoull(argv[index], &end, 10);
     if (end == argv[index] || *end != '\0') {
         throw std::runtime_error(std::string("invalid ") + name + ": " + argv[index]);
+    }
+    const unsigned long long max_u64 =
+        static_cast<unsigned long long>(std::numeric_limits<std::uint64_t>::max());
+    if (errno == ERANGE || value > max_u64) {
+        throw std::runtime_error(std::string("out-of-range ") + name + ": " +
+                                 argv[index]);
     }
     return static_cast<std::uint64_t>(value);
 }
@@ -118,8 +170,35 @@ void validate_scenario(const Scenario& scenario) {
         throw std::runtime_error(
             "historical_chunks_per_origin and new_chunks_per_origin cannot both be zero");
     }
-    if (scenario.ticks_per_chunk > 1000000ULL) {
+    if (scenario.ticks_per_chunk > max_ticks_per_chunk) {
         throw std::runtime_error("ticks_per_chunk is too large for this benchmark");
+    }
+    checked_mul_size(scenario.ticks_per_chunk, tick_payload_bytes,
+                     "tick chunk payload size");
+    checked_mul_u64(scenario.origins, scenario.historical_chunks_per_origin,
+                    "historical batch count");
+    checked_mul_u64(scenario.origins, scenario.new_chunks_per_origin,
+                    "incremental batch count");
+
+    if (scenario.historical_chunks_per_origin != 0) {
+        checked_add_u64(1, scenario.historical_chunks_per_origin,
+                        "historical sequence range");
+    }
+    if (scenario.new_chunks_per_origin != 0) {
+        const std::uint64_t hot_first_seq =
+            checked_add_u64(scenario.historical_chunks_per_origin, 1,
+                            "hot first sequence");
+        checked_add_u64(hot_first_seq, scenario.new_chunks_per_origin,
+                        "hot sequence range");
+
+        const std::uint64_t restart_base =
+            checked_add_u64(scenario.historical_chunks_per_origin,
+                            scenario.new_chunks_per_origin,
+                            "restart sequence base");
+        const std::uint64_t restart_first_seq =
+            checked_add_u64(restart_base, 1, "restart first sequence");
+        checked_add_u64(restart_first_seq, scenario.new_chunks_per_origin,
+                        "restart sequence range");
     }
 }
 
@@ -211,8 +290,12 @@ std::uint64_t used_database_bytes(
     mdbxc::check_mdbx(
         mdbx_env_info_ex(conn->env_handle(), nullptr, &info, sizeof(info)),
         "sync_tick_hub_benchmark: failed to read MDBX env info");
-    return (info.mi_last_pgno + 1) *
-           static_cast<std::uint64_t>(info.mi_dxb_pagesize);
+    const std::uint64_t used_pages =
+        checked_add_u64(static_cast<std::uint64_t>(info.mi_last_pgno), 1,
+                        "MDBX used page count");
+    return checked_mul_u64(used_pages,
+                           static_cast<std::uint64_t>(info.mi_dxb_pagesize),
+                           "MDBX used-byte estimate");
 }
 
 mdbxc::sync::NodeId make_node(std::uint8_t seed) {
@@ -245,9 +328,9 @@ std::vector<std::uint8_t> make_chunk_key(std::uint64_t origin_index,
 std::vector<std::uint8_t> make_tick_chunk(std::uint64_t origin_index,
                                           std::uint64_t seq,
                                           std::uint64_t ticks_per_chunk) {
-    const std::size_t tick_size = 32;
     const std::size_t size =
-        static_cast<std::size_t>(ticks_per_chunk) * tick_size;
+        checked_mul_size(ticks_per_chunk, tick_payload_bytes,
+                         "tick chunk payload size");
     std::vector<std::uint8_t> value(size);
     for (std::size_t i = 0; i < value.size(); ++i) {
         value[i] = static_cast<std::uint8_t>(
@@ -296,7 +379,8 @@ std::uint64_t append_changelog_range(
 
     for (std::uint64_t origin_index = 0; origin_index < scenario.origins; ++origin_index) {
         const mdbxc::sync::NodeId origin = make_origin(origin_index);
-        const std::uint64_t end_seq = first_seq + chunks_per_origin;
+        const std::uint64_t end_seq =
+            checked_add_u64(first_seq, chunks_per_origin, "sequence range");
         for (std::uint64_t seq = first_seq; seq < end_seq; ++seq) {
             const mdbxc::sync::ChangeBatch batch =
                 make_tick_batch(origin_index, origin, seq, scenario.ticks_per_chunk);
@@ -307,7 +391,8 @@ std::uint64_t append_changelog_range(
     }
 
     txn.commit();
-    return scenario.origins * chunks_per_origin;
+    return checked_mul_u64(scenario.origins, chunks_per_origin,
+                           "seeded batch count");
 }
 
 std::uint64_t count_origin_index_entries(
@@ -412,7 +497,9 @@ PhaseMetrics run_sync_phase(const std::string& phase,
                             const mdbxc::sync::NodeId& db_id) {
     const PullApplyMetrics sync =
         pull_and_apply(primary_engine, replica_engine, scenario, replica_node, db_id);
-    const std::uint64_t expected = scenario.origins * chunks_per_origin;
+    const std::uint64_t expected =
+        checked_mul_u64(scenario.origins, chunks_per_origin,
+                        "expected batch count");
     if (sync.pulled_batches != expected) {
         throw std::runtime_error(phase + " pulled wrong batch count: expected " +
                                  std::to_string(expected) + ", got " +
@@ -533,7 +620,11 @@ void run_scenario(const Scenario& scenario, const std::string& id) {
             db_id);
         print_csv_row(scenario, full);
 
-        const std::uint64_t hot_first_seq = scenario.historical_chunks_per_origin + 1;
+        const std::uint64_t hot_first_seq =
+            scenario.new_chunks_per_origin == 0
+                ? 1
+                : checked_add_u64(scenario.historical_chunks_per_origin, 1,
+                                  "hot first sequence");
         const std::chrono::steady_clock::time_point hot_seed_start =
             std::chrono::steady_clock::now();
         const std::uint64_t hot_seeded =
@@ -577,7 +668,14 @@ void run_scenario(const Scenario& scenario, const std::string& id) {
             std::chrono::steady_clock::now();
 
         const std::uint64_t restart_first_seq =
-            scenario.historical_chunks_per_origin + scenario.new_chunks_per_origin + 1;
+            scenario.new_chunks_per_origin == 0
+                ? 1
+                : checked_add_u64(
+                      checked_add_u64(scenario.historical_chunks_per_origin,
+                                      scenario.new_chunks_per_origin,
+                                      "restart sequence base"),
+                      1,
+                      "restart first sequence");
         const std::chrono::steady_clock::time_point restart_seed_start =
             std::chrono::steady_clock::now();
         const std::uint64_t restart_seeded =
