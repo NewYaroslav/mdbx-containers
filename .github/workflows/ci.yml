@@ -105,7 +105,18 @@ jobs:
       - name: Run benchmark smoke
         run: |
           set -euo pipefail
-          build-bench/bin/benchmarks/sync_tick_hub_benchmark 3 8 3 4 2 4096
+          output="$(build-bench/bin/benchmarks/sync_tick_hub_benchmark 3 8 3 4 2 4096)"
+          printf '%s\n' "$output"
+          header="$(printf '%s\n' "$output" | sed -n '1p')"
+          case "$header" in
+            scenario,phase,*) ;;
+            *)
+              echo "unexpected benchmark CSV header: $header" >&2
+              exit 1
+              ;;
+          esac
+          rows="$(printf '%s\n' "$output" | wc -l | tr -d ' ')"
+          test "$rows" = "4"
 
   windows:
     name: Windows MinGW64 (C++${{ matrix.std }})

@@ -100,6 +100,10 @@ std::runtime_error overflow_error(const char* name) {
     return std::runtime_error(std::string(name) + " overflows benchmark bounds");
 }
 
+bool is_decimal_digit(char ch) {
+    return ch >= '0' && ch <= '9';
+}
+
 std::uint64_t checked_add_u64(std::uint64_t lhs,
                               std::uint64_t rhs,
                               const char* name) {
@@ -141,7 +145,7 @@ std::uint64_t parse_arg(int argc,
     if (index >= argc) {
         return fallback;
     }
-    if (argv[index][0] == '-') {
+    if (!is_decimal_digit(argv[index][0])) {
         throw std::runtime_error(std::string("invalid ") + name + ": " + argv[index]);
     }
     char* end = nullptr;
