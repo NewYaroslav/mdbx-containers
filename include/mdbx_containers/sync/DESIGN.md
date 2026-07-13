@@ -214,10 +214,13 @@ Worker invariants:
 - no local MDBX transaction is held during idle or backoff sleeps;
 - pulled pages are applied through `SyncEngine::handle_push()`, so each page
   uses one short local write transaction;
-- stop requests do not interrupt a blocking peer call, but a page returned
-  after stop was requested is not applied;
+- stop requests call `ISyncPeer::request_cancel()` at most once for each
+  observed in-flight peer pull call, and a page returned after stop was
+  requested is not applied;
+- a stop request recorded before peer-call activation prevents the next pull
+  call from starting;
 - `stop()`, `join()`, and destruction may wait for an in-flight peer call to
-  return; timeout/cancellation belongs to the concrete transport adapter;
+  return when the concrete transport does not support cancellation;
 - lifecycle mutations (`start`, `stop`, `join`, `run_once`) are caller-serialized,
   while `request_stop`, `state`, `last_error`, and `wait_until_state` are
   thread-safe;
@@ -227,7 +230,9 @@ Worker invariants:
   them and never cross the worker boundary.
 
 The worker is a lifecycle/concurrency helper, not a transport. HTTP/WebSocket
-peers remain separate adapters over `ISyncPeer`.
+peers remain separate adapters over `ISyncPeer`. Transport adapters that can
+interrupt blocking I/O should implement `request_cancel()` by using their own
+timeout, cancellation token, socket shutdown, or equivalent mechanism.
 
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 

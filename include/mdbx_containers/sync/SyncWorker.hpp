@@ -81,8 +81,9 @@ namespace sync {
     /// waiting in \c ISyncPeer::pull(), idle sleep, or backoff sleep. Pulled
     /// batches are applied through \c SyncEngine::handle_push(), which opens
     /// and commits a short local write transaction for each pulled page.
-    /// Stop requests do not interrupt a blocking peer call; \c stop(),
-    /// \c join(), and the destructor may wait until the peer returns.
+    /// Stop requests call \c ISyncPeer::request_cancel() at most once for each
+    /// observed in-flight peer call. Cancellation is best-effort: \c stop(),
+    /// \c join(), and the destructor may still wait until the peer returns.
     class SyncWorker {
     public:
         /// \brief Constructs a worker over a local engine and remote peer.
@@ -96,7 +97,9 @@ namespace sync {
               m_peer(peer),
               m_options(options),
               m_state(SyncWorkerState::Stopped),
-              m_stop_requested(false) {
+              m_stop_requested(false),
+              m_peer_call_active(false),
+              m_peer_cancel_requested(false) {
             validate_options(m_options);
         }
 
@@ -124,6 +127,8 @@ namespace sync {
                     throw std::logic_error("SyncWorker is not stopped");
                 }
                 m_stop_requested = false;
+                m_peer_call_active = false;
+                m_peer_cancel_requested = false;
                 m_last_error.clear();
                 m_state = SyncWorkerState::Starting;
             }
@@ -134,6 +139,8 @@ namespace sync {
                 {
                     std::lock_guard<std::mutex> lock(m_mutex);
                     m_stop_requested = true;
+                    m_peer_call_active = false;
+                    m_peer_cancel_requested = false;
                     m_state = SyncWorkerState::Stopped;
                 }
                 m_state_changed.notify_all();
@@ -142,16 +149,26 @@ namespace sync {
         }
 
         /// \brief Requests background worker shutdown.
-        /// \details Does not interrupt an in-flight peer call. The worker exits
-        /// before applying a page returned after stop was requested.
+        /// \details Calls \c ISyncPeer::request_cancel() outside the worker
+        /// mutex at most once for each observed in-flight peer call.
+        /// Cancellation is best-effort; the worker exits before applying a
+        /// page returned after stop was requested.
         void request_stop() {
+            bool cancel_peer = false;
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 m_stop_requested = true;
+                if (m_peer_call_active && !m_peer_cancel_requested) {
+                    m_peer_cancel_requested = true;
+                    cancel_peer = true;
+                }
                 if (m_state != SyncWorkerState::Stopped &&
                     m_state != SyncWorkerState::Failed) {
                     m_state = SyncWorkerState::Stopping;
                 }
+            }
+            if (cancel_peer) {
+                request_peer_cancel();
             }
             m_state_changed.notify_all();
         }
@@ -188,6 +205,8 @@ namespace sync {
                     throw std::logic_error("SyncWorker is not stopped");
                 }
                 m_stop_requested = false;
+                m_peer_call_active = false;
+                m_peer_cancel_requested = false;
                 m_last_error.clear();
             }
             const SyncWorkerRoundResult result = run_once_impl();
@@ -229,6 +248,31 @@ namespace sync {
         }
 
     private:
+        class PeerCallGuard {
+        public:
+            explicit PeerCallGuard(SyncWorker& worker)
+                : m_worker(worker),
+                  m_active(worker.begin_peer_call()) {
+            }
+
+            ~PeerCallGuard() {
+                if (m_active) {
+                    m_worker.end_peer_call();
+                }
+            }
+
+            bool active() const {
+                return m_active;
+            }
+
+            PeerCallGuard(const PeerCallGuard&) = delete;
+            PeerCallGuard& operator=(const PeerCallGuard&) = delete;
+
+        private:
+            SyncWorker& m_worker;
+            bool        m_active;
+        };
+
         static void validate_options(const SyncWorkerOptions& options) {
             if (options.max_batches == 0) {
                 throw std::invalid_argument(
@@ -274,8 +318,15 @@ namespace sync {
                     }
 
                     const SyncCursor before = request.have;
-                    set_state(SyncWorkerState::Pulling);
-                    const PullResponse response = m_peer.pull(request);
+                    PullResponse response;
+                    {
+                        PeerCallGuard peer_call(*this);
+                        if (!peer_call.active()) {
+                            result.has_more = has_more;
+                            return result;
+                        }
+                        response = m_peer.pull(request);
+                    }
                     if (!response.ok) {
                         result.ok = false;
                         result.error = response.error.empty()
@@ -328,6 +379,40 @@ namespace sync {
                 result.error = "unknown sync worker error";
             }
             return result;
+        }
+
+        bool begin_peer_call() const {
+            bool started = false;
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                if (!m_stop_requested) {
+                    m_state = SyncWorkerState::Pulling;
+                    m_peer_call_active = true;
+                    m_peer_cancel_requested = false;
+                    started = true;
+                }
+            }
+            if (started) {
+                m_state_changed.notify_all();
+            }
+            return started;
+        }
+
+        void end_peer_call() const {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_peer_call_active = false;
+            m_peer_cancel_requested = false;
+        }
+
+        void request_peer_cancel() const {
+            try {
+                m_peer.request_cancel();
+            } catch (const std::exception& e) {
+                set_last_error(std::string("peer cancellation failed: ") +
+                               e.what());
+            } catch (...) {
+                set_last_error("peer cancellation failed");
+            }
         }
 
         void thread_main() {
@@ -408,6 +493,8 @@ namespace sync {
         mutable std::condition_variable m_state_changed;
         mutable SyncWorkerState     m_state;
         mutable bool                m_stop_requested;
+        mutable bool                m_peer_call_active;
+        mutable bool                m_peer_cancel_requested;
         mutable std::string         m_last_error;
     };
 
