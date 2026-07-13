@@ -63,6 +63,13 @@ jobs:
           cmake --build build --target test_sync_stress --config Release --parallel \
           2>&1 | tee build/build.log
 
+      - name: Verify stress registration
+        run: |
+          set -euo pipefail
+          ctest --test-dir build -N -L stress \
+          2>&1 | tee build/ctest-list.log
+          grep -q "test_sync_stress" build/ctest-list.log
+
       - name: Run stress tests
         run: |
           set -euo pipefail
