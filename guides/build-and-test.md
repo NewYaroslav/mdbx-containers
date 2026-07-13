@@ -84,6 +84,8 @@ incremental hot sync, and incremental sync after restarting both connections
 and sync engines. It uses `DirectSyncPeer` in one process, so the timings measure
 the sync core, pagination, and local apply path rather than network transport
 latency.
+CI also builds this benchmark target and runs a small custom scenario as a
+smoke check; full measurement runs remain manual.
 Pass positional arguments to run one custom scenario:
 
 ```bash
@@ -97,6 +99,8 @@ sync_tick_hub_benchmark \
 - GitHub Actions builds on Windows with MSYS2/MinGW.
 - The matrix covers C++11 and C++17.
 - CI uses CMake with Ninja and runs `ctest --output-on-failure`.
+- A separate Linux C++17 smoke job builds and runs `sync_tick_hub_benchmark`
+  with `MDBXC_BUILD_BENCHMARKS=ON`.
 
 ## Generated Outputs
 

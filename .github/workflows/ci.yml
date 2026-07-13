@@ -56,6 +56,68 @@ jobs:
           set -euo pipefail
           cmake --build "build-parent-${{ matrix.target_case }}" --parallel
 
+  benchmark-smoke:
+    name: Benchmark smoke (Linux C++17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Ensure libmdbx tags
+        run: |
+          set -euo pipefail
+          git submodule update --init --recursive
+          git -C external/libmdbx rev-parse --is-inside-work-tree >/dev/null
+          git -C external/libmdbx config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git -C external/libmdbx fetch --prune --tags --force
+          if git -C external/libmdbx rev-parse --is-shallow-repository | grep -qi true; then
+            git -C external/libmdbx fetch --unshallow || git -C external/libmdbx fetch --deepen=1000
+          fi
+          git -C external/libmdbx describe --tags --abbrev=0 >/dev/null
+
+      - name: Configure benchmark
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-bench -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DMDBXC_DEPS_MODE=BUNDLED \
+            -DMDBXC_BUILD_TESTS=OFF \
+            -DMDBXC_BUILD_EXAMPLES=OFF \
+            -DMDBXC_BUILD_BENCHMARKS=ON \
+            -Wno-dev
+
+      - name: Build benchmark
+        run: |
+          set -euo pipefail
+          cmake --build build-bench --target sync_tick_hub_benchmark --parallel
+
+      - name: Run benchmark smoke
+        run: |
+          set -euo pipefail
+          output="$(build-bench/bin/benchmarks/sync_tick_hub_benchmark 3 8 3 4 2 4096)"
+          printf '%s\n' "$output"
+          header="$(printf '%s\n' "$output" | sed -n '1p')"
+          case "$header" in
+            scenario,phase,*) ;;
+            *)
+              echo "unexpected benchmark CSV header: $header" >&2
+              exit 1
+              ;;
+          esac
+          rows="$(printf '%s\n' "$output" | wc -l | tr -d ' ')"
+          test "$rows" = "4"
+
   windows:
     name: Windows MinGW64 (C++${{ matrix.std }})
     runs-on: windows-latest
