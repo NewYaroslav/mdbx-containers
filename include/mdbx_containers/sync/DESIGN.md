@@ -214,9 +214,11 @@ Worker invariants:
 - no local MDBX transaction is held during idle or backoff sleeps;
 - pulled pages are applied through `SyncEngine::handle_push()`, so each page
   uses one short local write transaction;
-- stop requests call `ISyncPeer::request_cancel()` as a best-effort transport
-  hook only while a peer pull call is in flight, and a page returned after stop
-  was requested is not applied;
+- stop requests call `ISyncPeer::request_cancel()` at most once for each
+  observed in-flight peer pull call, and a page returned after stop was
+  requested is not applied;
+- a stop request recorded before peer-call activation prevents the next pull
+  call from starting;
 - `stop()`, `join()`, and destruction may wait for an in-flight peer call to
   return when the concrete transport does not support cancellation;
 - lifecycle mutations (`start`, `stop`, `join`, `run_once`) are caller-serialized,

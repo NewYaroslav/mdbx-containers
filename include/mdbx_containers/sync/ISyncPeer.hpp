@@ -14,7 +14,8 @@ namespace sync {
     /// \details Concrete implementations (in-process, HTTP, WebSocket) live
     /// outside the core sync layer and depend on optional transport headers.
     /// Implementations that override \c request_cancel() must allow it to be
-    /// called concurrently with \c pull() / \c push().
+    /// called concurrently with \c pull() / \c push() and tolerate calls that
+    /// race with operation startup or completion.
     class ISyncPeer {
     public:
         virtual ~ISyncPeer() {}

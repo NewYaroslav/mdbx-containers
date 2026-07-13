@@ -81,8 +81,8 @@ namespace sync {
     /// waiting in \c ISyncPeer::pull(), idle sleep, or backoff sleep. Pulled
     /// batches are applied through \c SyncEngine::handle_push(), which opens
     /// and commits a short local write transaction for each pulled page.
-    /// Stop requests call \c ISyncPeer::request_cancel() only while a peer
-    /// call is in flight, and cancellation is best-effort: \c stop(),
+    /// Stop requests call \c ISyncPeer::request_cancel() at most once for each
+    /// observed in-flight peer call. Cancellation is best-effort: \c stop(),
     /// \c join(), and the destructor may still wait until the peer returns.
     class SyncWorker {
     public:
@@ -98,7 +98,8 @@ namespace sync {
               m_options(options),
               m_state(SyncWorkerState::Stopped),
               m_stop_requested(false),
-              m_peer_call_active(false) {
+              m_peer_call_active(false),
+              m_peer_cancel_requested(false) {
             validate_options(m_options);
         }
 
@@ -127,6 +128,7 @@ namespace sync {
                 }
                 m_stop_requested = false;
                 m_peer_call_active = false;
+                m_peer_cancel_requested = false;
                 m_last_error.clear();
                 m_state = SyncWorkerState::Starting;
             }
@@ -138,6 +140,7 @@ namespace sync {
                     std::lock_guard<std::mutex> lock(m_mutex);
                     m_stop_requested = true;
                     m_peer_call_active = false;
+                    m_peer_cancel_requested = false;
                     m_state = SyncWorkerState::Stopped;
                 }
                 m_state_changed.notify_all();
@@ -147,15 +150,18 @@ namespace sync {
 
         /// \brief Requests background worker shutdown.
         /// \details Calls \c ISyncPeer::request_cancel() outside the worker
-        /// mutex only when a peer call is in flight. Cancellation is
-        /// best-effort; the worker exits before applying a page returned after
-        /// stop was requested.
+        /// mutex at most once for each observed in-flight peer call.
+        /// Cancellation is best-effort; the worker exits before applying a
+        /// page returned after stop was requested.
         void request_stop() {
             bool cancel_peer = false;
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 m_stop_requested = true;
-                cancel_peer = m_peer_call_active;
+                if (m_peer_call_active && !m_peer_cancel_requested) {
+                    m_peer_cancel_requested = true;
+                    cancel_peer = true;
+                }
                 if (m_state != SyncWorkerState::Stopped &&
                     m_state != SyncWorkerState::Failed) {
                     m_state = SyncWorkerState::Stopping;
@@ -200,6 +206,7 @@ namespace sync {
                 }
                 m_stop_requested = false;
                 m_peer_call_active = false;
+                m_peer_cancel_requested = false;
                 m_last_error.clear();
             }
             const SyncWorkerRoundResult result = run_once_impl();
@@ -243,12 +250,19 @@ namespace sync {
     private:
         class PeerCallGuard {
         public:
-            explicit PeerCallGuard(SyncWorker& worker) : m_worker(worker) {
-                m_worker.begin_peer_call();
+            explicit PeerCallGuard(SyncWorker& worker)
+                : m_worker(worker),
+                  m_active(worker.begin_peer_call()) {
             }
 
             ~PeerCallGuard() {
-                m_worker.end_peer_call();
+                if (m_active) {
+                    m_worker.end_peer_call();
+                }
+            }
+
+            bool active() const {
+                return m_active;
             }
 
             PeerCallGuard(const PeerCallGuard&) = delete;
@@ -256,6 +270,7 @@ namespace sync {
 
         private:
             SyncWorker& m_worker;
+            bool        m_active;
         };
 
         static void validate_options(const SyncWorkerOptions& options) {
@@ -306,6 +321,10 @@ namespace sync {
                     PullResponse response;
                     {
                         PeerCallGuard peer_call(*this);
+                        if (!peer_call.active()) {
+                            result.has_more = has_more;
+                            return result;
+                        }
                         response = m_peer.pull(request);
                     }
                     if (!response.ok) {
@@ -362,18 +381,27 @@ namespace sync {
             return result;
         }
 
-        void begin_peer_call() const {
+        bool begin_peer_call() const {
+            bool started = false;
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
-                m_state = SyncWorkerState::Pulling;
-                m_peer_call_active = true;
+                if (!m_stop_requested) {
+                    m_state = SyncWorkerState::Pulling;
+                    m_peer_call_active = true;
+                    m_peer_cancel_requested = false;
+                    started = true;
+                }
             }
-            m_state_changed.notify_all();
+            if (started) {
+                m_state_changed.notify_all();
+            }
+            return started;
         }
 
         void end_peer_call() const {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_peer_call_active = false;
+            m_peer_cancel_requested = false;
         }
 
         void request_peer_cancel() const {
@@ -466,6 +494,7 @@ namespace sync {
         mutable SyncWorkerState     m_state;
         mutable bool                m_stop_requested;
         mutable bool                m_peer_call_active;
+        mutable bool                m_peer_cancel_requested;
         mutable std::string         m_last_error;
     };
 
