@@ -16,6 +16,7 @@ All project options use the `MDBXC_` prefix.
 | `MDBXC_DEPS_MODE` | `AUTO` | MDBX dependency mode: `AUTO`, `SYSTEM`, or `BUNDLED`. |
 | `MDBXC_BUILD_EXAMPLES` | `ON` | Build examples from `examples/`. |
 | `MDBXC_BUILD_TESTS` | `ON` | Build tests from `tests/` and register them with CTest. |
+| `MDBXC_BUILD_BENCHMARKS` | `OFF` | Build manual benchmark executables from `benchmarks/`. |
 | `MDBXC_USE_ASAN` | `ON` | Enable AddressSanitizer for tests/examples when supported. |
 
 When `mdbx-containers` is added as a subproject, existing parent-provided
@@ -60,6 +61,36 @@ ctest --test-dir tmp/build-cpp11 --output-on-failure
 On Windows, the repository includes helper scripts such as
 `build-mingw-17-tests.bat`, `build-mingw-11-tests.bat`, and
 `build-mingw-17-examples.bat`.
+
+## Benchmarks
+
+Benchmarks are manual tools, not CTest targets. Enable them only for local
+measurement runs:
+
+```bash
+cmake -S . -B tmp/build-bench \
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_TESTS=OFF \
+    -DMDBXC_BUILD_EXAMPLES=OFF \
+    -DMDBXC_BUILD_BENCHMARKS=ON \
+    -DCMAKE_CXX_STANDARD=17
+
+cmake --build tmp/build-bench --target sync_tick_hub_benchmark
+tmp/build-bench/bin/benchmarks/sync_tick_hub_benchmark
+```
+
+`sync_tick_hub_benchmark` prints CSV rows for full cold-replica sync,
+incremental hot sync, and incremental sync after restarting both connections
+and sync engines. It uses `DirectSyncPeer` in one process, so the timings measure
+the sync core, pagination, and local apply path rather than network transport
+latency.
+Pass positional arguments to run one custom scenario:
+
+```bash
+sync_tick_hub_benchmark \
+    origins historical_chunks_per_origin new_chunks_per_origin \
+    ticks_per_chunk max_batches max_bytes
+```
 
 ## CI Expectations
 
