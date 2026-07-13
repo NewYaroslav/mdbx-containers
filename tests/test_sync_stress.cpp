@@ -1,5 +1,5 @@
 /// \file test_sync_stress.cpp
-/// \brief Longer fixed-seed sync stress test with pagination and restarts.
+/// \brief Longer fixed-seed sync stress test with multi-origin pagination and restarts.
 
 #include <mdbx_containers.hpp>
 #include <mdbx_containers/sync.hpp>
@@ -17,6 +17,38 @@
 namespace {
 
 typedef std::map<int, std::string> Model;
+
+struct StressConfig {
+    std::size_t operations;
+    std::size_t sync_every;
+    std::size_t restart_every;
+    std::uint64_t max_batches_per_pull;
+    std::uint64_t max_bytes_per_pull;
+    std::size_t remote_origin_count;
+};
+
+struct RemoteOriginState {
+    mdbxc::sync::NodeId node_id;
+    std::uint64_t seq;
+    int key_base;
+};
+
+struct ModelMutation {
+    bool erase;
+    int key;
+    std::string value;
+};
+
+StressConfig default_stress_config() {
+    StressConfig config;
+    config.operations = 20000;
+    config.sync_every = 200;
+    config.restart_every = 5000;
+    config.max_batches_per_pull = 17;
+    config.max_bytes_per_pull = 512;
+    config.remote_origin_count = 3;
+    return config;
+}
 
 void cleanup(const std::string& path) {
     std::remove(path.c_str());
@@ -37,6 +69,113 @@ mdbxc::sync::NodeId make_node(std::uint8_t seed) {
         node[i] = static_cast<std::uint8_t>(seed + i);
     }
     return node;
+}
+
+std::vector<RemoteOriginState> make_remote_origins(std::size_t count) {
+    std::vector<RemoteOriginState> origins;
+    origins.reserve(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        RemoteOriginState origin;
+        origin.node_id = make_node(static_cast<std::uint8_t>(0x10 + i * 0x10));
+        origin.seq = 0;
+        origin.key_base = 10000 + static_cast<int>(i) * 10000;
+        origins.push_back(origin);
+    }
+    return origins;
+}
+
+void assign_bytes(std::vector<std::uint8_t>& out, const MDBX_val& val) {
+    if (val.iov_len == 0) {
+        out.clear();
+        return;
+    }
+    const std::uint8_t* begin = static_cast<const std::uint8_t*>(val.iov_base);
+    out.assign(begin, begin + val.iov_len);
+}
+
+void append_put_op(mdbxc::sync::ChangeBatch& batch,
+                   int key,
+                   const std::string& value) {
+    mdbxc::SerializeScratch key_scratch;
+    mdbxc::SerializeScratch value_scratch;
+    const MDBX_val db_key = mdbxc::serialize_key<true>(key, key_scratch);
+    const MDBX_val db_value = mdbxc::serialize_value(value, value_scratch);
+
+    mdbxc::sync::ChangeOp op;
+    op.op_type = mdbxc::sync::ChangeOpType::Put;
+    op.dbi_flags = static_cast<std::uint32_t>(MDBX_INTEGERKEY);
+    op.dbi_name = "kv";
+    assign_bytes(op.storage_key, db_key);
+    assign_bytes(op.value, db_value);
+    batch.ops.push_back(op);
+}
+
+void append_delete_op(mdbxc::sync::ChangeBatch& batch, int key) {
+    mdbxc::SerializeScratch key_scratch;
+    const MDBX_val db_key = mdbxc::serialize_key<true>(key, key_scratch);
+
+    mdbxc::sync::ChangeOp op;
+    op.op_type = mdbxc::sync::ChangeOpType::Delete;
+    op.dbi_flags = static_cast<std::uint32_t>(MDBX_INTEGERKEY);
+    op.dbi_name = "kv";
+    assign_bytes(op.storage_key, db_key);
+    batch.ops.push_back(op);
+}
+
+void append_remote_random_op(mdbxc::sync::ChangeBatch& batch,
+                             std::vector<ModelMutation>& mutations,
+                             const RemoteOriginState& origin,
+                             std::mt19937& rng) {
+    const int key = origin.key_base + static_cast<int>(rng() % 512);
+    if ((rng() % 4) == 0) {
+        append_delete_op(batch, key);
+        ModelMutation mutation;
+        mutation.erase = true;
+        mutation.key = key;
+        mutations.push_back(mutation);
+        return;
+    }
+
+    const std::string value =
+        "r" + std::to_string(origin.key_base) + "_" + std::to_string(rng() % 100000);
+    append_put_op(batch, key, value);
+    ModelMutation mutation;
+    mutation.erase = false;
+    mutation.key = key;
+    mutation.value = value;
+    mutations.push_back(mutation);
+}
+
+mdbxc::sync::ChangeBatch make_remote_batch(RemoteOriginState& origin,
+                                           std::vector<ModelMutation>& mutations,
+                                           std::mt19937& rng) {
+    ++origin.seq;
+
+    mdbxc::sync::ChangeBatch batch;
+    batch.origin_node_id = origin.node_id;
+    batch.seq = origin.seq;
+    batch.time_unix_ns = origin.seq;
+
+    const int op = static_cast<int>(rng() % 6);
+    if (op < 5) {
+        append_remote_random_op(batch, mutations, origin, rng);
+    } else {
+        for (int i = 0; i < 4; ++i) {
+            append_remote_random_op(batch, mutations, origin, rng);
+        }
+    }
+    return batch;
+}
+
+void apply_mutations(Model& model, const std::vector<ModelMutation>& mutations) {
+    for (std::vector<ModelMutation>::const_iterator it = mutations.begin();
+         it != mutations.end(); ++it) {
+        if (it->erase) {
+            model.erase(it->key);
+        } else {
+            model[it->key] = it->value;
+        }
+    }
 }
 
 void require_table_matches_model(const std::shared_ptr<mdbxc::Connection>& conn,
@@ -130,13 +269,40 @@ public:
         require_table_matches_model(m_replica_conn, *m_replica_kv, expected, label);
     }
 
-    void sync_to_replica(std::uint64_t max_batches) {
+    void require_origin_index_valid(const char* label) const {
+        auto txn = m_primary_conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+        mdbxc::sync::ChangeLogStore log(m_primary_conn->env_handle());
+        log.open(txn.handle());
+        if (!log.origin_index_matches_changelog(txn.handle())) {
+            throw std::runtime_error(std::string(label) + " origin index mismatch");
+        }
+        txn.commit();
+    }
+
+    void apply_remote_batch(const mdbxc::sync::ChangeBatch& batch) {
+        auto txn = m_primary_conn->transaction(mdbxc::TransactionMode::WRITABLE);
+        const mdbxc::sync::ApplyResult result =
+            m_primary_engine->apply_batch(txn.handle(), batch);
+        if (result != mdbxc::sync::ApplyResult::Applied) {
+            throw std::runtime_error("stress primary remote apply did not apply");
+        }
+
+        mdbxc::sync::ChangeLogStore log(m_primary_conn->env_handle());
+        log.open(txn.handle());
+        const std::vector<std::uint8_t> encoded =
+            mdbxc::sync::ChangeBatchCodec::encode(batch);
+        log.append(txn.handle(), batch.origin_node_id, batch.seq, encoded);
+        txn.commit();
+    }
+
+    void sync_to_replica(std::uint64_t max_batches, std::uint64_t max_bytes) {
         mdbxc::sync::DirectSyncPeer peer(m_primary_engine.get());
         mdbxc::sync::PullRequest request;
         request.requester = m_replica_node;
         request.db_id = m_db_id;
         request.have = m_replica_engine->applied_cursor();
         request.max_batches = max_batches;
+        request.max_bytes = max_bytes;
 
         bool has_more = false;
         do {
@@ -146,28 +312,32 @@ public:
                 throw std::runtime_error("stress pull failed: " + response.error);
             }
             if (!response.batches.empty()) {
-                auto txn = m_replica_conn->transaction(mdbxc::TransactionMode::WRITABLE);
-                for (std::vector<mdbxc::sync::ChangeBatch>::const_iterator it =
-                         response.batches.begin();
-                     it != response.batches.end(); ++it) {
-                    const mdbxc::sync::ApplyResult result =
-                        m_replica_engine->apply_batch(txn.handle(), *it);
-                    if (result == mdbxc::sync::ApplyResult::Conflict) {
-                        throw std::runtime_error("stress replica apply returned Conflict");
-                    }
+                mdbxc::sync::PushRequest push;
+                push.sender = m_primary_node;
+                push.db_id = m_db_id;
+                push.batches = response.batches;
+                const mdbxc::sync::PushResponse applied =
+                    m_replica_engine->handle_push(push);
+                if (!applied.ok) {
+                    throw std::runtime_error("stress replica push failed: " + applied.error);
                 }
-                txn.commit();
+                request.have = applied.receiver_have;
             } else if (response.has_more) {
                 throw std::runtime_error("stress pull reported has_more without batches");
+            } else {
+                request.have = m_replica_engine->applied_cursor();
             }
 
             has_more = response.has_more;
-            request.have = m_replica_engine->applied_cursor();
             if (has_more &&
                 request.have.last_seq_by_origin == before.last_seq_by_origin) {
                 throw std::runtime_error("stress pull pagination made no cursor progress");
             }
         } while (has_more);
+    }
+
+    mdbxc::sync::SyncCursor replica_cursor() const {
+        return m_replica_engine->applied_cursor();
     }
 
     std::shared_ptr<mdbxc::Connection> primary_conn() const {
@@ -194,9 +364,21 @@ private:
     bool m_capture_attached;
 };
 
-void apply_random_operation(StressHarness& harness,
-                            Model& model,
-                            std::mt19937& rng) {
+void require_remote_cursors(const StressHarness& harness,
+                            const std::vector<RemoteOriginState>& origins,
+                            const char* label) {
+    const mdbxc::sync::SyncCursor cursor = harness.replica_cursor();
+    for (std::vector<RemoteOriginState>::const_iterator it = origins.begin();
+         it != origins.end(); ++it) {
+        if (cursor.last_seq_for(it->node_id) != it->seq) {
+            throw std::runtime_error(std::string(label) + " remote cursor mismatch");
+        }
+    }
+}
+
+void apply_local_random_operation(StressHarness& harness,
+                                  Model& model,
+                                  std::mt19937& rng) {
     const int op = static_cast<int>(rng() % 8);
     const int key = static_cast<int>(rng() % 512);
     const std::string value = "v" + std::to_string(rng() % 100000);
@@ -211,18 +393,9 @@ void apply_random_operation(StressHarness& harness,
         txn.commit();
         return;
     case 3:
+    case 4:
         harness.primary_table().erase(key, txn.handle());
         model.erase(key);
-        txn.commit();
-        return;
-    case 4:
-        if ((rng() % 11) == 0) {
-            harness.primary_table().clear(txn.handle());
-            model.clear();
-        } else {
-            harness.primary_table().erase(key, txn.handle());
-            model.erase(key);
-        }
         txn.commit();
         return;
     case 5:
@@ -241,36 +414,57 @@ void apply_random_operation(StressHarness& harness,
     }
 }
 
+void apply_remote_random_operation(StressHarness& harness,
+                                   Model& model,
+                                   std::vector<RemoteOriginState>& origins,
+                                   std::mt19937& rng) {
+    const std::size_t index = static_cast<std::size_t>(rng() % origins.size());
+    std::vector<ModelMutation> mutations;
+    const mdbxc::sync::ChangeBatch batch =
+        make_remote_batch(origins[index], mutations, rng);
+    harness.apply_remote_batch(batch);
+    apply_mutations(model, mutations);
+}
+
 void run_seed(std::uint32_t seed) {
-    const std::size_t operations = 10000;
-    const std::size_t sync_every = 250;
-    const std::size_t restart_every = 2500;
-    const std::uint64_t max_batches_per_pull = 64;
+    const StressConfig config = default_stress_config();
 
     StressHarness harness(seed, make_node(0xA0), make_node(0xB0), make_node(0xD0));
     harness.reset_files();
     harness.open();
 
     Model reference;
+    std::vector<RemoteOriginState> remote_origins =
+        make_remote_origins(config.remote_origin_count);
     std::mt19937 rng(seed);
-    for (std::size_t i = 0; i < operations; ++i) {
-        apply_random_operation(harness, reference, rng);
+    for (std::size_t i = 0; i < config.operations; ++i) {
+        if ((rng() % 3) == 0) {
+            apply_remote_random_operation(harness, reference, remote_origins, rng);
+        } else {
+            apply_local_random_operation(harness, reference, rng);
+        }
 
-        if ((i + 1) % restart_every == 0) {
+        if ((i + 1) % config.restart_every == 0) {
             harness.restart();
             harness.require_primary_matches(reference, "stress primary after restart");
-            harness.sync_to_replica(max_batches_per_pull);
+            harness.require_origin_index_valid("stress primary after restart");
+            harness.sync_to_replica(config.max_batches_per_pull, config.max_bytes_per_pull);
             harness.require_replica_matches(reference, "stress replica after restart sync");
-        } else if ((i + 1) % sync_every == 0) {
+            require_remote_cursors(harness, remote_origins,
+                                   "stress replica after restart sync");
+        } else if ((i + 1) % config.sync_every == 0) {
             harness.require_primary_matches(reference, "stress primary");
-            harness.sync_to_replica(max_batches_per_pull);
+            harness.sync_to_replica(config.max_batches_per_pull, config.max_bytes_per_pull);
             harness.require_replica_matches(reference, "stress replica");
+            require_remote_cursors(harness, remote_origins, "stress replica");
         }
     }
 
     harness.require_primary_matches(reference, "stress primary final");
-    harness.sync_to_replica(max_batches_per_pull);
+    harness.require_origin_index_valid("stress primary final");
+    harness.sync_to_replica(config.max_batches_per_pull, config.max_bytes_per_pull);
     harness.require_replica_matches(reference, "stress replica final");
+    require_remote_cursors(harness, remote_origins, "stress replica final");
     harness.close();
     harness.reset_files();
 }
