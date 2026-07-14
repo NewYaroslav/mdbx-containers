@@ -157,6 +157,9 @@ if(MDBXC_BUILD_TESTS)
     set(MDBXC_STRESS_TESTS
         test_sync_stress
     )
+    set(MDBXC_SYNC_DISABLED_TESTS
+        header_sync_disabled_test
+    )
     foreach(test_file IN LISTS TESTS)
         get_filename_component(test_name ${test_file} NAME_WE)
         add_executable(${test_name} ${test_file})
@@ -171,7 +174,12 @@ if(MDBXC_BUILD_TESTS)
         message(STATUS "Test ${test_name} -> ${_PKG_TARGET}")
 
         # Enable the optional sync subsystem when its headers are exercised.
-        target_compile_definitions(${test_name} PRIVATE MDBXC_SYNC_ENABLED=1)
+        list(FIND MDBXC_SYNC_DISABLED_TESTS
+             "${test_name}"
+             _mdbxc_sync_disabled_test_index)
+        if(_mdbxc_sync_disabled_test_index EQUAL -1)
+            target_compile_definitions(${test_name} PRIVATE MDBXC_SYNC_ENABLED=1)
+        endif()
 
         list(FIND MDBXC_STRESS_TESTS "${test_name}" _mdbxc_stress_test_index)
         set(_mdbxc_is_stress_test FALSE)
