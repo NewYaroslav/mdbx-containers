@@ -154,6 +154,9 @@ if(MDBXC_BUILD_TESTS)
     include(CTest)
     enable_testing()
     file(GLOB TESTS CONFIGURE_DEPENDS tests/*.cpp)
+    set(MDBXC_STRESS_TESTS
+        test_sync_stress
+    )
     foreach(test_file IN LISTS TESTS)
         get_filename_component(test_name ${test_file} NAME_WE)
         add_executable(${test_name} ${test_file})
@@ -170,8 +173,9 @@ if(MDBXC_BUILD_TESTS)
         # Enable the optional sync subsystem when its headers are exercised.
         target_compile_definitions(${test_name} PRIVATE MDBXC_SYNC_ENABLED=1)
 
+        list(FIND MDBXC_STRESS_TESTS "${test_name}" _mdbxc_stress_test_index)
         set(_mdbxc_is_stress_test FALSE)
-        if(test_name MATCHES "stress")
+        if(NOT _mdbxc_stress_test_index EQUAL -1)
             set(_mdbxc_is_stress_test TRUE)
         endif()
 

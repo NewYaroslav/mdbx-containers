@@ -80,6 +80,10 @@ cmake --build tmp/build-stress --target test_sync_stress
 ctest --test-dir tmp/build-stress -L stress --output-on-failure
 ```
 
+The GitHub Actions `Stress` workflow runs the same stress label on Linux C++17.
+It is intentionally separate from the main `CI` workflow and is triggered by
+manual dispatch or the nightly schedule, not by ordinary pull requests.
+
 ## Benchmarks
 
 Benchmarks are manual tools, not CTest targets. Enable them only for local
@@ -119,6 +123,8 @@ sync_tick_hub_benchmark \
 - CI uses CMake with Ninja and runs `ctest --output-on-failure`.
 - A separate Linux C++17 smoke job builds and runs `sync_tick_hub_benchmark`
   with `MDBXC_BUILD_BENCHMARKS=ON`.
+- The separate `Stress` workflow runs `ctest -L stress` on Linux C++17 when
+  manually dispatched or triggered by its schedule.
 
 ## Generated Outputs
 
