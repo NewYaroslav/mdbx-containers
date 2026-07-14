@@ -42,9 +42,6 @@
 #include "ChangeOp.hpp"
 #include "protocol.hpp"
 #include "SyncCursor.hpp"
-#include "../common/MdbxException.hpp"
-#include "../common/Transaction.hpp"
-#include "../detail/utils.hpp"
 #include "stores/AppliedStore.hpp"
 #include "stores/MetaStore.hpp"
 #include "stores/OriginIndexStore.hpp"
@@ -614,9 +611,7 @@ namespace sync {
                                                             std::uint64_t seq) {
             std::vector<std::uint8_t> out(24);
             std::memcpy(out.data(), origin.data(), 16);
-            for (int i = 0; i < 8; ++i) {
-                out[16 + i] = static_cast<std::uint8_t>((seq >> ((7 - i) * 8)) & 0xff);
-            }
+            detail::write_u64_be(seq, out.data() + 16);
             return out;
         }
 
@@ -634,11 +629,7 @@ namespace sync {
                 throw std::runtime_error("SyncEngine: invalid changelog key size");
             }
             const std::uint8_t* bytes = static_cast<const std::uint8_t*>(key.iov_base);
-            std::uint64_t seq = 0;
-            for (int i = 0; i < 8; ++i) {
-                seq = (seq << 8) | static_cast<std::uint64_t>(bytes[16 + i]);
-            }
-            return seq;
+            return detail::read_u64_be(bytes + 16);
         }
 
         static bool changelog_key_matches_origin(const MDBX_val& key,
@@ -812,12 +803,8 @@ namespace sync {
                         NodeId origin{};
                         std::memcpy(origin.data(), k.iov_base, 16);
                         if (v.iov_len == 8) {
-                            std::uint64_t seq = 0;
-                            for (int i = 0; i < 8; ++i) {
-                                seq |= static_cast<std::uint64_t>(
-                                           static_cast<std::uint8_t*>(v.iov_base)[i])
-                                       << (i * 8);
-                            }
+                            const std::uint64_t seq = detail::read_u64_le(
+                                static_cast<const std::uint8_t*>(v.iov_base));
                             cur.last_seq_by_origin[origin] = seq;
                         }
                     }

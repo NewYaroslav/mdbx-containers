@@ -213,7 +213,7 @@ Operational rules:
 
 - The only top-level include points are `mdbx_containers.hpp` (umbrella for
   all table wrappers) and the per-domain aggregators: `common.hpp`,
-  `vector.hpp`, `Sync.hpp`. End users must not include subdomain headers
+  `vector.hpp`, `sync.hpp`. End users must not include subdomain headers
   directly (`common/...`, `detail/...`, `sync/...`); they include through
   the aggregator that already pulls the right pieces in the right order.
 - Inside `include/mdbx_containers/`, leaf headers under one subdomain may

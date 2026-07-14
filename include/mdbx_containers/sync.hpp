@@ -2,7 +2,7 @@
 #ifndef MDBX_CONTAINERS_HEADER_SYNC_HPP_INCLUDED
 #define MDBX_CONTAINERS_HEADER_SYNC_HPP_INCLUDED
 
-/// \file Sync.hpp
+/// \file sync.hpp
 /// \brief Aggregate header for the optional sync subsystem.
 /// \details
 /// Pulls in all foundation types and codec when \c MDBXC_SYNC_ENABLED is
@@ -13,14 +13,14 @@
 
 #if MDBXC_SYNC_ENABLED
 #include "common.hpp"
-#include "sync/ChangeAccumulator.hpp"
+#include "sync/common.hpp"
+#include "sync/codec_flags.hpp"
+#include "sync/ChangeOp.hpp"
+#include "sync/CodecBounds.hpp"
 #include "sync/ChangeBatch.hpp"
 #include "sync/ChangeBatchCodec.hpp"
-#include "sync/ChangeOp.hpp"
+#include "sync/ChangeAccumulator.hpp"
 #include "sync/cancellation.hpp"
-#include "sync/CodecBounds.hpp"
-#include "sync/codec_flags.hpp"
-#include "sync/common.hpp"
 #include "sync/ConflictPolicy.hpp"
 #include "sync/ISyncCaptureSink.hpp"
 #include "sync/IdentityProvider.hpp"

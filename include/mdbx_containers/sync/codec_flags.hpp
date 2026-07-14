@@ -5,8 +5,6 @@
 /// \file CodecFlags.hpp
 /// \brief Codec flag bits for \c ChangeBatch and \c ChangeOp.
 
-#include <cstdint>
-
 namespace mdbxc {
 namespace sync {
 

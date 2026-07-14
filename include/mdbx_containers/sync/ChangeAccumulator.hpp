@@ -30,22 +30,8 @@
 ///     so a future commit on the same address (allocator reuse) cannot pick
 ///     them up as if they were committed.
 
-#include <cstdint>
-#include <mutex>
-#include <stdexcept>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
-#include "sync_module.hpp"
-
 #if MDBXC_SYNC_ENABLED
-#include <mdbx.h>
 
-#include "ChangeBatch.hpp"
-#include "ChangeBatchCodec.hpp"
-#include "ChangeOp.hpp"
-#include "common.hpp"
 #include "ISyncCaptureSink.hpp"
 #include "stores/ChangeLogStore.hpp"
 #include "stores/MetaStore.hpp"

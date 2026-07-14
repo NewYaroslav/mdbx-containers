@@ -34,15 +34,9 @@
 /// decode error. \c BATCH_COMPRESSED_ZSTD is reserved and explicitly
 /// rejected.
 
-#include <cstring>
-#include <cstdint>
-#include <stdexcept>
-#include <string>
-#include <vector>
-
-#include "ChangeBatch.hpp"
 #include "CodecBounds.hpp"
 #include "codec_flags.hpp"
+#include "common.hpp"
 
 namespace mdbxc {
 namespace sync {
@@ -90,13 +84,13 @@ namespace sync {
             std::vector<std::uint8_t> out;
             out.reserve(256 + batch.ops.size() * 32);
             append_bytes(out, reinterpret_cast<const char*>(magic()), magic_size());
-            append_u16_le(out, codec_version());
-            append_u32_le(out, batch_version());
-            append_u32_le(out, batch.batch_flags);
+            detail::append_u16_le(out, codec_version());
+            detail::append_u32_le(out, batch_version());
+            detail::append_u32_le(out, batch.batch_flags);
             append_bytes(out, reinterpret_cast<const char*>(batch.origin_node_id.data()), 16);
-            append_u64_le(out, batch.seq);
-            append_u64_le(out, batch.time_unix_ns);
-            append_u32_le(out, static_cast<std::uint32_t>(batch.ops.size()));
+            detail::append_u64_le(out, batch.seq);
+            detail::append_u64_le(out, batch.time_unix_ns);
+            detail::append_u32_le(out, static_cast<std::uint32_t>(batch.ops.size()));
 
             for (std::size_t i = 0; i < batch.ops.size(); ++i) {
                 const ChangeOp& op = batch.ops[i];
@@ -118,31 +112,34 @@ namespace sync {
                 }
 
                 append_u8(out, static_cast<std::uint8_t>(op.op_type));
-                append_u32_le(out, op.op_flags);
-                append_u32_le(out, op.dbi_flags);
-                append_u32_le(out, static_cast<std::uint32_t>(op.dbi_name.size()));
+                detail::append_u32_le(out, op.op_flags);
+                detail::append_u32_le(out, op.dbi_flags);
+                detail::append_u32_le(out, static_cast<std::uint32_t>(op.dbi_name.size()));
                 if (!op.dbi_name.empty()) {
                     append_bytes(out, op.dbi_name.data(), op.dbi_name.size());
                 }
-                append_u32_le(out, static_cast<std::uint32_t>(op.storage_key.size()));
+                detail::append_u32_le(out,
+                                      static_cast<std::uint32_t>(op.storage_key.size()));
                 if (!op.storage_key.empty()) {
                     append_bytes(out, reinterpret_cast<const char*>(op.storage_key.data()),
                                  op.storage_key.size());
                 }
                 if (op.value.empty()) {
-                    append_u32_le(out, 0xFFFFFFFFu);
+                    detail::append_u32_le(out, 0xFFFFFFFFu);
                 } else {
-                    append_u32_le(out, static_cast<std::uint32_t>(op.value.size()));
+                    detail::append_u32_le(out, static_cast<std::uint32_t>(op.value.size()));
                     append_bytes(out, reinterpret_cast<const char*>(op.value.data()),
                                  op.value.size());
                 }
                 if ((op.op_flags & OP_HAS_IDENTITY_KEY) != 0) {
-                    append_u32_le(out, static_cast<std::uint32_t>(op.identity_key.size()));
+                    detail::append_u32_le(out,
+                                          static_cast<std::uint32_t>(op.identity_key.size()));
                     append_bytes(out, reinterpret_cast<const char*>(op.identity_key.data()),
                                  op.identity_key.size());
                 }
                 if ((op.op_flags & OP_HAS_REVISION_KEY) != 0) {
-                    append_u32_le(out, static_cast<std::uint32_t>(op.revision_key.size()));
+                    detail::append_u32_le(out,
+                                          static_cast<std::uint32_t>(op.revision_key.size()));
                     append_bytes(out, reinterpret_cast<const char*>(op.revision_key.data()),
                                  op.revision_key.size());
                 }
@@ -352,24 +349,6 @@ namespace sync {
             out.push_back(v);
         }
 
-        static void append_u16_le(std::vector<std::uint8_t>& out, std::uint16_t v) {
-            out.push_back(static_cast<std::uint8_t>(v & 0xff));
-            out.push_back(static_cast<std::uint8_t>((v >> 8) & 0xff));
-        }
-
-        static void append_u32_le(std::vector<std::uint8_t>& out, std::uint32_t v) {
-            out.push_back(static_cast<std::uint8_t>(v & 0xff));
-            out.push_back(static_cast<std::uint8_t>((v >> 8) & 0xff));
-            out.push_back(static_cast<std::uint8_t>((v >> 16) & 0xff));
-            out.push_back(static_cast<std::uint8_t>((v >> 24) & 0xff));
-        }
-
-        static void append_u64_le(std::vector<std::uint8_t>& out, std::uint64_t v) {
-            for (int i = 0; i < 8; ++i) {
-                out.push_back(static_cast<std::uint8_t>((v >> (i * 8)) & 0xff));
-            }
-        }
-
         static void check_magic(Cursor& cur) {
             check_bounds(cur, magic_size());
             if (std::memcmp(cur.data + cur.pos, magic(), magic_size()) != 0) {
@@ -387,30 +366,21 @@ namespace sync {
 
         static std::uint16_t read_u16_le(Cursor& cur) {
             check_bounds(cur, 2);
-            const std::uint16_t v = static_cast<std::uint16_t>(
-                static_cast<std::uint16_t>(cur.data[cur.pos]) |
-                (static_cast<std::uint16_t>(cur.data[cur.pos + 1]) << 8));
+            const std::uint16_t v = detail::read_u16_le(cur.data + cur.pos);
             cur.pos += 2;
             return v;
         }
 
         static std::uint32_t read_u32_le(Cursor& cur) {
             check_bounds(cur, 4);
-            const std::uint32_t v =
-                static_cast<std::uint32_t>(cur.data[cur.pos]) |
-                (static_cast<std::uint32_t>(cur.data[cur.pos + 1]) << 8) |
-                (static_cast<std::uint32_t>(cur.data[cur.pos + 2]) << 16) |
-                (static_cast<std::uint32_t>(cur.data[cur.pos + 3]) << 24);
+            const std::uint32_t v = detail::read_u32_le(cur.data + cur.pos);
             cur.pos += 4;
             return v;
         }
 
         static std::uint64_t read_u64_le(Cursor& cur) {
             check_bounds(cur, 8);
-            std::uint64_t v = 0;
-            for (int i = 0; i < 8; ++i) {
-                v |= static_cast<std::uint64_t>(cur.data[cur.pos + i]) << (i * 8);
-            }
+            const std::uint64_t v = detail::read_u64_le(cur.data + cur.pos);
             cur.pos += 8;
             return v;
         }

@@ -5,14 +5,6 @@
 /// \file AppliedStore.hpp
 /// \brief Tracks the last contiguous applied \c seq per origin \c NodeId.
 
-#include <cstdint>
-#include <cstring>
-#include <stdexcept>
-#include <string>
-#include <vector>
-
-#include <mdbx.h>
-
 namespace mdbxc {
 namespace sync {
 
@@ -55,11 +47,7 @@ namespace sync {
             if (rc == MDBX_NOTFOUND) return 0;
             check_mdbx(rc, "AppliedStore read failed");
             if (v.iov_len != 8) return 0;
-            std::uint64_t out = 0;
-            for (int i = 0; i < 8; ++i) {
-                out |= static_cast<std::uint64_t>(static_cast<std::uint8_t*>(v.iov_base)[i]) << (i * 8);
-            }
-            return out;
+            return detail::read_u64_le(static_cast<const std::uint8_t*>(v.iov_base));
         }
 
         /// \brief Records \p seq as the new last contiguous applied value for
@@ -68,9 +56,7 @@ namespace sync {
                                   std::uint64_t seq) {
             ensure_open();
             std::uint8_t buf[8];
-            for (int i = 0; i < 8; ++i) {
-                buf[i] = static_cast<std::uint8_t>((seq >> (i * 8)) & 0xff);
-            }
+            detail::write_u64_le(seq, buf);
             MDBX_val k = { const_cast<std::uint8_t*>(origin.data()), 16 };
             MDBX_val v = { buf, 8 };
             check_mdbx(

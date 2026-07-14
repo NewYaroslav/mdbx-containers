@@ -213,7 +213,7 @@ namespace mdbxc {
         /// \warning Not valid for read-only connections; MDBX may return
         ///          \c MDBX_EACCES.
         /// \note Durability flush is not database replication; see
-        ///       \c Sync.hpp for changelog-based replication.
+        ///       \c sync.hpp for changelog-based replication.
         void sync_to_disk(bool force = true, bool nonblock = false);
 
     private:

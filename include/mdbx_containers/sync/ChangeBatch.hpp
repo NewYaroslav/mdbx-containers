@@ -5,13 +5,6 @@
 /// \file ChangeBatch.hpp
 /// \brief A single atomic group of replicated \c ChangeOp operations.
 
-#include <cstdint>
-#include <vector>
-
-#include "ChangeOp.hpp"
-#include "codec_flags.hpp"
-#include "common.hpp"
-
 namespace mdbxc {
 namespace sync {
 

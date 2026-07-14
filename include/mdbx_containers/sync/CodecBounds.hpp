@@ -5,8 +5,6 @@
 /// \file CodecBounds.hpp
 /// \brief Hard-coded codec bound defaults.
 
-#include <cstdint>
-
 namespace mdbxc {
 namespace sync {
 
