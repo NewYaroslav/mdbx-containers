@@ -2,7 +2,7 @@
 #ifndef MDBX_CONTAINERS_HEADER_SYNC_HPP_INCLUDED
 #define MDBX_CONTAINERS_HEADER_SYNC_HPP_INCLUDED
 
-/// \file Sync.hpp
+/// \file sync.hpp
 /// \brief Aggregate header for the optional sync subsystem.
 /// \details
 /// Pulls in all foundation types and codec when \c MDBXC_SYNC_ENABLED is
