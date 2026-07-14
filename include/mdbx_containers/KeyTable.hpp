@@ -1242,10 +1242,8 @@ namespace mdbxc {
             int rc = mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_NOOVERWRITE);
             if (rc == MDBX_SUCCESS) {
 #               if MDBXC_SYNC_ENABLED
-                const std::vector<std::uint8_t> kbytes(
-                    static_cast<std::uint8_t*>(db_key.iov_base),
-                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-                record_op(txn, sync::ChangeOpType::Put, kbytes, {});
+                record_op(txn, sync::ChangeOpType::Put,
+                          capture_bytes(db_key), {});
 #               endif
                 return true;
             }
@@ -1277,10 +1275,8 @@ namespace mdbxc {
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
 #               if MDBXC_SYNC_ENABLED
-                const std::vector<std::uint8_t> kbytes(
-                    static_cast<std::uint8_t*>(db_key.iov_base),
-                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-                record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
+                record_op(txn, sync::ChangeOpType::Delete,
+                          capture_bytes(db_key), {});
 #               endif
                 return true;
             }

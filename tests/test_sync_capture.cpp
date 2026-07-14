@@ -135,27 +135,36 @@ void test_sequence_set_writes_via_sink() {
 
     SequenceTable<std::string> events(conn, "events");
     events.insert_or_assign(7, "seven");
+    events.insert_or_assign(8, "");
 
     conn->detach_sync_capture();
     conn->disconnect();
     cleanup(p);
 
-    if (sink.m_recorded.size() != 1u) {
-        throw std::runtime_error("expected one sequence set op, got " +
+    if (sink.m_recorded.size() != 2u) {
+        throw std::runtime_error("expected two sequence set ops, got " +
                                  std::to_string(sink.m_recorded.size()));
     }
-    const sync::ChangeOp& op = sink.m_recorded[0];
-    if (op.op_type != sync::ChangeOpType::Put) {
-        throw std::runtime_error("sequence set must capture Put");
+    for (std::size_t i = 0; i < sink.m_recorded.size(); ++i) {
+        const sync::ChangeOp& op = sink.m_recorded[i];
+        if (op.op_type != sync::ChangeOpType::Put) {
+            throw std::runtime_error("sequence set must capture Put");
+        }
+        if (op.dbi_name != "events") {
+            throw std::runtime_error("sequence set dbi_name not propagated");
+        }
+        if (op.storage_key.empty()) {
+            throw std::runtime_error("sequence set key not captured");
+        }
+        if ((op.dbi_flags & MDBX_INTEGERKEY) == 0) {
+            throw std::runtime_error("sequence set dbi_flags missing MDBX_INTEGERKEY");
+        }
     }
-    if (op.dbi_name != "events") {
-        throw std::runtime_error("sequence set dbi_name not propagated");
+    if (sink.m_recorded[0].value.empty()) {
+        throw std::runtime_error("non-empty sequence set value not captured");
     }
-    if (op.storage_key.empty() || op.value.empty()) {
-        throw std::runtime_error("sequence set key/value not captured");
-    }
-    if ((op.dbi_flags & MDBX_INTEGERKEY) == 0) {
-        throw std::runtime_error("sequence set dbi_flags missing MDBX_INTEGERKEY");
+    if (!sink.m_recorded[1].value.empty()) {
+        throw std::runtime_error("empty sequence set value must remain empty");
     }
 }
 
