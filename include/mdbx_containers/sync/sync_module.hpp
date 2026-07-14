@@ -8,7 +8,7 @@
 #ifndef MDBXC_SYNC_ENABLED
 /// \brief Define to 1 to compile in the sync subsystem (changelog, peers,
 /// replication). When undefined, sync headers expand to no-op stubs and
-/// \c Connection::attach_sync_engine is not available.
+/// sync capture / replication APIs are not available.
 #define MDBXC_SYNC_ENABLED 0
 #endif
 

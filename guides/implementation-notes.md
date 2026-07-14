@@ -198,14 +198,16 @@ Operational rules:
 - The four stores each have an `ensure_open()` guard on every public
   method. Calling a method before `open()` throws `std::logic_error` rather
   than silently writing to DBI 0. Do not weaken this guard.
-- `ConflictPolicy::Reject` is the v0.1 default. `LastWriterWins` is
-  opt-in and must be deterministic. Prefer `revision_key` when present; if
-  no `revision_key` exists, the exact fallback must be defined in
-  `SyncEngine` and documented before use. `time_unix_ns` is metadata, not
-  a reliable conflict authority. `Custom` is deferred to v0.2.
+- `ConflictPolicy::Reject` is the v0.1 default. `LastWriterWins` is declared
+  for future logical-key conflict resolution, but the current raw batch apply
+  path does not use it in a non-test path. `time_unix_ns` is metadata, not a
+  reliable conflict authority. `Custom` is deferred to v0.2.
 - `HashedKeyValueStore`, `KeyMultiValueTable`, and `AnyValueTable` are
   not replicated in v0.1; their wire format is not defined. Do not add
   `record_op()` paths for them without first extending `DESIGN.md`.
+- `VectorStore` persistence is replicated indirectly through its
+  `SequenceTable` and `KeyValueTable` members; it does not own a separate
+  MDBX write path.
 
 ## Header Include Discipline
 

@@ -556,13 +556,8 @@ namespace mdbxc {
             check_mdbx(rc, "Failed to append value");
             {
 #               if MDBXC_SYNC_ENABLED
-                const std::vector<std::uint8_t> kbytes(
-                    static_cast<std::uint8_t*>(db_key.iov_base),
-                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-                const std::vector<std::uint8_t> vbytes(
-                    static_cast<std::uint8_t*>(db_val.iov_base),
-                    static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
-                record_op(txn, sync::ChangeOpType::Put, kbytes, vbytes);
+                record_op(txn, sync::ChangeOpType::Put,
+                          capture_bytes(db_key), capture_bytes(db_val));
 #               endif
             }
             return next_id;
@@ -575,6 +570,10 @@ namespace mdbxc {
             MDBX_val db_val = serialize_value(value, sc_value);
             check_mdbx(mdbx_put(txn, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                        "Failed to set value");
+#           if MDBXC_SYNC_ENABLED
+            record_op(txn, sync::ChangeOpType::Put,
+                      capture_bytes(db_key), capture_bytes(db_val));
+#           endif
         }
 
         bool db_get(uint64_t id, ValueT& out, MDBX_txn* txn) const {
@@ -605,10 +604,8 @@ namespace mdbxc {
             int rc = mdbx_del(txn, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
 #               if MDBXC_SYNC_ENABLED
-                const std::vector<std::uint8_t> kbytes(
-                    static_cast<std::uint8_t*>(db_key.iov_base),
-                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-                record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
+                record_op(txn, sync::ChangeOpType::Delete,
+                          capture_bytes(db_key), {});
 #               endif
                 return true;
             }

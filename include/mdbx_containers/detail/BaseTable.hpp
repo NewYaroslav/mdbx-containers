@@ -175,6 +175,15 @@ namespace mdbxc {
         }
 
 #       if MDBXC_SYNC_ENABLED
+        /// \brief Copies an MDBX value/key buffer before MDBX can invalidate it.
+        static std::vector<std::uint8_t> capture_bytes(const MDBX_val& val) {
+            if (val.iov_len == 0) {
+                return std::vector<std::uint8_t>();
+            }
+            const std::uint8_t* begin = static_cast<const std::uint8_t*>(val.iov_base);
+            return std::vector<std::uint8_t>(begin, begin + val.iov_len);
+        }
+
         /// \brief Forwards a successful write to the attached sync capture sink.
         /// \details Called from derived table \c db_* helpers right after a
         /// successful \c mdbx_put / \c mdbx_del. No-op when no sink is attached
