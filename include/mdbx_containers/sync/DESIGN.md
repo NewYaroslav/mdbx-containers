@@ -33,9 +33,12 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   pagination, origin-index fallback for legacy changelogs, and
   `make_push_request()` for example / transport code.
 - Replicated table operation capture for `KeyValueTable`, `KeyTable`,
-  `ValueTable`, and `SequenceTable` normal write paths. `SequenceTable`
-  `append()` remains a local single-writer operation with existing external
-  synchronisation requirements.
+  `ValueTable`, and `SequenceTable` normal write paths, including bulk
+  upserts, reconcile deletes, singleton value writes, and range erases.
+  `SequenceTable` `append()` remains a local single-writer operation with
+  existing external synchronisation requirements. `VectorStore` is covered
+  indirectly because its persistent write path uses `SequenceTable` and
+  `KeyValueTable`.
 - `ConflictPolicy::Reject` is the default. `ConflictPolicy::LastWriterWins`
   is declared for future logical-key conflict resolution but is not used by
   the current raw batch apply path.

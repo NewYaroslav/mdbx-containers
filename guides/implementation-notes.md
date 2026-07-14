@@ -205,6 +205,9 @@ Operational rules:
 - `HashedKeyValueStore`, `KeyMultiValueTable`, and `AnyValueTable` are
   not replicated in v0.1; their wire format is not defined. Do not add
   `record_op()` paths for them without first extending `DESIGN.md`.
+- `VectorStore` persistence is replicated indirectly through its
+  `SequenceTable` and `KeyValueTable` members; it does not own a separate
+  MDBX write path.
 
 ## Header Include Discipline
 

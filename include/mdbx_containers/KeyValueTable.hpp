@@ -1468,10 +1468,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1499,10 +1499,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1534,12 +1534,12 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) {
-                return true;
-            }
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) {
+                return true;
+            }
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1759,10 +1759,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             MDBX_val db_key = db_to_key;
             MDBX_val db_val;
@@ -1796,10 +1796,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             MDBX_val db_key = db_to_key;
             MDBX_val db_val;
@@ -1838,10 +1838,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return false;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return false;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1856,10 +1856,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1885,11 +1885,11 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
 
             std::size_t removed = 0;
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1900,7 +1900,13 @@ namespace mdbxc {
                     stopped_by_upper_bound = true;
                     break;
                 }
+#               if MDBXC_SYNC_ENABLED
+                const std::vector<std::uint8_t> kbytes = capture_bytes(db_key);
+#               endif
                 check_mdbx(mdbx_cursor_del(cursor.get(), MDBX_CURRENT), "Failed to erase pair in range");
+#               if MDBXC_SYNC_ENABLED
+                record_op(txn, sync::ChangeOpType::Delete, kbytes, {});
+#               endif
                 ++removed;
                 rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT);
             }
@@ -1963,6 +1969,10 @@ namespace mdbxc {
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
                 );
+#               if MDBXC_SYNC_ENABLED
+                record_op(txn_handle, sync::ChangeOpType::Put,
+                          capture_bytes(db_key), capture_bytes(db_val));
+#               endif
             }
         }
         
@@ -1982,6 +1992,10 @@ namespace mdbxc {
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
                 );
+#               if MDBXC_SYNC_ENABLED
+                record_op(txn_handle, sync::ChangeOpType::Put,
+                          capture_bytes(db_key), capture_bytes(db_val));
+#               endif
             }
 #           else
             for (typename std::vector<std::pair<KeyT, ValueT> >::const_iterator it = container.begin();
@@ -1994,6 +2008,10 @@ namespace mdbxc {
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
                 );
+#               if MDBXC_SYNC_ENABLED
+                record_op(txn_handle, sync::ChangeOpType::Put,
+                          capture_bytes(db_key), capture_bytes(db_val));
+#               endif
             }
 #           endif
         }
@@ -2020,6 +2038,10 @@ namespace mdbxc {
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
                 );
+#               if MDBXC_SYNC_ENABLED
+                record_op(txn_handle, sync::ChangeOpType::Put,
+                          capture_bytes(db_key), capture_bytes(db_val));
+#               endif
             }
 
             // 2. Iterate over existing keys in the DB and remove the extras
@@ -2031,7 +2053,13 @@ namespace mdbxc {
             while ((rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
                 KeyT key = deserialize_key<KeyT>(db_key);
                 if (new_keys.find(key) == new_keys.end()) {
+#                   if MDBXC_SYNC_ENABLED
+                    const std::vector<std::uint8_t> kbytes = capture_bytes(db_key);
+#                   endif
                     check_mdbx(mdbx_cursor_del(cursor.get(), MDBX_CURRENT), "Failed to delete record using cursor");
+#                   if MDBXC_SYNC_ENABLED
+                    record_op(txn_handle, sync::ChangeOpType::Delete, kbytes, {});
+#                   endif
                 }
             }
             if (rc != MDBX_NOTFOUND) {
@@ -2062,6 +2090,10 @@ namespace mdbxc {
                     mdbx_put(txn_handle, m_dbi, &db_key, &db_val, MDBX_UPSERT),
                     "Failed to write record"
                 );
+#               if MDBXC_SYNC_ENABLED
+                record_op(txn_handle, sync::ChangeOpType::Put,
+                          capture_bytes(db_key), capture_bytes(db_val));
+#               endif
             }
 
             // 2. Delete stale keys from DB
@@ -2073,7 +2105,13 @@ namespace mdbxc {
             while ((rc = mdbx_cursor_get(cursor.get(), &db_key, &db_val, MDBX_NEXT)) == MDBX_SUCCESS) {
                 KeyT key = deserialize_key<KeyT>(db_key);
                 if (new_keys.find(key) == new_keys.end()) {
+#                   if MDBXC_SYNC_ENABLED
+                    const std::vector<std::uint8_t> kbytes = capture_bytes(db_key);
+#                   endif
                     check_mdbx(mdbx_cursor_del(cursor.get(), MDBX_CURRENT), "Failed to delete record using cursor");
+#                   if MDBXC_SYNC_ENABLED
+                    record_op(txn_handle, sync::ChangeOpType::Delete, kbytes, {});
+#                   endif
                 }
             }
             if (rc != MDBX_NOTFOUND) {
@@ -2096,13 +2134,8 @@ namespace mdbxc {
 
             if (rc == MDBX_SUCCESS) {
 #               if MDBXC_SYNC_ENABLED
-                const std::vector<std::uint8_t> kbytes(
-                    static_cast<std::uint8_t*>(db_key.iov_base),
-                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-                const std::vector<std::uint8_t> vbytes(
-                    static_cast<std::uint8_t*>(db_val.iov_base),
-                    static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
-                record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
+                record_op(txn_handle, sync::ChangeOpType::Put,
+                          capture_bytes(db_key), capture_bytes(db_val));
 #               endif
                 return true;
             }
@@ -2128,13 +2161,8 @@ namespace mdbxc {
                 "Failed to insert or assign key-value pair"
             );
 #           if MDBXC_SYNC_ENABLED
-            const std::vector<std::uint8_t> kbytes(
-                static_cast<std::uint8_t*>(db_key.iov_base),
-                static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-            const std::vector<std::uint8_t> vbytes(
-                static_cast<std::uint8_t*>(db_val.iov_base),
-                static_cast<std::uint8_t*>(db_val.iov_base) + db_val.iov_len);
-            record_op(txn_handle, sync::ChangeOpType::Put, kbytes, vbytes);
+            record_op(txn_handle, sync::ChangeOpType::Put,
+                      capture_bytes(db_key), capture_bytes(db_val));
 #           endif
         }
 
@@ -2183,10 +2211,8 @@ namespace mdbxc {
             const int rc = mdbx_del(txn_handle, m_dbi, &db_key, nullptr);
             if (rc == MDBX_SUCCESS) {
 #               if MDBXC_SYNC_ENABLED
-                const std::vector<std::uint8_t> kbytes(
-                    static_cast<std::uint8_t*>(db_key.iov_base),
-                    static_cast<std::uint8_t*>(db_key.iov_base) + db_key.iov_len);
-                record_op(txn_handle, sync::ChangeOpType::Delete, kbytes, {});
+                record_op(txn_handle, sync::ChangeOpType::Delete,
+                          capture_bytes(db_key), {});
 #               endif
                 return true;
             }

@@ -1317,10 +1317,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1348,10 +1348,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1377,12 +1377,12 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) {
-                return true;
-            }
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) {
+                return true;
+            }
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1592,10 +1592,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             MDBX_val db_key = db_to_key;
             MDBX_val db_val;
@@ -1634,10 +1634,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return;
 
             MDBX_val db_key = db_to_key;
             MDBX_val db_val;
@@ -1681,10 +1681,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return false;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return false;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1699,10 +1699,10 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
 
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;
@@ -1728,11 +1728,11 @@ namespace mdbxc {
             SerializeScratch sc_to_key;
             MDBX_val db_from_key = serialize_key<Options::safe_integer_key>(from_key, sc_from_key);
             MDBX_val db_to_key = serialize_key<Options::safe_integer_key>(to_key, sc_to_key);
-            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
 
             std::size_t removed = 0;
             CursorGuard cursor;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, cursor.out()), "Failed to open MDBX cursor");
+            if (mdbx_cmp(txn, m_dbi, &db_from_key, &db_to_key) > 0) return 0;
 
             MDBX_val db_key = db_from_key;
             MDBX_val db_val;

@@ -6,6 +6,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -42,7 +43,20 @@ public:
         std::lock_guard<std::mutex> lk(m_mutex);
         m_flushed.emplace_back();
     }
+
+    void clear_recorded() {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        m_recorded.clear();
+        m_flushed.clear();
+    }
 };
+
+mdbxc::Embedding make_embedding(const std::vector<float>& values) {
+    mdbxc::Embedding e;
+    e.dim = static_cast<std::uint32_t>(values.size());
+    e.values = values;
+    return e;
+}
 
 void test_no_sink_no_capture() {
     using namespace mdbxc;
@@ -142,6 +156,241 @@ void test_sequence_set_writes_via_sink() {
     }
     if ((op.dbi_flags & MDBX_INTEGERKEY) == 0) {
         throw std::runtime_error("sequence set dbi_flags missing MDBX_INTEGERKEY");
+    }
+}
+
+void test_value_table_writes_storage_key_via_sink() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_value_table.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    conn->attach_sync_capture(&sink);
+
+    ValueTable<int> state(conn, "state");
+    if (!state.insert(41)) {
+        throw std::runtime_error("value insert unexpectedly returned false");
+    }
+    state.set(42);
+    if (!state.erase()) {
+        throw std::runtime_error("value erase unexpectedly returned false");
+    }
+
+    conn->detach_sync_capture();
+    conn->disconnect();
+    cleanup(p);
+
+    if (sink.m_recorded.size() != 3u) {
+        throw std::runtime_error("expected three value ops, got " +
+                                 std::to_string(sink.m_recorded.size()));
+    }
+    const sync::ChangeOpType expected[] = {
+        sync::ChangeOpType::Put,
+        sync::ChangeOpType::Put,
+        sync::ChangeOpType::Delete
+    };
+    for (std::size_t i = 0; i < sink.m_recorded.size(); ++i) {
+        const sync::ChangeOp& op = sink.m_recorded[i];
+        if (op.dbi_name != "state") {
+            throw std::runtime_error("value table dbi_name not propagated");
+        }
+        if (op.op_type != expected[i]) {
+            throw std::runtime_error("value table op_type sequence incorrect");
+        }
+        if (op.storage_key.empty()) {
+            throw std::runtime_error("value table storage_key must be physical key bytes");
+        }
+        if ((op.dbi_flags & MDBX_INTEGERKEY) == 0) {
+            throw std::runtime_error("value table dbi_flags missing MDBX_INTEGERKEY");
+        }
+        if (op.op_type == sync::ChangeOpType::Put && op.value.empty()) {
+            throw std::runtime_error("value table Put missing value bytes");
+        }
+    }
+}
+
+void test_key_value_bulk_writes_via_sink() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_kv_bulk.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    conn->attach_sync_capture(&sink);
+
+    KeyValueTable<int, int> kv(conn, "bulk");
+    std::map<int, int> initial;
+    initial[1] = 10;
+    initial[2] = 20;
+    kv.append(initial);
+
+    std::vector<std::pair<int, int> > extra;
+    extra.push_back(std::make_pair(3, 30));
+    kv.append(extra);
+
+    std::map<int, int> replacement;
+    replacement[2] = 200;
+    replacement[3] = 300;
+    replacement[4] = 400;
+    kv.reconcile(replacement);
+
+    std::vector<std::pair<int, int> > final_state;
+    final_state.push_back(std::make_pair(4, 440));
+    kv.reconcile(final_state);
+
+    conn->detach_sync_capture();
+    conn->disconnect();
+    cleanup(p);
+
+    if (sink.m_recorded.size() != 10u) {
+        throw std::runtime_error("expected ten bulk ops, got " +
+                                 std::to_string(sink.m_recorded.size()));
+    }
+    std::size_t put_count = 0;
+    std::size_t delete_count = 0;
+    for (const sync::ChangeOp& op : sink.m_recorded) {
+        if (op.dbi_name != "bulk") {
+            throw std::runtime_error("bulk dbi_name not propagated");
+        }
+        if (op.storage_key.empty()) {
+            throw std::runtime_error("bulk op missing storage_key");
+        }
+        if (op.op_type == sync::ChangeOpType::Put) {
+            ++put_count;
+            if (op.value.empty()) {
+                throw std::runtime_error("bulk Put missing value bytes");
+            }
+        } else if (op.op_type == sync::ChangeOpType::Delete) {
+            ++delete_count;
+        } else {
+            throw std::runtime_error("bulk op_type unexpected");
+        }
+    }
+    if (put_count != 7u || delete_count != 3u) {
+        throw std::runtime_error("bulk Put/Delete counts incorrect");
+    }
+}
+
+void test_range_erase_writes_via_sink() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_range_erase.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    conn->attach_sync_capture(&sink);
+
+    KeyTable<int> keys(conn, "keys");
+    keys.insert(1);
+    keys.insert(2);
+    keys.insert(3);
+    keys.insert(4);
+    sink.clear_recorded();
+    if (keys.erase_range(2, 3) != 2u) {
+        throw std::runtime_error("key range erase count incorrect");
+    }
+    if (sink.m_recorded.size() != 2u) {
+        throw std::runtime_error("expected two key range Delete ops");
+    }
+    for (const sync::ChangeOp& op : sink.m_recorded) {
+        if (op.dbi_name != "keys" ||
+            op.op_type != sync::ChangeOpType::Delete ||
+            op.storage_key.empty()) {
+            throw std::runtime_error("key range Delete capture incorrect");
+        }
+    }
+
+    KeyValueTable<int, int> kv(conn, "range_kv");
+    kv.insert_or_assign(1, 10);
+    kv.insert_or_assign(2, 20);
+    kv.insert_or_assign(3, 30);
+    kv.insert_or_assign(4, 40);
+    sink.clear_recorded();
+    if (kv.erase_range(2, 3) != 2u) {
+        throw std::runtime_error("kv range erase count incorrect");
+    }
+    if (sink.m_recorded.size() != 2u) {
+        throw std::runtime_error("expected two kv range Delete ops");
+    }
+    for (const sync::ChangeOp& op : sink.m_recorded) {
+        if (op.dbi_name != "range_kv" ||
+            op.op_type != sync::ChangeOpType::Delete ||
+            op.storage_key.empty()) {
+            throw std::runtime_error("kv range Delete capture incorrect");
+        }
+    }
+
+    conn->detach_sync_capture();
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_vector_store_writes_via_sink() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_vector_store.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 16;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    conn->attach_sync_capture(&sink);
+
+    {
+        VectorStore store(conn, "sync_vector");
+        const uint64_t id = store.add(make_embedding({ 1.0f, 0.0f }),
+                                      "document", "{}");
+        if (id != 0u) {
+            throw std::runtime_error("first vector id should be zero");
+        }
+    }
+
+    conn->detach_sync_capture();
+    conn->disconnect();
+    cleanup(p);
+
+    if (sink.m_recorded.size() != 4u) {
+        throw std::runtime_error("expected four vector store ops, got " +
+                                 std::to_string(sink.m_recorded.size()));
+    }
+    const char* expected_dbi[] = {
+        "vectors_sync_vector_ids",
+        "vectors_sync_vector_embeddings",
+        "vectors_sync_vector_texts",
+        "vectors_sync_vector_metadata"
+    };
+    for (std::size_t i = 0; i < sink.m_recorded.size(); ++i) {
+        const sync::ChangeOp& op = sink.m_recorded[i];
+        if (op.dbi_name != expected_dbi[i]) {
+            throw std::runtime_error("vector store dbi order/name incorrect");
+        }
+        if (op.op_type != sync::ChangeOpType::Put ||
+            op.storage_key.empty() ||
+            op.value.empty()) {
+            throw std::runtime_error("vector store Put capture incorrect");
+        }
+        if ((op.dbi_flags & MDBX_INTEGERKEY) == 0) {
+            throw std::runtime_error("vector store dbi_flags missing MDBX_INTEGERKEY");
+        }
     }
 }
 
@@ -484,54 +733,94 @@ int main() {
         return 3;
     }
     try {
+        test_value_table_writes_storage_key_via_sink();
+        std::printf("PASS test_value_table_writes_storage_key_via_sink\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_value_table_writes_storage_key_via_sink: %s\n", e.what());
+        return 4;
+    } catch (...) {
+        std::printf("FAIL test_value_table_writes_storage_key_via_sink: non-std exception\n");
+        return 4;
+    }
+    try {
+        test_key_value_bulk_writes_via_sink();
+        std::printf("PASS test_key_value_bulk_writes_via_sink\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_key_value_bulk_writes_via_sink: %s\n", e.what());
+        return 5;
+    } catch (...) {
+        std::printf("FAIL test_key_value_bulk_writes_via_sink: non-std exception\n");
+        return 5;
+    }
+    try {
+        test_range_erase_writes_via_sink();
+        std::printf("PASS test_range_erase_writes_via_sink\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_range_erase_writes_via_sink: %s\n", e.what());
+        return 6;
+    } catch (...) {
+        std::printf("FAIL test_range_erase_writes_via_sink: non-std exception\n");
+        return 6;
+    }
+    try {
+        test_vector_store_writes_via_sink();
+        std::printf("PASS test_vector_store_writes_via_sink\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_vector_store_writes_via_sink: %s\n", e.what());
+        return 7;
+    } catch (...) {
+        std::printf("FAIL test_vector_store_writes_via_sink: non-std exception\n");
+        return 7;
+    }
+    try {
         test_capture_flush_on_commit();
         std::printf("PASS test_capture_flush_on_commit\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_capture_flush_on_commit: %s\n", e.what());
-        return 4;
+        return 8;
     } catch (...) {
         std::printf("FAIL test_capture_flush_on_commit: non-std exception\n");
-        return 4;
+        return 8;
     }
     try {
         test_changelog_capture_roundtrip();
         std::printf("PASS test_changelog_capture_roundtrip\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_changelog_capture_roundtrip: %s\n", e.what());
-        return 5;
+        return 9;
     } catch (...) {
         std::printf("FAIL test_changelog_capture_roundtrip: non-std exception\n");
-        return 5;
+        return 9;
     }
     try {
         test_zero_node_id_rejected();
         std::printf("PASS test_zero_node_id_rejected\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_zero_node_id_rejected: %s\n", e.what());
-        return 6;
+        return 10;
     } catch (...) {
         std::printf("FAIL test_zero_node_id_rejected: non-std exception\n");
-        return 6;
+        return 10;
     }
     try {
         test_aborted_transaction_does_not_flush();
         std::printf("PASS test_aborted_transaction_does_not_flush\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_aborted_transaction_does_not_flush: %s\n", e.what());
-        return 7;
+        return 11;
     } catch (...) {
         std::printf("FAIL test_aborted_transaction_does_not_flush: non-std exception\n");
-        return 7;
+        return 11;
     }
     try {
         test_explicit_rollback_does_not_flush();
         std::printf("PASS test_explicit_rollback_does_not_flush\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_explicit_rollback_does_not_flush: %s\n", e.what());
-        return 8;
+        return 12;
     } catch (...) {
         std::printf("FAIL test_explicit_rollback_does_not_flush: non-std exception\n");
-        return 8;
+        return 12;
     }
 
     return 0;

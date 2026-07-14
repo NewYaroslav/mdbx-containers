@@ -215,6 +215,94 @@ void test_replication_mixed_ops() {
     cleanup(p); cleanup(r);
 }
 
+void test_replication_value_table_singleton_key() {
+    using namespace mdbxc;
+    const std::string p = "test_rep_value_table.mdbx";
+    const std::string r = "test_rep_value_table_replica.mdbx";
+    cleanup(p); cleanup(r);
+
+    auto primary = open(p);
+    auto replica = open(r);
+    sync::SyncEngine pe(primary), re(replica);
+    pe.initialize_local_identity(make_node(0xA0), make_node(0xD0));
+    re.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    sync::ThreadLocalChangeAccumulator sink(primary);
+    sync::DirectSyncPeer peer(&pe);
+
+    primary->attach_sync_capture(&sink);
+    {
+        ValueTable<int> state(primary, "state");
+        state.set(42);
+    }
+    primary->detach_sync_capture();
+
+    {
+        sync::PullRequest req;
+        req.requester = make_node(0xB0);
+        req.db_id = make_node(0xD0);
+        const sync::PullResponse resp = peer.pull(req);
+        if (resp.batches.size() != 1u) {
+            throw std::runtime_error("value table set expected one batch");
+        }
+        auto txn = replica->transaction(TransactionMode::WRITABLE);
+        for (const sync::ChangeBatch& b : resp.batches) {
+            if (re.apply_batch(txn.handle(), b) != sync::ApplyResult::Applied) {
+                throw std::runtime_error("value table set apply failed");
+            }
+        }
+        txn.commit();
+    }
+
+    {
+        ValueTable<int> state(replica, "state");
+        const std::pair<bool, int> found = state.find_compat();
+        if (!found.first || found.second != 42) {
+            throw std::runtime_error("value table set did not replicate");
+        }
+    }
+
+    primary->attach_sync_capture(&sink);
+    {
+        ValueTable<int> state(primary, "state");
+        if (!state.erase()) {
+            throw std::runtime_error("value table erase unexpectedly returned false");
+        }
+    }
+    primary->detach_sync_capture();
+
+    {
+        sync::PullRequest req;
+        req.requester = make_node(0xB0);
+        req.db_id = make_node(0xD0);
+        const sync::SyncCursor cur = re.applied_cursor();
+        for (const auto& kv : cur.last_seq_by_origin) {
+            req.have.last_seq_by_origin[kv.first] = kv.second;
+        }
+        const sync::PullResponse resp = peer.pull(req);
+        if (resp.batches.size() != 1u) {
+            throw std::runtime_error("value table erase expected one batch");
+        }
+        auto txn = replica->transaction(TransactionMode::WRITABLE);
+        for (const sync::ChangeBatch& b : resp.batches) {
+            if (re.apply_batch(txn.handle(), b) != sync::ApplyResult::Applied) {
+                throw std::runtime_error("value table erase apply failed");
+            }
+        }
+        txn.commit();
+    }
+
+    {
+        ValueTable<int> state(replica, "state");
+        if (state.has_value()) {
+            throw std::runtime_error("value table erase did not replicate");
+        }
+    }
+
+    primary->disconnect(); replica->disconnect();
+    cleanup(p); cleanup(r);
+}
+
 void test_replication_incremental_pull() {
     using namespace mdbxc;
     const std::string p = "test_rep_incr.mdbx";
@@ -436,6 +524,7 @@ int main() {
         { "test_replication_pull_three_tables",  &test_replication_pull_three_tables },
         { "test_replication_push_three_tables",  &test_replication_push_three_tables },
         { "test_replication_mixed_ops",          &test_replication_mixed_ops },
+        { "test_replication_value_table_singleton_key", &test_replication_value_table_singleton_key },
         { "test_replication_incremental_pull",   &test_replication_incremental_pull },
         { "test_replication_idempotent_apply",   &test_replication_idempotent_apply },
         { "test_replication_make_push_request", &test_replication_make_push_request_helper },
