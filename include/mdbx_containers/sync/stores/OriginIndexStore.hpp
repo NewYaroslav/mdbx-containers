@@ -21,11 +21,17 @@ namespace sync {
 
     /// \brief Thin wrapper around \c _mdbxc_origins.
     /// \details Key = \c origin_node_id (16 raw bytes), value = max known
-    /// changelog seq for that origin as \c u64 little-endian. The value is
-    /// diagnostic/maintenance metadata; pull pagination uses the changelog
-    /// keys for exact batch iteration.
+    /// changelog seq for that origin as \c u64 little-endian. Pull pagination
+    /// uses the value as a cheap tail check before seeking changelog keys for
+    /// exact batch iteration.
     class OriginIndexStore {
     public:
+        /// \brief Indexed origin and its max known changelog sequence.
+        struct OriginTail {
+            NodeId origin;
+            std::uint64_t last_seq;
+        };
+
         /// \brief Constructs a wrapper bound to \p env.
         OriginIndexStore(MDBX_env* env,
                          const std::string& dbi_name = "_mdbxc_origins")
@@ -144,13 +150,13 @@ namespace sync {
             return true;
         }
 
-        /// \brief Returns all indexed origins in DB key order.
-        std::vector<NodeId> origins(MDBX_txn* txn) const {
+        /// \brief Returns all indexed origins with their tails in DB key order.
+        std::vector<OriginTail> origin_tails(MDBX_txn* txn) const {
             ensure_open();
-            std::vector<NodeId> out;
+            std::vector<OriginTail> out;
             MDBX_cursor* raw = nullptr;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
-                       "OriginIndexStore origins cursor open failed");
+                       "OriginIndexStore origin_tails cursor open failed");
             try {
                 MDBX_val k, v;
                 int rc = mdbx_cursor_get(raw, &k, &v, MDBX_FIRST);
@@ -161,19 +167,33 @@ namespace sync {
                     if (v.iov_len != 8) {
                         throw std::runtime_error("OriginIndexStore value has invalid size");
                     }
-                    NodeId origin{};
-                    std::memcpy(origin.data(), k.iov_base, 16);
-                    out.push_back(origin);
+                    OriginTail tail;
+                    tail.origin = NodeId();
+                    std::memcpy(tail.origin.data(), k.iov_base, 16);
+                    tail.last_seq = decode_u64_le(v);
+                    out.push_back(tail);
                     rc = mdbx_cursor_get(raw, &k, &v, MDBX_NEXT);
                 }
                 if (rc != MDBX_SUCCESS && rc != MDBX_NOTFOUND) {
-                    check_mdbx(rc, "OriginIndexStore origins cursor walk failed");
+                    check_mdbx(rc, "OriginIndexStore origin_tails cursor walk failed");
                 }
             } catch (...) {
                 mdbx_cursor_close(raw);
                 throw;
             }
             mdbx_cursor_close(raw);
+            return out;
+        }
+
+        /// \brief Returns all indexed origins in DB key order.
+        std::vector<NodeId> origins(MDBX_txn* txn) const {
+            const std::vector<OriginTail> tails = origin_tails(txn);
+            std::vector<NodeId> out;
+            out.reserve(tails.size());
+            for (std::vector<OriginTail>::const_iterator it = tails.begin();
+                 it != tails.end(); ++it) {
+                out.push_back(it->origin);
+            }
             return out;
         }
 

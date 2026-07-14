@@ -119,11 +119,13 @@ key, which is why `seq` is big-endian in the key.
 | Value | u64 LE - max known changelog `seq` for that origin |
 
 This index is a discovery accelerator for hub-style pull. `ChangeLogStore::append`
-updates it atomically with the changelog row. When an upgraded database has
-legacy changelog rows but no `_mdbxc_origins`, the first writable append
-backfills the index by scanning existing changelog keys. Read-only pull keeps
-a compatibility fallback: if `_mdbxc_origins` is absent or empty, origin
-discovery scans `_mdbxc_changelog`.
+updates it atomically with the changelog row. Pull uses the indexed tail to skip
+origins where the requester already has `last_seq`, then still seeks exact
+`have_seq + 1` changelog keys for origins with possible new batches. When an
+upgraded database has legacy changelog rows but no `_mdbxc_origins`, the first
+writable append backfills the index by scanning existing changelog keys.
+Read-only pull keeps a compatibility fallback: if `_mdbxc_origins` is absent or
+empty, origin discovery scans `_mdbxc_changelog`.
 
 `ChangeLogStore::origin_index_matches_changelog()` compares the index against
 the changelog-derived origin tails. `ChangeLogStore::rebuild_origin_index()`

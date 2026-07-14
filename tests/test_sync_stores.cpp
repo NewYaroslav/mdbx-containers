@@ -141,6 +141,15 @@ void test_origin_index_store() {
             origins[1] != origin_b) {
             throw std::runtime_error("origin index order mismatch");
         }
+        const std::vector<OriginIndexStore::OriginTail> tails =
+            ro.origin_tails(txn.handle());
+        if (tails.size() != 2u ||
+            tails[0].origin != origin_a ||
+            tails[0].last_seq != 7u ||
+            tails[1].origin != origin_b ||
+            tails[1].last_seq != 3u) {
+            throw std::runtime_error("origin index tail mismatch");
+        }
     }
 
     {
