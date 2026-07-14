@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "ChangeBatch.hpp"
-#include "Cancellation.hpp"
+#include "cancellation.hpp"
 #include "common.hpp"
 #include "SyncCursor.hpp"
 

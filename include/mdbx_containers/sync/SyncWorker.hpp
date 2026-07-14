@@ -16,7 +16,7 @@
 #include <thread>
 
 #include "ISyncPeer.hpp"
-#include "Cancellation.hpp"
+#include "cancellation.hpp"
 #include "SyncEngine.hpp"
 #include "protocol.hpp"
 

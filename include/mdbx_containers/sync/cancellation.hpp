@@ -2,7 +2,7 @@
 #ifndef MDBX_CONTAINERS_HEADER_SYNC_CANCELLATION_HPP_INCLUDED
 #define MDBX_CONTAINERS_HEADER_SYNC_CANCELLATION_HPP_INCLUDED
 
-/// \file Cancellation.hpp
+/// \file cancellation.hpp
 /// \brief Cooperative cancellation primitives for sync transports.
 
 #include <atomic>
@@ -49,11 +49,12 @@ namespace sync {
     };
 
     /// \brief Owner side of a cooperative cancellation token.
-    /// \details Calling \c request_cancel() is thread-safe and wakes only
-    /// transports that actively observe the paired \c CancellationToken. It
-    /// does not interrupt arbitrary blocking system calls by itself; transport
-    /// adapters should combine it with socket shutdown, deadlines, or their
-    /// native cancellation primitive when needed.
+    /// \details Sources are cheap to copy and copied sources share one
+    /// cancellation state. Calling \c request_cancel() on any copy is
+    /// thread-safe and wakes only transports that actively observe the paired
+    /// \c CancellationToken. It does not interrupt arbitrary blocking system
+    /// calls by itself; transport adapters should combine it with socket
+    /// shutdown, deadlines, or their native cancellation primitive when needed.
     class CancellationSource {
     public:
         CancellationSource()

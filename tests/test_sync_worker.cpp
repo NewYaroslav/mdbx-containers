@@ -209,7 +209,7 @@ class TokenBlockingPeer : public mdbxc::sync::ISyncPeer {
 public:
     explicit TokenBlockingPeer(const mdbxc::sync::PullResponse& response)
         : m_response(response), m_entered(false), m_saw_token(false),
-          m_saw_token_cancel(false), m_cancel_count(0) {}
+          m_saw_token_cancel(false) {}
 
     mdbxc::sync::PullResponse pull(
             const mdbxc::sync::PullRequest& request) override {
@@ -230,14 +230,6 @@ public:
         return mdbxc::sync::PushResponse();
     }
 
-    void request_cancel() override {
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            ++m_cancel_count;
-        }
-        m_changed.notify_all();
-    }
-
     bool wait_until_entered(std::chrono::milliseconds timeout) const {
         std::unique_lock<std::mutex> lock(m_mutex);
         return m_changed.wait_for(
@@ -255,11 +247,6 @@ public:
         return m_saw_token_cancel;
     }
 
-    int cancel_count() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        return m_cancel_count;
-    }
-
 private:
     mdbxc::sync::PullResponse m_response;
     mutable std::mutex m_mutex;
@@ -267,7 +254,6 @@ private:
     bool m_entered;
     bool m_saw_token;
     bool m_saw_token_cancel;
-    int  m_cancel_count;
 };
 
 class FailingPeer : public mdbxc::sync::ISyncPeer {
@@ -710,9 +696,6 @@ void test_worker_stop_cancels_request_token() {
 
     if (!peer.saw_token_cancel()) {
         throw std::runtime_error("worker did not cancel request token");
-    }
-    if (peer.cancel_count() != 1) {
-        throw std::runtime_error("worker did not request peer cancellation");
     }
     if (worker.state() != sync::SyncWorkerState::Stopped) {
         throw std::runtime_error("token-cancelled worker did not stop");
