@@ -238,12 +238,8 @@ namespace sync {
                                std::vector<std::uint8_t>& out) {
             out.resize(24);
             std::memcpy(out.data(), origin.data(), 16);
-            /// \brief Big-endian seq so MDBX bytewise range scans preserve
-            ///        numeric ordering. Little-endian would invert order
-            ///        around byte boundaries (e.g. 256 < 1).
-            for (int i = 0; i < 8; ++i) {
-                out[16 + i] = static_cast<std::uint8_t>((seq >> ((7 - i) * 8)) & 0xff);
-            }
+            // Big-endian seq preserves numeric order under MDBX bytewise scans.
+            detail::write_u64_be(seq, out.data() + 16);
         }
 
         static NodeId decode_key_origin(const MDBX_val& key) {
@@ -260,11 +256,7 @@ namespace sync {
                 throw std::runtime_error("ChangeLogStore key has invalid size");
             }
             const std::uint8_t* bytes = static_cast<const std::uint8_t*>(key.iov_base);
-            std::uint64_t seq = 0;
-            for (int i = 0; i < 8; ++i) {
-                seq = (seq << 8) | static_cast<std::uint64_t>(bytes[16 + i]);
-            }
-            return seq;
+            return detail::read_u64_be(bytes + 16);
         }
 
         std::vector<OriginTail> collect_changelog_origin_tails(MDBX_txn* txn) const {

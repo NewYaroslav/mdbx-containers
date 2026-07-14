@@ -46,6 +46,17 @@
   [Transactions](https://libmdbx.dqdkfa.ru/group__c__transactions.html) and
   [Opening & Closing](https://libmdbx.dqdkfa.ru/group__c__opening.html).
 
+### 🔄 Sync Replication
+- Experimental sync is opt-in: define `MDBXC_SYNC_ENABLED=1` before including
+  `mdbx_containers/sync.hpp`.
+- Current coverage captures normal write paths for `KeyValueTable`,
+  `KeyTable`, `ValueTable`, and `SequenceTable`; `VectorStore` persists through
+  those tables and is covered by end-to-end replication tests.
+- `SyncEngine` exposes pull/push/apply primitives, `DirectSyncPeer` provides
+  in-process sync for tests and examples, and `SyncWorker` is the background
+  polling driver. HTTP/WebSocket transports and specialized table wire formats
+  remain deferred; see `include/mdbx_containers/sync/DESIGN.md`.
+
 ### 🗄️ Structure & Configuration
 - Multiple logical tables inside one MDBX file.
 - Flexible configuration: `read_only`, `writemap_mode`, `readahead`, `no_subdir`, `sync_durable`, `max_readers`, `max_dbs`, `relative_to_exe`.

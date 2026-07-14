@@ -14,6 +14,8 @@
 
 #include <mdbx.h>
 
+#include "../common.hpp"
+
 namespace mdbxc {
 namespace sync {
 
@@ -95,20 +97,13 @@ namespace sync {
             std::uint8_t buf[4];
             const std::size_t n = read_fixed(txn, key_schema_version(), buf, 4);
             if (n != 4) return 0;
-            return static_cast<std::uint32_t>(buf[0]) |
-                   (static_cast<std::uint32_t>(buf[1]) << 8) |
-                   (static_cast<std::uint32_t>(buf[2]) << 16) |
-                   (static_cast<std::uint32_t>(buf[3]) << 24);
+            return detail::read_u32_le(buf);
         }
 
         /// \brief Writes the schema version.
         void set_schema_version(MDBX_txn* txn, std::uint32_t value) {
-            const std::uint8_t buf[4] = {
-                static_cast<std::uint8_t>(value & 0xff),
-                static_cast<std::uint8_t>((value >> 8) & 0xff),
-                static_cast<std::uint8_t>((value >> 16) & 0xff),
-                static_cast<std::uint8_t>((value >> 24) & 0xff)
-            };
+            std::uint8_t buf[4];
+            detail::write_u32_le(value, buf);
             write_fixed(txn, key_schema_version(), buf, 4);
         }
 
@@ -117,19 +112,13 @@ namespace sync {
             std::uint8_t buf[8];
             const std::size_t n = read_fixed(txn, key_local_seq(), buf, 8);
             if (n != 8) return 0;
-            std::uint64_t v = 0;
-            for (int i = 0; i < 8; ++i) {
-                v |= static_cast<std::uint64_t>(buf[i]) << (i * 8);
-            }
-            return v;
+            return detail::read_u64_le(buf);
         }
 
         /// \brief Writes \c local_seq.
         void set_local_seq(MDBX_txn* txn, std::uint64_t value) {
             std::uint8_t buf[8];
-            for (int i = 0; i < 8; ++i) {
-                buf[i] = static_cast<std::uint8_t>((value >> (i * 8)) & 0xff);
-            }
+            detail::write_u64_le(value, buf);
             write_fixed(txn, key_local_seq(), buf, 8);
         }
 
@@ -145,19 +134,13 @@ namespace sync {
             std::uint8_t buf[8];
             const std::size_t n = read_fixed(txn, key_created_at_ms(), buf, 8);
             if (n != 8) return 0;
-            std::uint64_t v = 0;
-            for (int i = 0; i < 8; ++i) {
-                v |= static_cast<std::uint64_t>(buf[i]) << (i * 8);
-            }
-            return v;
+            return detail::read_u64_le(buf);
         }
 
         /// \brief Writes \c created_at_ms.
         void set_created_at_ms(MDBX_txn* txn, std::uint64_t value) {
             std::uint8_t buf[8];
-            for (int i = 0; i < 8; ++i) {
-                buf[i] = static_cast<std::uint8_t>((value >> (i * 8)) & 0xff);
-            }
+            detail::write_u64_le(value, buf);
             write_fixed(txn, key_created_at_ms(), buf, 8);
         }
 

@@ -14,6 +14,7 @@
 
 #include <mdbx.h>
 
+#include "../common.hpp"
 
 namespace mdbxc {
 namespace sync {
@@ -139,10 +140,7 @@ namespace sync {
                 static_cast<std::uint32_t>(dbi_name.size());
             out.clear();
             out.reserve(4 + dn_len + identity_key.size());
-            out.push_back(static_cast<std::uint8_t>(dn_len & 0xff));
-            out.push_back(static_cast<std::uint8_t>((dn_len >> 8) & 0xff));
-            out.push_back(static_cast<std::uint8_t>((dn_len >> 16) & 0xff));
-            out.push_back(static_cast<std::uint8_t>((dn_len >> 24) & 0xff));
+            detail::append_u32_le(out, dn_len);
             out.insert(out.end(), dbi_name.begin(), dbi_name.end());
             out.insert(out.end(), identity_key.begin(), identity_key.end());
         }
@@ -150,35 +148,30 @@ namespace sync {
         static void encode_value(const IdentityIndexValue& v,
                                  std::vector<std::uint8_t>& out) {
             out.clear();
-            append_u32(out, static_cast<std::uint32_t>(v.storage_key.size()));
+            detail::append_u32_le(out, static_cast<std::uint32_t>(v.storage_key.size()));
             if (!v.storage_key.empty()) {
                 out.insert(out.end(), v.storage_key.begin(), v.storage_key.end());
             }
             out.insert(out.end(), v.origin_node_id.begin(), v.origin_node_id.end());
-            for (int i = 0; i < 8; ++i) {
-                out.push_back(static_cast<std::uint8_t>((v.seq >> (i * 8)) & 0xff));
-            }
-            append_u32(out, static_cast<std::uint32_t>(v.revision_key.size()));
+            detail::append_u64_le(out, v.seq);
+            detail::append_u32_le(out, static_cast<std::uint32_t>(v.revision_key.size()));
             if (!v.revision_key.empty()) {
                 out.insert(out.end(), v.revision_key.begin(), v.revision_key.end());
             }
-            append_u32(out, v.flags);
+            detail::append_u32_le(out, v.flags);
         }
 
         static void decode_value(const MDBX_val& v, IdentityIndexValue& out) {
             const std::uint8_t* p = static_cast<const std::uint8_t*>(v.iov_base);
             std::size_t pos = 0;
             const std::size_t total = v.iov_len;
-            auto need = [&](std::size_t n) -> void {
+            auto need = [&pos, total](std::size_t n) -> void {
                 if (pos + n > total) {
                     throw std::runtime_error("IdentityIndexStore decode underrun");
                 }
             };
             need(4);
-            std::uint32_t sk_len = static_cast<std::uint32_t>(p[pos]) |
-                                   (static_cast<std::uint32_t>(p[pos + 1]) << 8) |
-                                   (static_cast<std::uint32_t>(p[pos + 2]) << 16) |
-                                   (static_cast<std::uint32_t>(p[pos + 3]) << 24);
+            std::uint32_t sk_len = detail::read_u32_le(p + pos);
             pos += 4;
             need(sk_len);
             out.storage_key.resize(sk_len);
@@ -190,17 +183,10 @@ namespace sync {
             std::memcpy(out.origin_node_id.data(), p + pos, 16);
             pos += 16;
             need(8);
-            std::uint64_t seq = 0;
-            for (int i = 0; i < 8; ++i) {
-                seq |= static_cast<std::uint64_t>(p[pos + i]) << (i * 8);
-            }
-            out.seq = seq;
+            out.seq = detail::read_u64_le(p + pos);
             pos += 8;
             need(4);
-            std::uint32_t rv_len = static_cast<std::uint32_t>(p[pos]) |
-                                   (static_cast<std::uint32_t>(p[pos + 1]) << 8) |
-                                   (static_cast<std::uint32_t>(p[pos + 2]) << 16) |
-                                   (static_cast<std::uint32_t>(p[pos + 3]) << 24);
+            std::uint32_t rv_len = detail::read_u32_le(p + pos);
             pos += 4;
             need(rv_len);
             out.revision_key.resize(rv_len);
@@ -209,17 +195,7 @@ namespace sync {
             }
             pos += rv_len;
             need(4);
-            out.flags = static_cast<std::uint32_t>(p[pos]) |
-                        (static_cast<std::uint32_t>(p[pos + 1]) << 8) |
-                        (static_cast<std::uint32_t>(p[pos + 2]) << 16) |
-                        (static_cast<std::uint32_t>(p[pos + 3]) << 24);
-        }
-
-        static void append_u32(std::vector<std::uint8_t>& out, std::uint32_t v) {
-            out.push_back(static_cast<std::uint8_t>(v & 0xff));
-            out.push_back(static_cast<std::uint8_t>((v >> 8) & 0xff));
-            out.push_back(static_cast<std::uint8_t>((v >> 16) & 0xff));
-            out.push_back(static_cast<std::uint8_t>((v >> 24) & 0xff));
+            out.flags = detail::read_u32_le(p + pos);
         }
 
         MDBX_env*     m_env;

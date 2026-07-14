@@ -126,7 +126,7 @@ namespace sync {
                 return;
             }
             std::uint8_t value[8];
-            encode_u64_le(seq, value);
+            detail::write_u64_le(seq, value);
             MDBX_val k = { const_cast<std::uint8_t*>(origin.data()), origin.size() };
             MDBX_val v = { value, sizeof(value) };
             check_mdbx(mdbx_put(txn, m_dbi, &k, &v, MDBX_UPSERT),
@@ -146,7 +146,7 @@ namespace sync {
             if (v.iov_len != 8) {
                 throw std::runtime_error("OriginIndexStore value has invalid size");
             }
-            out = decode_u64_le(v);
+            out = detail::read_u64_le(static_cast<const std::uint8_t*>(v.iov_base));
             return true;
         }
 
@@ -170,7 +170,8 @@ namespace sync {
                     OriginTail tail;
                     tail.origin = NodeId();
                     std::memcpy(tail.origin.data(), k.iov_base, 16);
-                    tail.last_seq = decode_u64_le(v);
+                    tail.last_seq =
+                        detail::read_u64_le(static_cast<const std::uint8_t*>(v.iov_base));
                     out.push_back(tail);
                     rc = mdbx_cursor_get(raw, &k, &v, MDBX_NEXT);
                 }
@@ -198,22 +199,6 @@ namespace sync {
         }
 
     private:
-        static void encode_u64_le(std::uint64_t value, std::uint8_t out[8]) {
-            for (int i = 0; i < 8; ++i) {
-                out[i] = static_cast<std::uint8_t>((value >> (i * 8)) & 0xff);
-            }
-        }
-
-        static std::uint64_t decode_u64_le(const MDBX_val& value) {
-            const std::uint8_t* bytes =
-                static_cast<const std::uint8_t*>(value.iov_base);
-            std::uint64_t out = 0;
-            for (int i = 0; i < 8; ++i) {
-                out |= static_cast<std::uint64_t>(bytes[i]) << (i * 8);
-            }
-            return out;
-        }
-
         MDBX_env*     m_env;
         std::string   m_dbi_name;
         MDBX_dbi      m_dbi;
