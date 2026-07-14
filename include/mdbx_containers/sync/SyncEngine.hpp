@@ -121,6 +121,12 @@ namespace sync {
 
     /// \brief Pull/push/apply coordinator bound to a single \c Connection.
     class SyncEngine {
+        struct PullOrigin {
+            NodeId origin;
+            std::uint64_t last_seq;
+            bool has_last_seq;
+        };
+
     public:
         /// \brief Constructs an engine bound to \p conn.
         /// \param conn Shared connection that owns the env and stores.
@@ -291,19 +297,24 @@ namespace sync {
         /// cursors filter each origin independently and still include origins
         /// missing from the cursor. Origin discovery uses \c _mdbxc_origins
         /// when available, with a changelog scan fallback for pre-index
-        /// databases. Uses changelog keys to seek to \c have_seq+1 for each
-        /// origin so old values are not decoded.
+        /// databases. Indexed origin tails skip origins that have no new
+        /// batches; changelog keys are still used for exact \c have_seq+1
+        /// seeks so old values are not decoded.
         /// Sets \c has_more=true when the walk stopped because of
         /// \c request.max_batches or \c request.max_bytes.
         PullResponse pull_full_snapshot(MDBX_txn* txn, MDBX_dbi dbi,
                                         const PullRequest& request) {
             PullResponse out;
             out.remote_have = read_applied_cursor(txn, out.remote_have);
-            const std::vector<NodeId> origins = collect_known_origins(txn, dbi);
+            const std::vector<PullOrigin> origins = collect_known_origins(txn, dbi);
             std::size_t total_bytes = 0;
             bool truncated = false;
             for (std::size_t i = 0; i < origins.size(); ++i) {
-                if (pull_origin_batches(txn, dbi, origins[i], request, out, total_bytes)) {
+                if (origin_is_at_tail(origins[i], request)) {
+                    continue;
+                }
+                if (pull_origin_batches(txn, dbi, origins[i].origin,
+                                        request, out, total_bytes)) {
                     truncated = true;
                     break;
                 }
@@ -635,9 +646,32 @@ namespace sync {
             return compare_node_id(changelog_key_origin(key), origin) == 0;
         }
 
-        static std::vector<NodeId> collect_changelog_origins(MDBX_txn* txn,
-                                                             MDBX_dbi dbi) {
-            std::vector<NodeId> origins;
+        static PullOrigin make_pull_origin(const NodeId& origin) {
+            PullOrigin out;
+            out.origin = origin;
+            out.last_seq = 0;
+            out.has_last_seq = false;
+            return out;
+        }
+
+        static PullOrigin make_pull_origin(const NodeId& origin,
+                                           std::uint64_t last_seq) {
+            PullOrigin out;
+            out.origin = origin;
+            out.last_seq = last_seq;
+            out.has_last_seq = true;
+            return out;
+        }
+
+        static bool origin_is_at_tail(const PullOrigin& origin,
+                                      const PullRequest& request) {
+            return origin.has_last_seq &&
+                   request.have.last_seq_for(origin.origin) >= origin.last_seq;
+        }
+
+        static std::vector<PullOrigin> collect_changelog_origins(MDBX_txn* txn,
+                                                                 MDBX_dbi dbi) {
+            std::vector<PullOrigin> origins;
             MDBX_cursor* raw = nullptr;
             check_mdbx(mdbx_cursor_open(txn, dbi, &raw),
                        "pull_full: origin cursor open failed");
@@ -648,7 +682,7 @@ namespace sync {
             int rc = mdbx_cursor_get(raw, &k, &v, MDBX_FIRST);
             while (rc == MDBX_SUCCESS) {
                 const NodeId origin = changelog_key_origin(k);
-                origins.push_back(origin);
+                origins.push_back(make_pull_origin(origin));
 
                 std::vector<std::uint8_t> next_key_buf =
                     make_changelog_key(origin, std::numeric_limits<std::uint64_t>::max());
@@ -673,17 +707,26 @@ namespace sync {
             return origins;
         }
 
-        std::vector<NodeId> collect_indexed_origins(MDBX_txn* txn) const {
+        std::vector<PullOrigin> collect_indexed_origins(MDBX_txn* txn) const {
             OriginIndexStore origins(m_conn->env_handle());
             if (!origins.open_existing(txn)) {
-                return std::vector<NodeId>();
+                return std::vector<PullOrigin>();
             }
-            return origins.origins(txn);
+            const std::vector<OriginIndexStore::OriginTail> tails =
+                origins.origin_tails(txn);
+            std::vector<PullOrigin> out;
+            out.reserve(tails.size());
+            for (std::vector<OriginIndexStore::OriginTail>::const_iterator it =
+                     tails.begin();
+                 it != tails.end(); ++it) {
+                out.push_back(make_pull_origin(it->origin, it->last_seq));
+            }
+            return out;
         }
 
-        std::vector<NodeId> collect_known_origins(MDBX_txn* txn,
-                                                  MDBX_dbi changelog_dbi) const {
-            const std::vector<NodeId> indexed = collect_indexed_origins(txn);
+        std::vector<PullOrigin> collect_known_origins(MDBX_txn* txn,
+                                                      MDBX_dbi changelog_dbi) const {
+            const std::vector<PullOrigin> indexed = collect_indexed_origins(txn);
             if (!indexed.empty()) {
                 return indexed;
             }
