@@ -45,10 +45,40 @@ bool key_has(const std::shared_ptr<mdbxc::Connection>& conn,
     return keys.contains(key, txn.handle());
 }
 
+template<class ValueT>
+ValueT seq_or_throw(const std::shared_ptr<mdbxc::Connection>& conn,
+                    mdbxc::SequenceTable<ValueT>& seq,
+                    std::uint64_t id,
+                    const char* what) {
+    ValueT out{};
+    auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+    if (!seq.try_get(id, out, txn.handle())) {
+        throw std::runtime_error(std::string("missing: ") + what);
+    }
+    return out;
+}
+
+template<class ValueT>
+bool seq_has(const std::shared_ptr<mdbxc::Connection>& conn,
+             mdbxc::SequenceTable<ValueT>& seq,
+             std::uint64_t id) {
+    ValueT out{};
+    auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+    return seq.try_get(id, out, txn.handle());
+}
+
 mdbxc::sync::NodeId make_node(std::uint8_t seed) {
     mdbxc::sync::NodeId n{};
     for (int i = 0; i < 16; ++i) n[i] = static_cast<std::uint8_t>(seed + i);
     return n;
+}
+
+mdbxc::Embedding make_embedding(float x, float y) {
+    mdbxc::Embedding e;
+    e.dim = 2;
+    e.values.push_back(x);
+    e.values.push_back(y);
+    return e;
 }
 
 mdbxc::Config cfg(const std::string& path) {
@@ -357,6 +387,133 @@ void test_replication_value_table_singleton_key() {
     cleanup(p); cleanup(r);
 }
 
+void test_replication_sequence_table_roundtrip() {
+    using namespace mdbxc;
+    const std::string p = "test_rep_sequence_roundtrip.mdbx";
+    const std::string r = "test_rep_sequence_roundtrip_replica.mdbx";
+    cleanup(p); cleanup(r);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+
+    std::shared_ptr<Connection> primary = open(p);
+    std::shared_ptr<Connection> replica = open(r);
+
+    {
+        sync::SyncEngine pe(primary), re(replica);
+        pe.initialize_local_identity(primary_node, db_id);
+        re.initialize_local_identity(replica_node, db_id);
+
+        sync::ThreadLocalChangeAccumulator sink(primary);
+        primary->attach_sync_capture(&sink);
+        {
+            SequenceTable<std::string> events(primary, "seq_events");
+            events.insert_or_assign(7, "seven");
+            events.insert_or_assign(8, "");
+            const std::uint64_t id = events.append("nine");
+            if (id != 9u) {
+                throw std::runtime_error("sequence append id after sparse set");
+            }
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) != 3u) {
+            throw std::runtime_error("sequence initial sync pulled wrong batch count");
+        }
+        {
+            SequenceTable<std::string> events(replica, "seq_events");
+            if (events.count() != 3u) {
+                throw std::runtime_error("sequence initial count did not replicate");
+            }
+            if (seq_or_throw(replica, events, 7, "seq_events[7]") != "seven") {
+                throw std::runtime_error("sequence set did not replicate");
+            }
+            if (seq_or_throw(replica, events, 8, "seq_events[8]") != "") {
+                throw std::runtime_error("sequence empty value did not replicate");
+            }
+            if (seq_or_throw(replica, events, 9, "seq_events[9]") != "nine") {
+                throw std::runtime_error("sequence append did not replicate");
+            }
+        }
+
+        {
+            SequenceTable<std::string> events(primary, "seq_events");
+            events.insert_or_assign(7, "SEVEN");
+            if (!events.erase(8)) {
+                throw std::runtime_error("sequence erase setup failed");
+            }
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) != 2u) {
+            throw std::runtime_error("sequence update sync pulled wrong batch count");
+        }
+        primary->detach_sync_capture();
+        {
+            SequenceTable<std::string> events(replica, "seq_events");
+            if (events.count() != 2u) {
+                throw std::runtime_error("sequence update count did not replicate");
+            }
+            if (seq_or_throw(replica, events, 7, "seq_events[7] update") != "SEVEN") {
+                throw std::runtime_error("sequence update did not replicate");
+            }
+            if (seq_has(replica, events, 8)) {
+                throw std::runtime_error("sequence erase did not replicate");
+            }
+            if (seq_or_throw(replica, events, 9, "seq_events[9] preserved") != "nine") {
+                throw std::runtime_error("sequence update lost preserved value");
+            }
+        }
+    }
+
+    primary->disconnect();
+    replica->disconnect();
+    primary.reset();
+    replica.reset();
+
+    primary = open(p);
+    replica = open(r);
+    {
+        sync::SyncEngine pe(primary), re(replica);
+        pe.initialize_local_identity(primary_node, db_id);
+        re.initialize_local_identity(replica_node, db_id);
+        {
+            SequenceTable<std::string> events(replica, "seq_events");
+            if (seq_has(replica, events, 8)) {
+                throw std::runtime_error("sequence restart resurrected erased value");
+            }
+            if (seq_or_throw(replica, events, 7, "seq_events[7] restart") != "SEVEN") {
+                throw std::runtime_error("sequence restart lost updated value");
+            }
+        }
+
+        sync::ThreadLocalChangeAccumulator sink(primary);
+        primary->attach_sync_capture(&sink);
+        {
+            SequenceTable<std::string> events(primary, "seq_events");
+            events.insert_or_assign(9, "NINE");
+            events.insert_or_assign(10, "ten");
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) != 2u) {
+            throw std::runtime_error("sequence restart sync pulled wrong batch count");
+        }
+        primary->detach_sync_capture();
+        {
+            SequenceTable<std::string> events(replica, "seq_events");
+            if (events.count() != 3u) {
+                throw std::runtime_error("sequence restart count did not replicate");
+            }
+            if (seq_or_throw(replica, events, 9, "seq_events[9] restart") != "NINE") {
+                throw std::runtime_error("sequence restart update did not replicate");
+            }
+            if (seq_or_throw(replica, events, 10, "seq_events[10] restart") != "ten") {
+                throw std::runtime_error("sequence restart insert did not replicate");
+            }
+        }
+    }
+
+    primary->disconnect();
+    replica->disconnect();
+    cleanup(p); cleanup(r);
+}
+
 void test_replication_key_value_bulk_roundtrip() {
     using namespace mdbxc;
     const std::string p = "test_rep_kv_bulk_roundtrip.mdbx";
@@ -593,6 +750,135 @@ void test_replication_key_table_range_delete_roundtrip() {
     cleanup(p); cleanup(r);
 }
 
+void test_replication_vector_store_roundtrip() {
+    using namespace mdbxc;
+    const std::string p = "test_rep_vector_roundtrip.mdbx";
+    const std::string r = "test_rep_vector_roundtrip_replica.mdbx";
+    cleanup(p); cleanup(r);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+    const Embedding alpha_query = make_embedding(1.0f, 0.0f);
+    const Embedding beta_query = make_embedding(0.0f, 1.0f);
+    const Embedding gamma_query = make_embedding(0.6f, 0.8f);
+
+    std::shared_ptr<Connection> primary = open(p);
+    std::shared_ptr<Connection> replica = open(r);
+    std::uint64_t alpha_id = 0;
+    std::uint64_t beta_id = 0;
+
+    {
+        sync::SyncEngine pe(primary), re(replica);
+        pe.initialize_local_identity(primary_node, db_id);
+        re.initialize_local_identity(replica_node, db_id);
+
+        sync::ThreadLocalChangeAccumulator sink(primary);
+        primary->attach_sync_capture(&sink);
+        {
+            VectorStore store(primary, "docs");
+            alpha_id = store.add(alpha_query, "alpha", "{\"kind\":\"doc\"}");
+            beta_id = store.add(beta_query, "beta", "{\"kind\":\"code\"}");
+            if (alpha_id != 0u || beta_id != 1u) {
+                throw std::runtime_error("vector ids were not assigned sequentially");
+            }
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) != 2u) {
+            throw std::runtime_error("vector add sync pulled wrong batch count");
+        }
+        {
+            VectorStore store(replica, "docs");
+            if (store.count() != 2u) {
+                throw std::runtime_error("vector add count did not replicate");
+            }
+            const std::vector<SearchResult> results = store.search(alpha_query, 1);
+            if (results.size() != 1u || results[0].id != alpha_id ||
+                results[0].text != "alpha" ||
+                results[0].metadata_json != "{\"kind\":\"doc\"}") {
+                throw std::runtime_error("vector add search did not replicate");
+            }
+        }
+
+        {
+            VectorStore store(primary, "docs");
+            if (!store.erase(beta_id)) {
+                throw std::runtime_error("vector erase setup failed");
+            }
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) != 1u) {
+            throw std::runtime_error("vector erase sync pulled wrong batch count");
+        }
+        primary->detach_sync_capture();
+        {
+            VectorStore store(replica, "docs");
+            if (store.count() != 1u) {
+                throw std::runtime_error("vector erase count did not replicate");
+            }
+            const std::vector<SearchResult> results = store.search(beta_query, 10);
+            for (std::size_t i = 0; i < results.size(); ++i) {
+                if (results[i].id == beta_id) {
+                    throw std::runtime_error("vector erase did not remove beta id");
+                }
+            }
+        }
+    }
+
+    primary->disconnect();
+    replica->disconnect();
+    primary.reset();
+    replica.reset();
+
+    primary = open(p);
+    replica = open(r);
+    {
+        sync::SyncEngine pe(primary), re(replica);
+        pe.initialize_local_identity(primary_node, db_id);
+        re.initialize_local_identity(replica_node, db_id);
+        {
+            VectorStore store(replica, "docs");
+            if (store.count() != 1u) {
+                throw std::runtime_error("vector restart count mismatch");
+            }
+            const std::vector<SearchResult> results = store.search(alpha_query, 1);
+            if (results.size() != 1u || results[0].id != alpha_id ||
+                results[0].text != "alpha") {
+                throw std::runtime_error("vector restart rebuild lost alpha");
+            }
+        }
+
+        sync::ThreadLocalChangeAccumulator sink(primary);
+        primary->attach_sync_capture(&sink);
+        std::uint64_t gamma_id = 0;
+        {
+            VectorStore store(primary, "docs");
+            gamma_id = store.add(gamma_query, "gamma", "{\"kind\":\"note\"}");
+            if (gamma_id != 2u) {
+                throw std::runtime_error("vector restart add used unexpected id");
+            }
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) != 1u) {
+            throw std::runtime_error("vector restart sync pulled wrong batch count");
+        }
+        primary->detach_sync_capture();
+        {
+            VectorStore store(replica, "docs");
+            if (store.count() != 2u) {
+                throw std::runtime_error("vector restart add count did not replicate");
+            }
+            const std::vector<SearchResult> results = store.search(gamma_query, 1);
+            if (results.size() != 1u || results[0].id != gamma_id ||
+                results[0].text != "gamma" ||
+                results[0].metadata_json != "{\"kind\":\"note\"}") {
+                throw std::runtime_error("vector restart add search did not replicate");
+            }
+        }
+    }
+
+    primary->disconnect();
+    replica->disconnect();
+    cleanup(p); cleanup(r);
+}
+
 void test_replication_incremental_pull() {
     using namespace mdbxc;
     const std::string p = "test_rep_incr.mdbx";
@@ -815,9 +1101,13 @@ int main() {
         { "test_replication_push_three_tables",  &test_replication_push_three_tables },
         { "test_replication_mixed_ops",          &test_replication_mixed_ops },
         { "test_replication_value_table_singleton_key", &test_replication_value_table_singleton_key },
+        { "test_replication_sequence_table_roundtrip",
+          &test_replication_sequence_table_roundtrip },
         { "test_replication_key_value_bulk_roundtrip", &test_replication_key_value_bulk_roundtrip },
         { "test_replication_key_table_range_delete_roundtrip",
           &test_replication_key_table_range_delete_roundtrip },
+        { "test_replication_vector_store_roundtrip",
+          &test_replication_vector_store_roundtrip },
         { "test_replication_incremental_pull",   &test_replication_incremental_pull },
         { "test_replication_idempotent_apply",   &test_replication_idempotent_apply },
         { "test_replication_make_push_request", &test_replication_make_push_request_helper },
