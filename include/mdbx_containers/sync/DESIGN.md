@@ -235,6 +235,17 @@ interrupt blocking I/O should poll the request `cancel_token` where possible
 and implement `request_cancel()` by using their own timeout, socket shutdown,
 or equivalent mechanism when polling alone cannot unblock the operation.
 
+Cancellation intentionally stays minimal in the core API: operation-scoped
+tokens plus the existing best-effort peer hook. Do not add callback
+registration, generation-based token reuse, or allocation-free state reuse
+without evidence from a real transport adapter or benchmark. The preferred next
+step for HTTP/WebSocket transports is an adapter-local bridge from
+`cancel_token` / `request_cancel()` to the transport library's native timeout,
+socket shutdown, or cancellation primitive. Revisit the core API only if that
+adapter-local approach proves insufficient, or if benchmark data shows
+per-operation cancellation-state allocation on the `pull()` path is a measured
+hot spot.
+
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
 MDBX has no batch "delete by key range" primitive. The supported pattern
