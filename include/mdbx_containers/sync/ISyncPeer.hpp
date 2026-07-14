@@ -13,9 +13,13 @@ namespace sync {
     /// \brief Abstract peer that exchanges pull and push requests.
     /// \details Concrete implementations (in-process, HTTP, WebSocket) live
     /// outside the core sync layer and depend on optional transport headers.
-    /// Implementations that override \c request_cancel() must allow it to be
-    /// called concurrently with \c pull() / \c push() and tolerate calls that
-    /// race with operation startup or completion.
+    /// Transport operations receive cooperative cancellation tokens through
+    /// \c PullRequest::cancel_token and \c PushRequest::cancel_token. Blocking
+    /// implementations may also override \c request_cancel() to interrupt
+    /// socket waits or other transport-owned blocking primitives. Overrides
+    /// must allow \c request_cancel() to be called concurrently with
+    /// \c pull() / \c push() and tolerate calls that race with operation
+    /// startup or completion.
     class ISyncPeer {
     public:
         virtual ~ISyncPeer() {}
@@ -28,8 +32,9 @@ namespace sync {
 
         /// \brief Requests cancellation of in-flight transport operations.
         /// \details Best-effort hook for blocking transports. The default
-        /// implementation is a no-op, so non-interruptible peers remain valid.
-        /// Overrides should return quickly and should not throw.
+        /// implementation is a no-op, so token-only and non-interruptible
+        /// peers remain valid. Overrides should return quickly and should not
+        /// throw.
         virtual void request_cancel() {}
     };
 

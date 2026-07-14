@@ -17,6 +17,7 @@
 #include "sync/ChangeBatch.hpp"
 #include "sync/ChangeBatchCodec.hpp"
 #include "sync/ChangeOp.hpp"
+#include "sync/cancellation.hpp"
 #include "sync/CodecBounds.hpp"
 #include "sync/codec_flags.hpp"
 #include "sync/common.hpp"
