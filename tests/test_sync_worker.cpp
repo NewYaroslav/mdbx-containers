@@ -205,6 +205,71 @@ private:
     int  m_cancel_count;
 };
 
+class TokenBlockingPeer : public mdbxc::sync::ISyncPeer {
+public:
+    explicit TokenBlockingPeer(const mdbxc::sync::PullResponse& response)
+        : m_response(response), m_entered(false), m_saw_token(false),
+          m_saw_token_cancel(false), m_cancel_count(0) {}
+
+    mdbxc::sync::PullResponse pull(
+            const mdbxc::sync::PullRequest& request) override {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_entered = true;
+        m_saw_token = request.cancel_token.can_be_cancelled();
+        m_changed.notify_all();
+        while (!request.cancel_token.is_cancellation_requested()) {
+            m_changed.wait_for(lock, std::chrono::milliseconds(10));
+        }
+        m_saw_token_cancel = true;
+        return m_response;
+    }
+
+    mdbxc::sync::PushResponse push(
+            const mdbxc::sync::PushRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PushResponse();
+    }
+
+    void request_cancel() override {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            ++m_cancel_count;
+        }
+        m_changed.notify_all();
+    }
+
+    bool wait_until_entered(std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this] { return m_entered; });
+    }
+
+    bool saw_token() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_saw_token;
+    }
+
+    bool saw_token_cancel() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_saw_token_cancel;
+    }
+
+    int cancel_count() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_cancel_count;
+    }
+
+private:
+    mdbxc::sync::PullResponse m_response;
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    bool m_entered;
+    bool m_saw_token;
+    bool m_saw_token_cancel;
+    int  m_cancel_count;
+};
+
 class FailingPeer : public mdbxc::sync::ISyncPeer {
 public:
     FailingPeer() : m_cancel_count(0) {}
@@ -608,6 +673,58 @@ void test_worker_stop_cancels_blocking_peer() {
     cleanup(path);
 }
 
+void test_worker_stop_cancels_request_token() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_cancel_token.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    const sync::NodeId replica_node = make_node(0xB2);
+    const sync::NodeId remote_origin = make_node(0xA2);
+    const sync::NodeId db_id = make_node(0xD2);
+
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = remote_origin;
+    batch.seq = 1;
+
+    sync::PullResponse response;
+    response.batches.push_back(batch);
+
+    TokenBlockingPeer peer(response);
+    sync::SyncWorkerOptions options;
+    options.idle_interval = std::chrono::milliseconds(10000);
+    sync::SyncWorker worker(engine, peer, options);
+
+    worker.start();
+    if (!peer.wait_until_entered(std::chrono::milliseconds(2000))) {
+        throw std::runtime_error("worker did not enter token-blocking pull");
+    }
+    if (!peer.saw_token()) {
+        throw std::runtime_error("worker did not pass a cancellable token");
+    }
+    worker.request_stop();
+    worker.join();
+
+    if (!peer.saw_token_cancel()) {
+        throw std::runtime_error("worker did not cancel request token");
+    }
+    if (peer.cancel_count() != 1) {
+        throw std::runtime_error("worker did not request peer cancellation");
+    }
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("token-cancelled worker did not stop");
+    }
+    if (engine.applied_cursor().last_seq_for(remote_origin) != 0u) {
+        throw std::runtime_error("worker applied a page returned after token cancel");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
 void test_worker_rejects_self_join() {
     using namespace mdbxc;
     const std::string path = "test_worker_self_join.mdbx";
@@ -652,6 +769,8 @@ int main() {
           &test_worker_repeated_stop_cancels_blocking_peer_once },
         { "test_worker_stop_cancels_blocking_peer",
           &test_worker_stop_cancels_blocking_peer },
+        { "test_worker_stop_cancels_request_token",
+          &test_worker_stop_cancels_request_token },
         { "test_worker_rejects_self_join", &test_worker_rejects_self_join },
     };
 

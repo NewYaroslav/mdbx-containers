@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ChangeBatch.hpp"
+#include "Cancellation.hpp"
 #include "common.hpp"
 #include "SyncCursor.hpp"
 
@@ -26,6 +27,10 @@ namespace sync {
         /// \brief When true, the responder should produce a full snapshot
         /// instead of an incremental delta.
         bool         request_full_snapshot = false;
+        /// \brief Cooperative cancellation token for this transport call.
+        /// \details Optional; default-constructed tokens never cancel.
+        /// Transports may poll it while waiting on interruptible operations.
+        CancellationToken cancel_token;
     };
 
     /// \brief Response to a \c PullRequest.
@@ -43,6 +48,9 @@ namespace sync {
         NodeId                   sender{};
         DbId                     db_id{};
         std::vector<ChangeBatch> batches;
+        /// \brief Cooperative cancellation token for this transport call.
+        /// \details Optional; default-constructed tokens never cancel.
+        CancellationToken        cancel_token;
     };
 
     /// \brief Response to a \c PushRequest.

@@ -14,8 +14,8 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 ## Already implemented (merged into main)
 
 - Public types in `include/mdbx_containers/sync/`:
-  `Common`, `ChangeBatch`, `ChangeOp`, `CodecFlags`, `CodecBounds`,
-  `Protocol`, `SyncCursor`, `ConflictPolicy`, `ISyncPeer`,
+  `Common`, `ChangeBatch`, `ChangeOp`, `Cancellation`, `CodecFlags`,
+  `CodecBounds`, `Protocol`, `SyncCursor`, `ConflictPolicy`, `ISyncPeer`,
   `IdentityProvider`, `ChangeBatchCodec`, `SyncWorker`.
 - Five system stores under `include/mdbx_containers/sync/stores/`:
   `MetaStore`, `ChangeLogStore`, `OriginIndexStore`, `AppliedStore`,
@@ -214,9 +214,9 @@ Worker invariants:
 - no local MDBX transaction is held during idle or backoff sleeps;
 - pulled pages are applied through `SyncEngine::handle_push()`, so each page
   uses one short local write transaction;
-- stop requests call `ISyncPeer::request_cancel()` at most once for each
-  observed in-flight peer pull call, and a page returned after stop was
-  requested is not applied;
+- stop requests cancel the active `PullRequest::cancel_token` and call
+  `ISyncPeer::request_cancel()` at most once for each observed in-flight
+  peer pull call, and a page returned after stop was requested is not applied;
 - a stop request recorded before peer-call activation prevents the next pull
   call from starting;
 - `stop()`, `join()`, and destruction may wait for an in-flight peer call to
@@ -231,8 +231,9 @@ Worker invariants:
 
 The worker is a lifecycle/concurrency helper, not a transport. HTTP/WebSocket
 peers remain separate adapters over `ISyncPeer`. Transport adapters that can
-interrupt blocking I/O should implement `request_cancel()` by using their own
-timeout, cancellation token, socket shutdown, or equivalent mechanism.
+interrupt blocking I/O should poll the request `cancel_token` where possible
+and implement `request_cancel()` by using their own timeout, socket shutdown,
+or equivalent mechanism when polling alone cannot unblock the operation.
 
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
