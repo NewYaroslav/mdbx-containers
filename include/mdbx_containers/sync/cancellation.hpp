@@ -12,6 +12,9 @@ namespace mdbxc {
 namespace sync {
 
     namespace detail {
+        /// \brief Shared cancellation flag observed by sources and tokens.
+        /// \details Kept behind \c shared_ptr because cancellation handles are
+        /// copyable while \c std::atomic<bool> is not copyable by value.
         struct CancellationState {
             CancellationState() : requested(false) {}
 
