@@ -14,27 +14,39 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 ## Already implemented (merged into main)
 
 - Public types in `include/mdbx_containers/sync/`:
-  `Common`, `ChangeBatch`, `ChangeOp`, `Cancellation`, `CodecFlags`,
-  `CodecBounds`, `Protocol`, `SyncCursor`, `ConflictPolicy`, `ISyncPeer`,
-  `IdentityProvider`, `ChangeBatchCodec`, `SyncWorker`.
+  `Common`, `ChangeAccumulator`, `ChangeBatch`, `ChangeOp`, `Cancellation`,
+  `CodecBounds`, `CodecFlags`, `ConflictPolicy`, `DirectSyncPeer`,
+  `IdentityProvider`, `ISyncCaptureSink`, `ISyncPeer`, `Protocol`,
+  `SyncCursor`, `SyncEngine`, `SyncWorker`.
 - Five system stores under `include/mdbx_containers/sync/stores/`:
   `MetaStore`, `ChangeLogStore`, `OriginIndexStore`, `AppliedStore`,
   `IdentityIndexStore`.
 - `ChangeBatchCodec` strict versioned wire format (magic, codec version,
   batch version, batch flags, then payload); rejects unknown mandatory
   flags and version mismatches at both encode and decode.
+- Change capture hooks: `Connection::attach_sync_capture()`,
+  `BaseTable::record_op()`, and the transaction pre-commit hook route table
+  writes into `ThreadLocalChangeAccumulator`, which appends one local
+  `ChangeBatch` per committing write transaction.
+- `SyncEngine` pull / push / apply protocol logic, `DirectSyncPeer`
+  in-process transport, detailed apply conflict diagnostics, multi-origin
+  pagination, origin-index fallback for legacy changelogs, and
+  `make_push_request()` for example / transport code.
+- Replicated table operation capture for `KeyValueTable`, `KeyTable`,
+  `ValueTable`, and `SequenceTable` normal write paths. `SequenceTable`
+  `append()` remains a local single-writer operation with existing external
+  synchronisation requirements.
+- `ConflictPolicy::Reject` is the default. `ConflictPolicy::LastWriterWins`
+  is declared for future logical-key conflict resolution but is not used by
+  the current raw batch apply path.
+- `SyncWorker` background pull/apply lifecycle, cooperative cancellation
+  tokens, best-effort peer cancellation hook, and focused worker tests.
+- Manual hub-style benchmark (`sync_tick_hub_benchmark`) plus opt-in and
+  scheduled stress coverage for multi-origin sync paths.
 
 ## Planned before v0.1 release (NOT YET implemented)
 
-- Change capture: pre-commit hook in `Transaction::commit` writes a
-  `ChangeBatch` to `ChangeLogStore` inside the same write transaction.
-- `SyncEngine` (pull/push/apply protocol logic, gap handling).
-- `DirectSyncPeer` for in-process tests of `SyncEngine`.
 - Full export/import via `seq=0, BATCH_HAS_MORE` chunks for empty replicas.
-- Replicated table operation coverage: `KeyValueTable`, `KeyTable`,
-  `ValueTable`, `SequenceTable` (single-writer for `append`;
-  `insert_or_assign`/`set`/`erase`/`clear` normal).
-- `ConflictPolicy::Reject` is the default; `LastWriterWins` is opt-in.
 
 ## What v0.1 does NOT cover (deferred to v0.2)
 
@@ -45,15 +57,16 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 - `IdentityProvider` integration in `BaseTable` — declared in v0.1, no
   write path until HashedKeyValueStore.
 - Automatic remap of physical `storage_key` from logical `identity_key`.
-- HLC for `LastWriterWins` — `time_unix_ns` is metadata only, not a reliable
-  conflict authority. The exact tie-break rule (revision_key priority,
-  fallback when no revision_key is supplied) must be defined in `SyncEngine`
-  and documented before `LastWriterWins` is used in a non-test path.
+- HLC or other production authority for logical-key `LastWriterWins`.
+  `time_unix_ns` is metadata only, not a reliable conflict authority. The
+  current apply path does not maintain enough identity-index conflict state to
+  use `LastWriterWins` in a non-test path.
 - `Custom` conflict resolver — schema-level callback; deferred until the
   first real consumer needs it.
 - HTTP and WebSocket transports (`Simple-Web-Server`,
-  `Simple-WebSocket-Server`) — guarded build flags; first adapter lands
-  after `DirectSyncPeer` integration test.
+  `Simple-WebSocket-Server`) — guarded build flags; first adapter lands after
+  the transport boundary and cancellation bridge are designed against a real
+  adapter.
 - `zstd` compression — reserved flag, encoder throws, decoder rejects.
 
 ## Endianness policy (do not change)
@@ -127,8 +140,9 @@ normal background-sync loop or per-pull hot path.
 | Value | u64 LE — last contiguous applied `seq` |
 
 `SyncEngine` invariant: writes to this store are always contiguous. If
-`incoming.seq > last + 1`, the receiver keeps the incoming batch pending
-until the gap closes. If `incoming.seq <= last`, the batch is a redundant
+`incoming.seq > last + 1`, the current v0.1 apply path reports a
+`SequenceGap` conflict and stores no pending queue; the caller must retry after
+missing batches arrive. If `incoming.seq <= last`, the batch is a redundant
 replay and is skipped.
 
 ### `_mdbxc_identity_index` (IdentityIndexStore) — declared in v0.1, write path deferred
@@ -162,7 +176,7 @@ contract:
 - Decoder rejects trailing bytes when called with `bytes_read == nullptr`
   or via `decode_exact`.
 
-## Sync flow (planned v0.1 behavior, not yet implemented)
+## Sync flow (current v0.1 core behavior)
 
 Default round shape, single-writer friendly and the base case for
 multi-master:
@@ -170,30 +184,34 @@ multi-master:
 ```
 origin A writes
     -> Transaction::commit pre-commit hook
-        -> ChangeAccumulator.flush (writes ChangeLogStore + OriginIndexStore
-           + IdentityIndexStore)
+        -> ChangeAccumulator.flush (writes ChangeLogStore; OriginIndexStore
+           is updated by ChangeLogStore::append)
             -> mdbx_txn_commit() — changes land atomically
 
 receiver B
     -> pull / push via ISyncPeer
         -> SyncEngine.handle_push / handle_pull
             -> begin write txn
-                if already_applied(origin, seq): commit no-op
+                if already_applied(origin, seq): skip
+                if sequence gap: conflict / rollback
                 for op in batch.ops: apply raw dbi_op
                 mark_applied(origin, seq)
             -> commit
 ```
 
-Multi-master initial sync of an empty replica:
+Cold replica sync currently uses changelog replay:
 
 ```
 B: empty cursor
     -> pull request, have = empty
-A: detects request_full_snapshot
-    -> streams ChangeBatches with seq=0 and BATCH_HAS_MORE until done
-B: applies each batch as above
+A: handle_pull treats it as a full changelog snapshot across known origins
+    -> streams persisted ChangeBatches from seq=1 with pagination limits
+B: applies each page as above
     -> onward sync is incremental pull-from-have
 ```
+
+The reserved `seq=0, BATCH_HAS_MORE` full export/import format remains planned
+for v0.1 and is not the current cold-replica implementation.
 
 ## Background worker lifecycle
 
@@ -289,10 +307,6 @@ When HLC or similar lands in v0.2, it goes in as opaque bytes inside
 
 - `meta_schema_version()` currently returns 1; bump rule + migration
   procedure not defined.
-- `SyncEngine` API surface (`SyncEngine(Connection&)` vs factory,
-  pull/push ordering, per-batch txn commit semantics).
-- SyncEngine ownership model relative to `Connection` — currently
-  `Connection::attach_sync_engine(SyncEngine*)` is the design direction,
-  non-owning, lifetime explicitly documented.
+- Public sync API stability after the first external transport adapter.
 - `PeerRegistry` for multi-peer fan-out — single peer per sync invocation
   in v0.1.

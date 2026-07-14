@@ -105,6 +105,46 @@ void test_capture_writes_via_sink() {
     }
 }
 
+void test_sequence_set_writes_via_sink() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_sequence_set.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    conn->attach_sync_capture(&sink);
+
+    SequenceTable<std::string> events(conn, "events");
+    events.insert_or_assign(7, "seven");
+
+    conn->detach_sync_capture();
+    conn->disconnect();
+    cleanup(p);
+
+    if (sink.m_recorded.size() != 1u) {
+        throw std::runtime_error("expected one sequence set op, got " +
+                                 std::to_string(sink.m_recorded.size()));
+    }
+    const sync::ChangeOp& op = sink.m_recorded[0];
+    if (op.op_type != sync::ChangeOpType::Put) {
+        throw std::runtime_error("sequence set must capture Put");
+    }
+    if (op.dbi_name != "events") {
+        throw std::runtime_error("sequence set dbi_name not propagated");
+    }
+    if (op.storage_key.empty() || op.value.empty()) {
+        throw std::runtime_error("sequence set key/value not captured");
+    }
+    if ((op.dbi_flags & MDBX_INTEGERKEY) == 0) {
+        throw std::runtime_error("sequence set dbi_flags missing MDBX_INTEGERKEY");
+    }
+}
+
 void test_capture_flush_on_commit() {
     using namespace mdbxc;
     const std::string p = "test_capture_flush.mdbx";
@@ -434,53 +474,64 @@ int main() {
         return 2;
     }
     try {
+        test_sequence_set_writes_via_sink();
+        std::printf("PASS test_sequence_set_writes_via_sink\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_sequence_set_writes_via_sink: %s\n", e.what());
+        return 3;
+    } catch (...) {
+        std::printf("FAIL test_sequence_set_writes_via_sink: non-std exception\n");
+        return 3;
+    }
+    try {
         test_capture_flush_on_commit();
         std::printf("PASS test_capture_flush_on_commit\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_capture_flush_on_commit: %s\n", e.what());
-        return 3;
+        return 4;
     } catch (...) {
         std::printf("FAIL test_capture_flush_on_commit: non-std exception\n");
-        return 3;
+        return 4;
     }
     try {
         test_changelog_capture_roundtrip();
         std::printf("PASS test_changelog_capture_roundtrip\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_changelog_capture_roundtrip: %s\n", e.what());
-        return 4;
+        return 5;
     } catch (...) {
         std::printf("FAIL test_changelog_capture_roundtrip: non-std exception\n");
-        return 4;
+        return 5;
     }
     try {
         test_zero_node_id_rejected();
         std::printf("PASS test_zero_node_id_rejected\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_zero_node_id_rejected: %s\n", e.what());
-        return 5;
+        return 6;
     } catch (...) {
         std::printf("FAIL test_zero_node_id_rejected: non-std exception\n");
-        return 5;
+        return 6;
     }
     try {
         test_aborted_transaction_does_not_flush();
         std::printf("PASS test_aborted_transaction_does_not_flush\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_aborted_transaction_does_not_flush: %s\n", e.what());
-        return 6;
+        return 7;
     } catch (...) {
         std::printf("FAIL test_aborted_transaction_does_not_flush: non-std exception\n");
-        return 6;
-    }    try {
+        return 7;
+    }
+    try {
         test_explicit_rollback_does_not_flush();
         std::printf("PASS test_explicit_rollback_does_not_flush\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_explicit_rollback_does_not_flush: %s\n", e.what());
-        return 7;
+        return 8;
     } catch (...) {
         std::printf("FAIL test_explicit_rollback_does_not_flush: non-std exception\n");
-        return 7;
+        return 8;
     }
 
     return 0;
