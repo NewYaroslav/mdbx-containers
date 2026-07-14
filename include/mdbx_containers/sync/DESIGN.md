@@ -39,6 +39,9 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   existing external synchronisation requirements. `VectorStore` is covered
   indirectly because its persistent write path uses `SequenceTable` and
   `KeyValueTable`.
+- End-to-end replication tests cover `ValueTable`, `KeyValueTable`,
+  `KeyTable`, `SequenceTable` insert/update/delete including empty serialized
+  values, and `VectorStore` add/erase/rebuild through its public API.
 - `ConflictPolicy::Reject` is the default. `ConflictPolicy::LastWriterWins`
   is declared for future logical-key conflict resolution but is not used by
   the current raw batch apply path.
@@ -59,6 +62,8 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 - `AnyValueTable` — heterogeneous values need type-tag propagation on the wire.
 - `IdentityProvider` integration in `BaseTable` — declared in v0.1, no
   write path until HashedKeyValueStore.
+- Specialized table types not listed in the implemented scope are not treated
+  as sync-covered without explicit wire-format design and round-trip tests.
 - Automatic remap of physical `storage_key` from logical `identity_key`.
 - HLC or other production authority for logical-key `LastWriterWins`.
   `time_unix_ns` is metadata only, not a reliable conflict authority. The
