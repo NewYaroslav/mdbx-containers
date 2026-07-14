@@ -3,6 +3,8 @@
 #define MDBX_CONTAINERS_HEADER_VECTOR_HPP_INCLUDED
 
 #include "common.hpp"
+#include "SequenceTable.hpp"
+#include "KeyValueTable.hpp"
 #include "vector/VectorMetric.hpp"
 #include "vector/Embedding.hpp"
 #include "vector/VectorRecord.hpp"

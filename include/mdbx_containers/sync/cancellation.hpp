@@ -5,9 +5,6 @@
 /// \file cancellation.hpp
 /// \brief Cooperative cancellation primitives for sync transports.
 
-#include <atomic>
-#include <memory>
-
 namespace mdbxc {
 namespace sync {
 

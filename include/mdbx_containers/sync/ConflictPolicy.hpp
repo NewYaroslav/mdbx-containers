@@ -5,8 +5,6 @@
 /// \file ConflictPolicy.hpp
 /// \brief How a replica resolves conflicting updates to the same logical key.
 
-#include <cstdint>
-
 namespace mdbxc {
 namespace sync {
 

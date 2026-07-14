@@ -5,17 +5,6 @@
 /// \file OriginIndexStore.hpp
 /// \brief Compact index of origins present in the local changelog.
 
-#include <cstdint>
-#include <cstring>
-#include <stdexcept>
-#include <string>
-#include <vector>
-
-#include <mdbx.h>
-
-#include "../common.hpp"
-#include "../../detail/utils.hpp"
-
 namespace mdbxc {
 namespace sync {
 

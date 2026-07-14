@@ -6,16 +6,6 @@
 /// \brief Per-record identity index used for dedup and conflict detection
 /// when \c identity_key differs from \c storage_key.
 
-#include <cstdint>
-#include <cstring>
-#include <stdexcept>
-#include <string>
-#include <vector>
-
-#include <mdbx.h>
-
-#include "../common.hpp"
-
 namespace mdbxc {
 namespace sync {
 

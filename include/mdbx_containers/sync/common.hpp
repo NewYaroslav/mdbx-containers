@@ -5,11 +5,18 @@
 /// \file common.hpp
 /// \brief Shared sync types: node identifiers and byte-order helpers.
 
-#include <array>
 #include <cstdint>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 #include <vector>
+#include <array>
+#include <unordered_map>
+#include <atomic>
+#include <mutex>
+#include <memory>
+
+#include <mdbx.h>
 
 namespace mdbxc {
 namespace sync {

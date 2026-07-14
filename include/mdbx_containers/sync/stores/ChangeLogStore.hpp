@@ -5,14 +5,6 @@
 /// \file ChangeLogStore.hpp
 /// \brief Per-origin changelog of raw \c ChangeBatch bytes.
 
-#include <cstdint>
-#include <cstring>
-#include <stdexcept>
-#include <string>
-#include <vector>
-
-#include <mdbx.h>
-
 #include "OriginIndexStore.hpp"
 
 namespace mdbxc {
