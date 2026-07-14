@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -37,6 +38,13 @@ bool kv_has(const std::shared_ptr<mdbxc::Connection>& conn,
     return kv.try_get(key, out, txn.handle());
 }
 
+template<class KeyTableT, class KeyT>
+bool key_has(const std::shared_ptr<mdbxc::Connection>& conn,
+        KeyTableT& keys, const KeyT& key) {
+    auto txn = conn->transaction(mdbxc::TransactionMode::READ_ONLY);
+    return keys.contains(key, txn.handle());
+}
+
 mdbxc::sync::NodeId make_node(std::uint8_t seed) {
     mdbxc::sync::NodeId n{};
     for (int i = 0; i < 16; ++i) n[i] = static_cast<std::uint8_t>(seed + i);
@@ -53,6 +61,52 @@ mdbxc::Config cfg(const std::string& path) {
 
 std::shared_ptr<mdbxc::Connection> open(const std::string& path) {
     return mdbxc::Connection::create(cfg(path));
+}
+
+std::size_t pull_all_to_replica(mdbxc::sync::SyncEngine& primary_engine,
+                                mdbxc::sync::SyncEngine& replica_engine,
+                                const mdbxc::sync::NodeId& sender_node,
+                                const mdbxc::sync::NodeId& replica_node,
+                                const mdbxc::sync::NodeId& db_id,
+                                std::uint64_t max_batches = 1000) {
+    mdbxc::sync::DirectSyncPeer peer(&primary_engine);
+    mdbxc::sync::PullRequest request;
+    request.requester = replica_node;
+    request.db_id = db_id;
+    request.have = replica_engine.applied_cursor();
+    request.max_batches = max_batches;
+
+    std::size_t applied = 0;
+    bool has_more = false;
+    do {
+        const mdbxc::sync::SyncCursor before = request.have;
+        const mdbxc::sync::PullResponse response = peer.pull(request);
+        if (!response.ok) {
+            throw std::runtime_error("pull failed: " + response.error);
+        }
+        if (!response.batches.empty()) {
+            mdbxc::sync::PushRequest push;
+            push.sender = sender_node;
+            push.db_id = db_id;
+            push.batches = response.batches;
+            const mdbxc::sync::PushResponse pushed = replica_engine.handle_push(push);
+            if (!pushed.ok) {
+                throw std::runtime_error("push apply failed: " + pushed.error);
+            }
+            applied += response.batches.size();
+        } else if (response.has_more) {
+            throw std::runtime_error("pull reported has_more without batches");
+        }
+
+        has_more = response.has_more;
+        request.have = replica_engine.applied_cursor();
+        if (has_more &&
+            request.have.last_seq_by_origin == before.last_seq_by_origin) {
+            throw std::runtime_error("pull pagination made no cursor progress");
+        }
+    } while (has_more);
+
+    return applied;
 }
 
 /// \brief Populates three different table types on \p conn while capture is on.
@@ -303,6 +357,242 @@ void test_replication_value_table_singleton_key() {
     cleanup(p); cleanup(r);
 }
 
+void test_replication_key_value_bulk_roundtrip() {
+    using namespace mdbxc;
+    const std::string p = "test_rep_kv_bulk_roundtrip.mdbx";
+    const std::string r = "test_rep_kv_bulk_roundtrip_replica.mdbx";
+    cleanup(p); cleanup(r);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+
+    std::shared_ptr<Connection> primary = open(p);
+    std::shared_ptr<Connection> replica = open(r);
+
+    {
+        sync::SyncEngine pe(primary), re(replica);
+        pe.initialize_local_identity(primary_node, db_id);
+        re.initialize_local_identity(replica_node, db_id);
+
+        sync::ThreadLocalChangeAccumulator sink(primary);
+        primary->attach_sync_capture(&sink);
+
+        {
+            KeyValueTable<int, std::string> kv(primary, "bulk_kv");
+            std::map<int, std::string> initial;
+            initial[1] = "one";
+            initial[2] = "two";
+            initial[3] = "three";
+            kv.append(initial);
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
+            throw std::runtime_error("bulk append produced no replicated batches");
+        }
+        {
+            KeyValueTable<int, std::string> kv(replica, "bulk_kv");
+            if (kv_or_throw(replica, kv, 1, "bulk_kv[1]") != "one") {
+                throw std::runtime_error("bulk append kv[1]");
+            }
+            if (kv_or_throw(replica, kv, 3, "bulk_kv[3]") != "three") {
+                throw std::runtime_error("bulk append kv[3]");
+            }
+        }
+
+        {
+            KeyValueTable<int, std::string> kv(primary, "bulk_kv");
+            std::vector<std::pair<int, std::string> > extra;
+            extra.push_back(std::make_pair(2, "two updated"));
+            extra.push_back(std::make_pair(4, "four"));
+            kv.append(extra);
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
+            throw std::runtime_error("vector append produced no replicated batches");
+        }
+        {
+            KeyValueTable<int, std::string> kv(replica, "bulk_kv");
+            if (kv_or_throw(replica, kv, 2, "bulk_kv[2]") != "two updated") {
+                throw std::runtime_error("vector append did not update kv[2]");
+            }
+            if (kv_or_throw(replica, kv, 4, "bulk_kv[4]") != "four") {
+                throw std::runtime_error("vector append did not add kv[4]");
+            }
+        }
+
+        {
+            KeyValueTable<int, std::string> kv(primary, "bulk_kv");
+            std::map<int, std::string> replacement;
+            replacement[2] = "two reconciled";
+            replacement[4] = "four";
+            replacement[5] = "five";
+            kv.reconcile(replacement);
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
+            throw std::runtime_error("reconcile produced no replicated batches");
+        }
+        {
+            KeyValueTable<int, std::string> kv(replica, "bulk_kv");
+            if (kv_has(replica, kv, 1)) {
+                throw std::runtime_error("reconcile did not delete stale kv[1]");
+            }
+            if (kv_has(replica, kv, 3)) {
+                throw std::runtime_error("reconcile did not delete stale kv[3]");
+            }
+            if (kv_or_throw(replica, kv, 2, "bulk_kv[2]") != "two reconciled") {
+                throw std::runtime_error("reconcile did not update kv[2]");
+            }
+            if (kv_or_throw(replica, kv, 5, "bulk_kv[5]") != "five") {
+                throw std::runtime_error("reconcile did not add kv[5]");
+            }
+        }
+
+        {
+            KeyValueTable<int, std::string> kv(primary, "bulk_kv");
+            if (kv.erase_range(2, 4) != 2u) {
+                throw std::runtime_error("kv erase_range removed wrong count");
+            }
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
+            throw std::runtime_error("kv erase_range produced no replicated batches");
+        }
+        {
+            KeyValueTable<int, std::string> kv(replica, "bulk_kv");
+            if (kv_has(replica, kv, 2) || kv_has(replica, kv, 4)) {
+                throw std::runtime_error("kv erase_range deletes did not replicate");
+            }
+            if (kv_or_throw(replica, kv, 5, "bulk_kv[5]") != "five") {
+                throw std::runtime_error("kv erase_range removed kv[5]");
+            }
+        }
+
+        primary->detach_sync_capture();
+    }
+
+    primary->disconnect();
+    replica->disconnect();
+    primary.reset();
+    replica.reset();
+
+    primary = open(p);
+    replica = open(r);
+    {
+        sync::SyncEngine pe(primary), re(replica);
+        pe.initialize_local_identity(primary_node, db_id);
+        re.initialize_local_identity(replica_node, db_id);
+
+        {
+            KeyValueTable<int, std::string> kv(replica, "bulk_kv");
+            if (kv_has(replica, kv, 2) || kv_has(replica, kv, 4)) {
+                throw std::runtime_error("restarted replica resurrected erased keys");
+            }
+            if (kv_or_throw(replica, kv, 5, "bulk_kv[5] after restart") != "five") {
+                throw std::runtime_error("restarted replica lost kv[5]");
+            }
+        }
+
+        sync::ThreadLocalChangeAccumulator sink(primary);
+        primary->attach_sync_capture(&sink);
+        {
+            KeyValueTable<int, std::string> kv(primary, "bulk_kv");
+            std::vector<std::pair<int, std::string> > after_restart;
+            after_restart.push_back(std::make_pair(5, "five restarted"));
+            after_restart.push_back(std::make_pair(6, "six"));
+            kv.append(after_restart);
+        }
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
+            throw std::runtime_error("restart append produced no replicated batches");
+        }
+        primary->detach_sync_capture();
+
+        {
+            KeyValueTable<int, std::string> kv(replica, "bulk_kv");
+            if (kv_or_throw(replica, kv, 5, "bulk_kv[5] after restart sync") !=
+                    "five restarted") {
+                throw std::runtime_error("restart append did not update kv[5]");
+            }
+            if (kv_or_throw(replica, kv, 6, "bulk_kv[6] after restart sync") != "six") {
+                throw std::runtime_error("restart append did not add kv[6]");
+            }
+            if (kv_has(replica, kv, 2) || kv_has(replica, kv, 4)) {
+                throw std::runtime_error("restart incremental replay restored erased keys");
+            }
+        }
+    }
+
+    primary->disconnect();
+    replica->disconnect();
+    cleanup(p); cleanup(r);
+}
+
+void test_replication_key_table_range_delete_roundtrip() {
+    using namespace mdbxc;
+    const std::string p = "test_rep_key_range_roundtrip.mdbx";
+    const std::string r = "test_rep_key_range_roundtrip_replica.mdbx";
+    cleanup(p); cleanup(r);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+
+    auto primary = open(p);
+    auto replica = open(r);
+    sync::SyncEngine pe(primary), re(replica);
+    pe.initialize_local_identity(primary_node, db_id);
+    re.initialize_local_identity(replica_node, db_id);
+
+    sync::ThreadLocalChangeAccumulator sink(primary);
+    primary->attach_sync_capture(&sink);
+    {
+        KeyTable<int> keys(primary, "keys");
+        std::vector<int> initial;
+        initial.push_back(1);
+        initial.push_back(2);
+        initial.push_back(3);
+        initial.push_back(4);
+        initial.push_back(5);
+        keys.append(initial);
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
+        throw std::runtime_error("key append produced no replicated batches");
+    }
+
+    {
+        KeyTable<int> keys(replica, "keys");
+        if (!key_has(replica, keys, 1) || !key_has(replica, keys, 5) ||
+            keys.count() != 5u) {
+            throw std::runtime_error("key append did not replicate");
+        }
+    }
+
+    {
+        KeyTable<int> keys(primary, "keys");
+        if (keys.erase_range(2, 4) != 3u) {
+            throw std::runtime_error("key erase_range removed wrong count");
+        }
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
+        throw std::runtime_error("key erase_range produced no replicated batches");
+    }
+    primary->detach_sync_capture();
+
+    {
+        KeyTable<int> keys(replica, "keys");
+        if (!key_has(replica, keys, 1) || !key_has(replica, keys, 5)) {
+            throw std::runtime_error("key erase_range removed boundary survivors");
+        }
+        if (key_has(replica, keys, 2) || key_has(replica, keys, 3) ||
+            key_has(replica, keys, 4)) {
+            throw std::runtime_error("key erase_range deletes did not replicate");
+        }
+        if (keys.count() != 2u) {
+            throw std::runtime_error("key erase_range left wrong count");
+        }
+    }
+
+    primary->disconnect(); replica->disconnect();
+    cleanup(p); cleanup(r);
+}
+
 void test_replication_incremental_pull() {
     using namespace mdbxc;
     const std::string p = "test_rep_incr.mdbx";
@@ -525,6 +815,9 @@ int main() {
         { "test_replication_push_three_tables",  &test_replication_push_three_tables },
         { "test_replication_mixed_ops",          &test_replication_mixed_ops },
         { "test_replication_value_table_singleton_key", &test_replication_value_table_singleton_key },
+        { "test_replication_key_value_bulk_roundtrip", &test_replication_key_value_bulk_roundtrip },
+        { "test_replication_key_table_range_delete_roundtrip",
+          &test_replication_key_table_range_delete_roundtrip },
         { "test_replication_incremental_pull",   &test_replication_incremental_pull },
         { "test_replication_idempotent_apply",   &test_replication_idempotent_apply },
         { "test_replication_make_push_request", &test_replication_make_push_request_helper },
