@@ -65,6 +65,7 @@ std::shared_ptr<mdbxc::Connection> open(const std::string& path) {
 
 std::size_t pull_all_to_replica(mdbxc::sync::SyncEngine& primary_engine,
                                 mdbxc::sync::SyncEngine& replica_engine,
+                                const mdbxc::sync::NodeId& sender_node,
                                 const mdbxc::sync::NodeId& replica_node,
                                 const mdbxc::sync::NodeId& db_id,
                                 std::uint64_t max_batches = 1000) {
@@ -85,7 +86,7 @@ std::size_t pull_all_to_replica(mdbxc::sync::SyncEngine& primary_engine,
         }
         if (!response.batches.empty()) {
             mdbxc::sync::PushRequest push;
-            push.sender = response.batches.front().origin_node_id;
+            push.sender = sender_node;
             push.db_id = db_id;
             push.batches = response.batches;
             const mdbxc::sync::PushResponse pushed = replica_engine.handle_push(push);
@@ -385,7 +386,7 @@ void test_replication_key_value_bulk_roundtrip() {
             initial[3] = "three";
             kv.append(initial);
         }
-        if (pull_all_to_replica(pe, re, replica_node, db_id, 1) == 0u) {
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
             throw std::runtime_error("bulk append produced no replicated batches");
         }
         {
@@ -405,7 +406,7 @@ void test_replication_key_value_bulk_roundtrip() {
             extra.push_back(std::make_pair(4, "four"));
             kv.append(extra);
         }
-        if (pull_all_to_replica(pe, re, replica_node, db_id, 1) == 0u) {
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
             throw std::runtime_error("vector append produced no replicated batches");
         }
         {
@@ -426,7 +427,7 @@ void test_replication_key_value_bulk_roundtrip() {
             replacement[5] = "five";
             kv.reconcile(replacement);
         }
-        if (pull_all_to_replica(pe, re, replica_node, db_id, 1) == 0u) {
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
             throw std::runtime_error("reconcile produced no replicated batches");
         }
         {
@@ -451,7 +452,7 @@ void test_replication_key_value_bulk_roundtrip() {
                 throw std::runtime_error("kv erase_range removed wrong count");
             }
         }
-        if (pull_all_to_replica(pe, re, replica_node, db_id, 1) == 0u) {
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
             throw std::runtime_error("kv erase_range produced no replicated batches");
         }
         {
@@ -498,7 +499,7 @@ void test_replication_key_value_bulk_roundtrip() {
             after_restart.push_back(std::make_pair(6, "six"));
             kv.append(after_restart);
         }
-        if (pull_all_to_replica(pe, re, replica_node, db_id, 1) == 0u) {
+        if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
             throw std::runtime_error("restart append produced no replicated batches");
         }
         primary->detach_sync_capture();
@@ -529,11 +530,15 @@ void test_replication_key_table_range_delete_roundtrip() {
     const std::string r = "test_rep_key_range_roundtrip_replica.mdbx";
     cleanup(p); cleanup(r);
 
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+
     auto primary = open(p);
     auto replica = open(r);
     sync::SyncEngine pe(primary), re(replica);
-    pe.initialize_local_identity(make_node(0xA0), make_node(0xD0));
-    re.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+    pe.initialize_local_identity(primary_node, db_id);
+    re.initialize_local_identity(replica_node, db_id);
 
     sync::ThreadLocalChangeAccumulator sink(primary);
     primary->attach_sync_capture(&sink);
@@ -547,7 +552,7 @@ void test_replication_key_table_range_delete_roundtrip() {
         initial.push_back(5);
         keys.append(initial);
     }
-    if (pull_all_to_replica(pe, re, make_node(0xB0), make_node(0xD0), 1) == 0u) {
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
         throw std::runtime_error("key append produced no replicated batches");
     }
 
@@ -565,7 +570,7 @@ void test_replication_key_table_range_delete_roundtrip() {
             throw std::runtime_error("key erase_range removed wrong count");
         }
     }
-    if (pull_all_to_replica(pe, re, make_node(0xB0), make_node(0xD0), 1) == 0u) {
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1) == 0u) {
         throw std::runtime_error("key erase_range produced no replicated batches");
     }
     primary->detach_sync_capture();
