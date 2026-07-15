@@ -71,9 +71,12 @@
 ### 🔄 Sync-репликация
 - Экспериментальный sync включается явно: определите `MDBXC_SYNC_ENABLED=1`
   перед подключением `mdbx_containers/sync.hpp`.
-- Текущее покрытие захватывает обычные write-path'ы `KeyValueTable`,
-  `KeyTable`, `ValueTable` и `SequenceTable`; `VectorStore` сохраняется через
-  эти таблицы и покрыт end-to-end тестами репликации.
+- v0.1 захватывает обычные write-path'ы `KeyValueTable`, `KeyTable`,
+  `ValueTable` и `SequenceTable`; `VectorStore` реплицируется косвенно через
+  внутренние `SequenceTable` и `KeyValueTable`.
+- `AnyValueTable`, `KeyMultiValueTable` и `HashedKeyValueStore` не
+  реплицируются в v0.1. Их wire-format отложен до явного описания type tags,
+  DUPSORT duplicate framing и hash-index identity semantics.
 - `SyncEngine` предоставляет pull/push/apply primitives, `DirectSyncPeer`
   используется для in-process синхронизации в тестах и примерах, а
   `SyncWorker` запускает фоновой polling. HTTP/WebSocket транспорты и
