@@ -50,6 +50,23 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 - Manual hub-style benchmark (`sync_tick_hub_benchmark`) plus opt-in and
   scheduled stress coverage for multi-origin sync paths.
 
+## v0.1 table support matrix
+
+| Type | Sync v0.1 status | Notes |
+|------|------------------|-------|
+| `KeyValueTable` | Supported | Captures normal put/delete paths, bulk append, reconcile puts/deletes, range erase, and clear-table ops. |
+| `KeyTable` | Supported | Captures insert/delete, range erase, reconcile/clear paths that operate on physical keys. |
+| `ValueTable` | Supported | Captures singleton put/delete/clear using its fixed physical key. |
+| `SequenceTable` | Supported | Captures set/append/delete/clear against stable `uint64_t` record ids. `append()` remains a local single-writer helper; external synchronization is still required for concurrent appenders. |
+| `VectorStore` | Supported indirectly | Does not own a separate wire format. Its persistent writes go through `SequenceTable` and `KeyValueTable` member tables. |
+| `AnyValueTable` | Not supported in v0.1 | Deferred until heterogeneous value type tags are part of the sync wire format. |
+| `KeyMultiValueTable` | Not supported in v0.1 | Deferred until DUPSORT duplicate-value multiplicity and per-value payload framing are specified. |
+| `HashedKeyValueStore` | Not supported in v0.1 | Deferred until hash-index and identity-key mapping semantics are specified. |
+
+Do not add `record_op()` paths for unsupported table types without first
+updating this design document and adding round-trip replication tests for the
+new wire-format semantics.
+
 ## Planned before v0.1 release (NOT YET implemented)
 
 - Full export/import via `seq=0, BATCH_HAS_MORE` chunks for empty replicas.

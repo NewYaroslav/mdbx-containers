@@ -49,9 +49,12 @@
 ### 🔄 Sync Replication
 - Experimental sync is opt-in: define `MDBXC_SYNC_ENABLED=1` before including
   `mdbx_containers/sync.hpp`.
-- Current coverage captures normal write paths for `KeyValueTable`,
-  `KeyTable`, `ValueTable`, and `SequenceTable`; `VectorStore` persists through
-  those tables and is covered by end-to-end replication tests.
+- v0.1 captures normal write paths for `KeyValueTable`, `KeyTable`,
+  `ValueTable`, and `SequenceTable`; `VectorStore` is replicated indirectly
+  through its internal `SequenceTable` and `KeyValueTable` members.
+- `AnyValueTable`, `KeyMultiValueTable`, and `HashedKeyValueStore` are not
+  replicated in v0.1. Their wire formats are deferred until type tags,
+  DUPSORT duplicate framing, and hash-index identity semantics are specified.
 - `SyncEngine` exposes pull/push/apply primitives, `DirectSyncPeer` provides
   in-process sync for tests and examples, and `SyncWorker` is the background
   polling driver. HTTP/WebSocket transports and specialized table wire formats

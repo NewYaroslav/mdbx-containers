@@ -202,12 +202,14 @@ Operational rules:
   for future logical-key conflict resolution, but the current raw batch apply
   path does not use it in a non-test path. `time_unix_ns` is metadata, not a
   reliable conflict authority. `Custom` is deferred to v0.2.
+- v0.1 sync captures normal write paths for `KeyValueTable`, `KeyTable`,
+  `ValueTable`, and `SequenceTable`. `VectorStore` is sync-covered only because
+  it persists through internal `SequenceTable` and `KeyValueTable` members.
 - `HashedKeyValueStore`, `KeyMultiValueTable`, and `AnyValueTable` are
   not replicated in v0.1; their wire format is not defined. Do not add
   `record_op()` paths for them without first extending `DESIGN.md`.
-- `VectorStore` persistence is replicated indirectly through its
-  `SequenceTable` and `KeyValueTable` members; it does not own a separate
-  MDBX write path.
+- Unsupported specialized tables must keep emitting no `ChangeOp` while sync
+  capture is attached until their wire-format semantics are designed and tested.
 
 ## Header Include Discipline
 

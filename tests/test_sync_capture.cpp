@@ -403,6 +403,50 @@ void test_vector_store_writes_via_sink() {
     }
 }
 
+void test_specialized_tables_do_not_capture_in_v01() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_specialized_deferred.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 16;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    conn->attach_sync_capture(&sink);
+
+    auto assert_no_capture = [&sink](const char* table_name) {
+        if (!sink.m_recorded.empty()) {
+            throw std::runtime_error(
+                std::string(table_name) +
+                " must not emit sync ChangeOp in v0.1 without wire-format support"
+            );
+        }
+    };
+
+    {
+        AnyValueTable<int> any_values(conn, "any_values");
+        any_values.set(1, std::string("one"));
+        assert_no_capture("AnyValueTable");
+
+        KeyMultiValueTable<int, std::string> multi_values(conn, "multi_values");
+        multi_values.insert(1, "one");
+        assert_no_capture("KeyMultiValueTable");
+        multi_values.insert(1, "uno");
+        assert_no_capture("KeyMultiValueTable");
+
+        HashedKeyValueStore<std::string, std::string> hashed(conn, "hashed_values");
+        hashed.insert_or_assign("one", "uno");
+        assert_no_capture("HashedKeyValueStore");
+    }
+
+    conn->detach_sync_capture();
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_capture_flush_on_commit() {
     using namespace mdbxc;
     const std::string p = "test_capture_flush.mdbx";
@@ -792,44 +836,54 @@ int main() {
         return 8;
     }
     try {
+        test_specialized_tables_do_not_capture_in_v01();
+        std::printf("PASS test_specialized_tables_do_not_capture_in_v01\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_specialized_tables_do_not_capture_in_v01: %s\n", e.what());
+        return 9;
+    } catch (...) {
+        std::printf("FAIL test_specialized_tables_do_not_capture_in_v01: non-std exception\n");
+        return 9;
+    }
+    try {
         test_changelog_capture_roundtrip();
         std::printf("PASS test_changelog_capture_roundtrip\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_changelog_capture_roundtrip: %s\n", e.what());
-        return 9;
+        return 10;
     } catch (...) {
         std::printf("FAIL test_changelog_capture_roundtrip: non-std exception\n");
-        return 9;
+        return 10;
     }
     try {
         test_zero_node_id_rejected();
         std::printf("PASS test_zero_node_id_rejected\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_zero_node_id_rejected: %s\n", e.what());
-        return 10;
+        return 11;
     } catch (...) {
         std::printf("FAIL test_zero_node_id_rejected: non-std exception\n");
-        return 10;
+        return 11;
     }
     try {
         test_aborted_transaction_does_not_flush();
         std::printf("PASS test_aborted_transaction_does_not_flush\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_aborted_transaction_does_not_flush: %s\n", e.what());
-        return 11;
+        return 12;
     } catch (...) {
         std::printf("FAIL test_aborted_transaction_does_not_flush: non-std exception\n");
-        return 11;
+        return 12;
     }
     try {
         test_explicit_rollback_does_not_flush();
         std::printf("PASS test_explicit_rollback_does_not_flush\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_explicit_rollback_does_not_flush: %s\n", e.what());
-        return 12;
+        return 13;
     } catch (...) {
         std::printf("FAIL test_explicit_rollback_does_not_flush: non-std exception\n");
-        return 12;
+        return 13;
     }
 
     return 0;
