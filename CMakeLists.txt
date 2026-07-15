@@ -160,14 +160,25 @@ if(MDBXC_BUILD_TESTS)
     set(MDBXC_SYNC_DISABLED_TESTS
         header_sync_disabled_test
     )
-    foreach(test_file IN LISTS TESTS)
-        get_filename_component(test_name ${test_file} NAME_WE)
+    set(MDBXC_STANDALONE_PUBLIC_HEADERS
+        mdbx_containers/common.hpp
+        mdbx_containers/AnyValueTable.hpp
+        mdbx_containers/Hash.hpp
+        mdbx_containers/HashedKeyValueStore.hpp
+        mdbx_containers/KeyMultiValueTable.hpp
+        mdbx_containers/KeyTable.hpp
+        mdbx_containers/KeyValueTable.hpp
+        mdbx_containers/SequenceTable.hpp
+        mdbx_containers/ValueTable.hpp
+    )
+
+    function(mdbxc_add_test_target test_name test_file)
         add_executable(${test_name} ${test_file})
         set_target_properties(${test_name} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests
         )
         target_compile_features(${test_name} PRIVATE cxx_std_11)
-        
+
         mdbxc_enable_asan(${test_name})
 
         target_link_libraries(${test_name} PRIVATE ${_PKG_TARGET})
@@ -201,7 +212,21 @@ if(MDBXC_BUILD_TESTS)
                 )
             endif()
         endif()
+    endfunction()
 
+    foreach(test_file IN LISTS TESTS)
+        get_filename_component(test_name ${test_file} NAME_WE)
+        mdbxc_add_test_target(${test_name} ${test_file})
+    endforeach()
+
+    set(_mdbxc_generated_test_dir "${CMAKE_CURRENT_BINARY_DIR}/generated_tests")
+    file(MAKE_DIRECTORY "${_mdbxc_generated_test_dir}")
+    foreach(header IN LISTS MDBXC_STANDALONE_PUBLIC_HEADERS)
+        string(MAKE_C_IDENTIFIER "${header}" header_target_suffix)
+        set(test_name "header_standalone_${header_target_suffix}")
+        set(test_file "${_mdbxc_generated_test_dir}/${test_name}.cpp")
+        file(WRITE "${test_file}" "#include <${header}>\n\nint main() {\n    return 0;\n}\n")
+        mdbxc_add_test_target(${test_name} ${test_file})
     endforeach()
 endif()
 
