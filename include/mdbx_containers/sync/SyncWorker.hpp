@@ -298,7 +298,10 @@ namespace sync {
 
         /// \brief Returns the most recent observer callback failure message.
         /// \details This diagnostic is independent from \c last_error().
-        /// Observer exceptions never fail the current sync round.
+        /// Observer exceptions never fail the current sync round. In
+        /// background mode, a non-empty value may describe an earlier round;
+        /// it is cleared when \c start() begins a new background session or
+        /// when foreground \c run_once() begins a new round.
         std::string last_observer_error() const {
             std::lock_guard<std::mutex> lock(m_mutex);
             return m_last_observer_error;
