@@ -1,0 +1,47 @@
+#include <mdbx_containers/sync.hpp>
+
+#include "test_assert.hpp"
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#ifndef MDBXC_SYNC_ENABLED
+#error "MDBXC_SYNC_ENABLED must be defined by the test target"
+#endif
+
+#if !MDBXC_SYNC_ENABLED
+#error "header_sync_umbrella_test must be compiled with sync enabled"
+#endif
+
+int main() {
+    mdbxc::sync::NodeId node = mdbxc::sync::make_zero_node();
+    MDBXC_TEST_ASSERT(node.size() == 16u);
+
+    mdbxc::sync::ChangeOp op;
+    op.op_type = mdbxc::sync::ChangeOpType::Put;
+    op.dbi_name = "sync_umbrella_table";
+    op.storage_key.push_back(1u);
+    op.value.push_back(2u);
+
+    mdbxc::sync::ChangeBatch batch;
+    batch.origin_node_id = node;
+    batch.seq = 1;
+    batch.ops.push_back(op);
+
+    const std::vector<std::uint8_t> encoded =
+        mdbxc::sync::ChangeBatchCodec::encode(batch);
+    const mdbxc::sync::ChangeBatch decoded =
+        mdbxc::sync::ChangeBatchCodec::decode_exact(encoded);
+    MDBXC_TEST_ASSERT(decoded.seq == 1u);
+    MDBXC_TEST_ASSERT(decoded.ops.size() == 1u);
+    MDBXC_TEST_ASSERT(decoded.ops[0].dbi_name == "sync_umbrella_table");
+
+    mdbxc::sync::CancellationSource source;
+    const mdbxc::sync::CancellationToken token = source.token();
+    MDBXC_TEST_ASSERT(token.can_be_cancelled());
+    source.request_cancel();
+    MDBXC_TEST_ASSERT(token.is_cancellation_requested());
+
+    return 0;
+}
