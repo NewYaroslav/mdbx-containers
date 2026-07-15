@@ -331,6 +331,7 @@ table.insert_or_assign(42, MyData{42, 3.14});
 
 - See the `examples/` directory for more examples. Sync topology examples are
   summarized in `examples/README-sync.md`.
+- Sync benchmark commands and CSV notes are in `benchmarks/README-sync.md`.
 - API and architecture information lives in the Doxygen source pages under `docs/*.dox`.
 - Documentation can be generated with Doxygen; generated `docs/html/` and `docs/latex/` output should not be edited manually.
 

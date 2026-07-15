@@ -53,6 +53,7 @@ struct PhaseMetrics {
     std::uint64_t pulled_batches = 0;
     std::uint64_t applied_batches = 0;
     std::uint64_t pull_pages = 0;
+    std::uint64_t origin_index_entries = 0;
     double        seed_ms = 0.0;
     double        restart_ms = 0.0;
     double        pull_ms = 0.0;
@@ -242,21 +243,95 @@ std::vector<Scenario> default_scenarios() {
     return scenarios;
 }
 
+std::vector<Scenario> realistic_scenarios() {
+    std::vector<Scenario> scenarios;
+
+    Scenario large_history;
+    large_history.name = "hub_32_origins_large_history";
+    large_history.origins = 32;
+    large_history.historical_chunks_per_origin = 2048;
+    large_history.new_chunks_per_origin = 16;
+    large_history.ticks_per_chunk = 64;
+    large_history.max_batches = 128;
+    large_history.max_bytes = default_max_bytes;
+    scenarios.push_back(large_history);
+
+    Scenario sparse_hot;
+    sparse_hot.name = "hub_128_origins_sparse_hot";
+    sparse_hot.origins = 128;
+    sparse_hot.historical_chunks_per_origin = 512;
+    sparse_hot.new_chunks_per_origin = 2;
+    sparse_hot.ticks_per_chunk = 64;
+    sparse_hot.max_batches = 64;
+    sparse_hot.max_bytes = default_max_bytes;
+    scenarios.push_back(sparse_hot);
+
+    Scenario many_origins;
+    many_origins.name = "hub_256_origins_many_small_chunks";
+    many_origins.origins = 256;
+    many_origins.historical_chunks_per_origin = 256;
+    many_origins.new_chunks_per_origin = 1;
+    many_origins.ticks_per_chunk = 16;
+    many_origins.max_batches = 128;
+    many_origins.max_bytes = default_max_bytes;
+    scenarios.push_back(many_origins);
+
+    return scenarios;
+}
+
+std::vector<Scenario> preset_scenarios(const std::string& preset) {
+    if (preset == "quick") {
+        return default_scenarios();
+    }
+    if (preset == "realistic") {
+        return realistic_scenarios();
+    }
+    throw std::runtime_error("unknown benchmark preset: " + preset);
+}
+
+void print_usage() {
+    std::cout
+        << "usage: sync_tick_hub_benchmark "
+        << "[origins historical_chunks_per_origin new_chunks_per_origin "
+        << "ticks_per_chunk max_batches max_bytes]\n"
+        << "       sync_tick_hub_benchmark --preset quick\n"
+        << "       sync_tick_hub_benchmark --preset realistic\n"
+        << "       sync_tick_hub_benchmark --list-presets\n"
+        << "\n"
+        << "Without arguments, runs the quick built-in scenario matrix.\n"
+        << "Positional arguments are optional from left to right; omitted\n"
+        << "trailing values use the built-in custom-scenario defaults.\n"
+        << "The new_chunks_per_origin value is used for both hot and "
+        << "after-restart incremental phases.\n";
+}
+
 std::vector<Scenario> parse_scenarios(int argc, char** argv) {
     if (argc == 1) {
-        return default_scenarios();
+        return preset_scenarios("quick");
     }
     if (std::string(argv[1]) == "--help" ||
         std::string(argv[1]) == "-h") {
-        std::cout
-            << "usage: sync_tick_hub_benchmark "
-            << "[origins historical_chunks_per_origin new_chunks_per_origin "
-            << "ticks_per_chunk max_batches max_bytes]\n"
-            << "\n"
-            << "Without arguments, runs a small built-in scenario matrix.\n"
-            << "The new_chunks_per_origin value is used for both hot and "
-            << "after-restart incremental phases.\n";
+        print_usage();
         std::exit(0);
+    }
+    if (std::string(argv[1]) == "--list-presets") {
+        if (argc != 2) {
+            throw std::runtime_error("--list-presets does not accept arguments");
+        }
+        std::cout << "quick\nrealistic\n";
+        std::exit(0);
+    }
+    if (std::string(argv[1]) == "--preset") {
+        if (argc != 3) {
+            throw std::runtime_error("--preset expects exactly one preset name");
+        }
+        return preset_scenarios(argv[2]);
+    }
+    if (argv[1][0] == '-') {
+        throw std::runtime_error(std::string("unknown option: ") + argv[1]);
+    }
+    if (argc > 7) {
+        throw std::runtime_error("too many positional arguments");
     }
 
     Scenario scenario;
@@ -522,6 +597,7 @@ PhaseMetrics run_sync_phase(const std::string& phase,
     metrics.pulled_batches = sync.pulled_batches;
     metrics.applied_batches = sync.applied_batches;
     metrics.pull_pages = sync.pull_pages;
+    metrics.origin_index_entries = count_origin_index_entries(primary_conn);
     metrics.seed_ms = seed_ms;
     metrics.restart_ms = restart_ms;
     metrics.pull_ms = sync.pull_ms;
@@ -542,7 +618,8 @@ void print_csv_header() {
         << "scenario,phase,origins,historical_chunks_per_origin,"
         << "new_chunks_per_origin,chunks_per_origin,ticks_per_chunk,"
         << "max_batches,max_bytes,seeded_batches,pulled_batches,"
-        << "applied_batches,pull_pages,seed_ms,restart_ms,pull_ms,"
+        << "applied_batches,pull_pages,origin_index_entries,"
+        << "seed_ms,restart_ms,pull_ms,"
         << "apply_ms,total_ms,batches_per_sec,primary_bytes,replica_bytes\n";
 }
 
@@ -568,6 +645,7 @@ void print_csv_row(const Scenario& scenario,
               << metrics.pulled_batches << ','
               << metrics.applied_batches << ','
               << metrics.pull_pages << ','
+              << metrics.origin_index_entries << ','
               << metrics.seed_ms << ','
               << metrics.restart_ms << ','
               << metrics.pull_ms << ','
