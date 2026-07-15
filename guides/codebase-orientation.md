@@ -14,8 +14,8 @@ of truth.
 
 | Path | Purpose | Edit when |
 | --- | --- | --- |
-| `include/mdbx_containers.hpp` | Top-level public include for all table headers. | Changing the umbrella API. |
-| `include/mdbx_containers/*.hpp` | Public headers: table APIs plus small supported helpers such as `Hash.hpp`. | Changing table user APIs or reusable user-facing helpers. |
+| `include/mdbx_containers.hpp` | Top-level public include for tables, sync, and vector APIs. | Changing the umbrella API. |
+| `include/mdbx_containers/*.hpp` | Public headers: aggregators, table APIs, and supported helpers such as `Hash.hpp`. | Changing table user APIs or reusable user-facing helpers. |
 | `include/mdbx_containers/common/` | Core infrastructure: `Config`, `Connection`, `Transaction`, `MdbxException`. | Changing env/config/transaction/error behavior. |
 | `include/mdbx_containers/detail/` | Internal building blocks: `BaseTable`, `TransactionTracker`, serialization, path utilities, vendored/private helpers. Not public API. | Changing shared mechanisms. |
 | `tests/` | Standalone CTest executables. | Adding behavior, regressions, serialization, path, or transaction checks. |

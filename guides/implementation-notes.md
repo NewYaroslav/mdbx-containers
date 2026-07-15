@@ -211,11 +211,13 @@ Operational rules:
 
 ## Header Include Discipline
 
-- The only top-level include points are `mdbx_containers.hpp` (umbrella for
-  all table wrappers) and the per-domain aggregators: `common.hpp`,
-  `vector.hpp`, `sync.hpp`. End users must not include subdomain headers
-  directly (`common/...`, `detail/...`, `sync/...`); they include through
-  the aggregator that already pulls the right pieces in the right order.
+- Supported public include points are `mdbx_containers.hpp` (umbrella for the
+  full public surface), the per-domain aggregators `common.hpp`, `tables.hpp`,
+  `vector.hpp`, `sync.hpp`, and the root table/helper headers such as
+  `KeyValueTable.hpp`, `ValueTable.hpp`, and `Hash.hpp`. End users must not
+  include subdomain or internal headers directly (`common/...`, `detail/...`,
+  `sync/...`, `vector/...`); they include through the aggregator that already
+  pulls the right pieces in the right order.
 - Inside `include/mdbx_containers/`, leaf headers under one subdomain may
   rely on the umbrella having included the cross-domain prerequisites. Do
   not self-contain every dependency; that spreads ordering decisions across
