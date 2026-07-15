@@ -269,6 +269,10 @@ Worker invariants:
 - lifecycle mutations (`start`, `stop`, `join`, `run_once`) are caller-serialized,
   while `request_stop`, `state`, `last_error`, and `wait_until_state` are
   thread-safe;
+- optional `ISyncWorkerObserver` callbacks report page application, round
+  completion, and backoff entry synchronously on the thread that runs the sync
+  round; observer implementations must outlive the worker, return quickly, and
+  avoid caller-serialized lifecycle calls from worker-thread callbacks;
 - the `SyncWorker` object must outlive its background thread and must not be
   destroyed from callbacks running on that worker thread;
 - `Transaction`, raw `MDBX_txn*`, and cursors stay on the thread that opened

@@ -23,6 +23,8 @@
 namespace mdbxc {
 namespace sync {
 
+    class ISyncWorkerObserver;
+
     /// \brief Runtime state of a \c SyncWorker.
     enum class SyncWorkerState {
         Stopped,  ///< No worker thread is running.
@@ -57,6 +59,11 @@ namespace sync {
 
         /// \brief Whether one round drains all \c has_more pages immediately.
         bool drain_pages = true;
+
+        /// \brief Optional observer for page, round, and backoff events.
+        /// \details The worker does not own the observer. When set, the
+        /// observer must outlive the worker.
+        ISyncWorkerObserver* observer = nullptr;
     };
 
     /// \brief Result of one \c SyncWorker sync round.
@@ -68,15 +75,57 @@ namespace sync {
         std::string error; ///< Failure detail when \c ok is false.
     };
 
+    /// \brief Details for a successfully applied page.
+    struct SyncWorkerPageEvent {
+        std::size_t pages_pulled = 0; ///< 1-based page count in the round.
+        std::size_t batches_applied = 0; ///< Batches applied by this page.
+        bool        has_more = false; ///< Whether the peer reported more pages.
+        SyncCursor  applied_cursor; ///< Receiver cursor after the page commit.
+    };
+
+    /// \brief Optional observer for \c SyncWorker progress.
+    /// \details Callbacks are invoked synchronously on the thread that runs the
+    /// sync round: the caller thread for \c run_once() and the worker thread for
+    /// \c start(). Implementations should return quickly and must not call
+    /// caller-serialized lifecycle methods such as \c stop(), \c join(), or
+    /// \c run_once() from a worker callback. Exceptions are caught and recorded
+    /// in \c last_error(); they do not fail the sync round.
+    class ISyncWorkerObserver {
+    public:
+        virtual ~ISyncWorkerObserver() {}
+
+        /// \brief Called after a pulled page was applied locally.
+        virtual void on_sync_worker_page_applied(
+                const SyncWorkerPageEvent& event) {
+            (void)event;
+        }
+
+        /// \brief Called after one sync round finishes.
+        virtual void on_sync_worker_round_completed(
+                const SyncWorkerRoundResult& result) {
+            (void)result;
+        }
+
+        /// \brief Called when the background worker enters backoff.
+        virtual void on_sync_worker_backoff(
+                const SyncWorkerRoundResult& result,
+                std::chrono::milliseconds delay) {
+            (void)result;
+            (void)delay;
+        }
+    };
+
     /// \brief Drives incremental pull/apply sync in a caller-owned lifecycle.
     /// \details The worker owns only its std::thread. It does not own the
     /// supplied \c SyncEngine or \c ISyncPeer; both must outlive the worker.
     /// The \c SyncWorker object itself must outlive its worker thread and must
     /// not be destroyed from callbacks running on that worker thread.
     /// Lifecycle mutations (\c start(), \c stop(), \c join(), \c run_once())
-    /// must be serialized by the caller. Observers and stop signalling
+    /// must be serialized by the caller. State observers and stop signalling
     /// (\c state(), \c last_error(), \c wait_until_state(),
     /// \c request_stop()) are thread-safe.
+    /// Optional \c ISyncWorkerObserver callbacks run synchronously on the
+    /// thread that executes the sync round.
     ///
     /// The implementation never keeps a local MDBX transaction open while
     /// waiting in \c ISyncPeer::pull(), idle sleep, or backoff sleep. Pulled
@@ -215,6 +264,7 @@ namespace sync {
                 m_last_error.clear();
             }
             const SyncWorkerRoundResult result = run_once_impl();
+            notify_round_completed(result);
             if (stop_requested()) {
                 set_state(SyncWorkerState::Stopped);
                 return result;
@@ -370,6 +420,14 @@ namespace sync {
                     }
 
                     request.have = m_engine.applied_cursor();
+                    if (!response.batches.empty()) {
+                        SyncWorkerPageEvent event;
+                        event.pages_pulled = result.pages_pulled;
+                        event.batches_applied = response.batches.size();
+                        event.has_more = has_more;
+                        event.applied_cursor = request.have;
+                        notify_page_applied(event);
+                    }
                     if (has_more &&
                         request.have.last_seq_by_origin == before.last_seq_by_origin) {
                         result.ok = false;
@@ -386,6 +444,59 @@ namespace sync {
                 result.error = "unknown sync worker error";
             }
             return result;
+        }
+
+        void notify_page_applied(const SyncWorkerPageEvent& event) const {
+            if (m_options.observer == nullptr) {
+                return;
+            }
+            try {
+                m_options.observer->on_sync_worker_page_applied(event);
+            } catch (const std::exception& e) {
+                record_observer_error("on_sync_worker_page_applied", e.what());
+            } catch (...) {
+                record_observer_error("on_sync_worker_page_applied", nullptr);
+            }
+        }
+
+        void notify_round_completed(
+                const SyncWorkerRoundResult& result) const {
+            if (m_options.observer == nullptr) {
+                return;
+            }
+            try {
+                m_options.observer->on_sync_worker_round_completed(result);
+            } catch (const std::exception& e) {
+                record_observer_error("on_sync_worker_round_completed", e.what());
+            } catch (...) {
+                record_observer_error("on_sync_worker_round_completed", nullptr);
+            }
+        }
+
+        void notify_backoff(const SyncWorkerRoundResult& result,
+                            std::chrono::milliseconds delay) const {
+            if (m_options.observer == nullptr) {
+                return;
+            }
+            try {
+                m_options.observer->on_sync_worker_backoff(result, delay);
+            } catch (const std::exception& e) {
+                record_observer_error("on_sync_worker_backoff", e.what());
+            } catch (...) {
+                record_observer_error("on_sync_worker_backoff", nullptr);
+            }
+        }
+
+        void record_observer_error(const char* callback,
+                                   const char* detail) const {
+            std::string error = "SyncWorker observer ";
+            error += callback;
+            error += " failed";
+            if (detail != nullptr && detail[0] != '\0') {
+                error += ": ";
+                error += detail;
+            }
+            set_last_error(error);
         }
 
         bool begin_peer_call(CancellationToken& token) const {
@@ -430,6 +541,7 @@ namespace sync {
                 set_state(SyncWorkerState::Idle);
                 while (!stop_requested()) {
                     const SyncWorkerRoundResult result = run_once_impl();
+                    notify_round_completed(result);
                     if (stop_requested()) {
                         break;
                     }
@@ -442,6 +554,7 @@ namespace sync {
                     } else {
                         set_last_error(result.error);
                         set_state(SyncWorkerState::Backoff);
+                        notify_backoff(result, backoff);
                         if (wait_for_stop(backoff)) {
                             break;
                         }

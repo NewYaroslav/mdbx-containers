@@ -331,6 +331,84 @@ private:
     bool m_saw_logic_error;
 };
 
+class RecordingWorkerObserver : public mdbxc::sync::ISyncWorkerObserver {
+public:
+    struct BackoffRecord {
+        mdbxc::sync::SyncWorkerRoundResult result;
+        std::chrono::milliseconds delay;
+    };
+
+    void on_sync_worker_page_applied(
+            const mdbxc::sync::SyncWorkerPageEvent& event) override {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_pages.push_back(event);
+        }
+        m_changed.notify_all();
+    }
+
+    void on_sync_worker_round_completed(
+            const mdbxc::sync::SyncWorkerRoundResult& result) override {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_rounds.push_back(result);
+        }
+        m_changed.notify_all();
+    }
+
+    void on_sync_worker_backoff(
+            const mdbxc::sync::SyncWorkerRoundResult& result,
+            std::chrono::milliseconds delay) override {
+        BackoffRecord record;
+        record.result = result;
+        record.delay = delay;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_backoffs.push_back(record);
+        }
+        m_changed.notify_all();
+    }
+
+    std::vector<mdbxc::sync::SyncWorkerPageEvent> pages() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_pages;
+    }
+
+    std::vector<mdbxc::sync::SyncWorkerRoundResult> rounds() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_rounds;
+    }
+
+    std::vector<BackoffRecord> backoffs() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_backoffs;
+    }
+
+    bool wait_for_backoffs(std::size_t count,
+                           std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this, count] { return m_backoffs.size() >= count; });
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    std::vector<mdbxc::sync::SyncWorkerPageEvent> m_pages;
+    std::vector<mdbxc::sync::SyncWorkerRoundResult> m_rounds;
+    std::vector<BackoffRecord> m_backoffs;
+};
+
+class ThrowingRoundObserver : public mdbxc::sync::ISyncWorkerObserver {
+public:
+    void on_sync_worker_round_completed(
+            const mdbxc::sync::SyncWorkerRoundResult& result) override {
+        (void)result;
+        throw std::runtime_error("observer boom");
+    }
+};
+
 void expect_invalid_options(mdbxc::sync::SyncEngine& engine,
                             mdbxc::sync::ISyncPeer& peer,
                             const mdbxc::sync::SyncWorkerOptions& options,
@@ -377,9 +455,11 @@ void test_worker_run_once_drains_paginated_pull() {
     primary_conn->detach_sync_capture();
 
     sync::DirectSyncPeer peer(&primary_engine);
+    RecordingWorkerObserver observer;
     sync::SyncWorkerOptions options;
     options.max_batches = 2;
     options.idle_interval = std::chrono::milliseconds(1);
+    options.observer = &observer;
 
     sync::SyncWorker worker(replica_engine, peer, options);
     const sync::SyncWorkerRoundResult result = worker.run_once();
@@ -391,6 +471,28 @@ void test_worker_run_once_drains_paginated_pull() {
     }
     if (worker.state() != sync::SyncWorkerState::Stopped) {
         throw std::runtime_error("worker run_once should finish Stopped");
+    }
+    const std::vector<sync::SyncWorkerPageEvent> pages = observer.pages();
+    if (pages.size() != 3u) {
+        throw std::runtime_error("worker observer did not see all pages");
+    }
+    if (pages[0].batches_applied != 2u || !pages[0].has_more ||
+        pages[0].applied_cursor.last_seq_for(primary_node) != 2u) {
+        throw std::runtime_error("worker observer first page mismatch");
+    }
+    if (pages[1].batches_applied != 2u || !pages[1].has_more ||
+        pages[1].applied_cursor.last_seq_for(primary_node) != 4u) {
+        throw std::runtime_error("worker observer second page mismatch");
+    }
+    if (pages[2].batches_applied != 1u || pages[2].has_more ||
+        pages[2].applied_cursor.last_seq_for(primary_node) != 5u) {
+        throw std::runtime_error("worker observer final page mismatch");
+    }
+    const std::vector<sync::SyncWorkerRoundResult> rounds = observer.rounds();
+    if (rounds.size() != 1u || !rounds[0].ok ||
+        rounds[0].pages_pulled != 3u ||
+        rounds[0].batches_applied != 5u) {
+        throw std::runtime_error("worker observer round mismatch");
     }
 
     KeyValueTable<int, int> replica_kv(replica_conn, "kv");
@@ -450,9 +552,11 @@ void test_worker_backoff_on_pull_error() {
     engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
 
     FailingPeer peer;
+    RecordingWorkerObserver observer;
     sync::SyncWorkerOptions options;
     options.initial_backoff = std::chrono::milliseconds(10000);
     options.max_backoff = std::chrono::milliseconds(10000);
+    options.observer = &observer;
     sync::SyncWorker worker(engine, peer, options);
 
     worker.start();
@@ -463,12 +567,55 @@ void test_worker_backoff_on_pull_error() {
     if (worker.last_error().find("synthetic pull failure") == std::string::npos) {
         throw std::runtime_error("worker did not record pull error");
     }
+    if (!observer.wait_for_backoffs(1u, std::chrono::milliseconds(2000))) {
+        throw std::runtime_error("worker observer did not see backoff");
+    }
+    const std::vector<sync::SyncWorkerRoundResult> rounds = observer.rounds();
+    if (rounds.empty() || rounds[0].ok ||
+        rounds[0].error.find("synthetic pull failure") == std::string::npos) {
+        throw std::runtime_error("worker observer round error mismatch");
+    }
+    const std::vector<RecordingWorkerObserver::BackoffRecord> backoffs =
+        observer.backoffs();
+    if (backoffs[0].delay != std::chrono::milliseconds(10000) ||
+        backoffs[0].result.ok ||
+        backoffs[0].result.error.find("synthetic pull failure") ==
+            std::string::npos) {
+        throw std::runtime_error("worker observer backoff mismatch");
+    }
     worker.stop();
     if (worker.state() != sync::SyncWorkerState::Stopped) {
         throw std::runtime_error("backoff worker did not stop");
     }
     if (peer.cancel_count() != 0) {
         throw std::runtime_error("backoff stop should not cancel peer transport");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_worker_observer_exception_does_not_fail_round() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_observer_exception.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    EmptyPeer peer;
+    ThrowingRoundObserver observer;
+    sync::SyncWorkerOptions options;
+    options.observer = &observer;
+    sync::SyncWorker worker(engine, peer, options);
+
+    const sync::SyncWorkerRoundResult result = worker.run_once();
+    if (!result.ok) {
+        throw std::runtime_error("observer exception failed sync round");
+    }
+    if (worker.last_error().find("observer boom") == std::string::npos) {
+        throw std::runtime_error("observer exception was not recorded");
     }
 
     conn->disconnect();
@@ -744,6 +891,8 @@ int main() {
           &test_worker_run_once_drains_paginated_pull },
         { "test_worker_start_stop_idle", &test_worker_start_stop_idle },
         { "test_worker_backoff_on_pull_error", &test_worker_backoff_on_pull_error },
+        { "test_worker_observer_exception_does_not_fail_round",
+          &test_worker_observer_exception_does_not_fail_round },
         { "test_worker_rejects_invalid_options",
           &test_worker_rejects_invalid_options },
         { "test_worker_stop_while_pull_blocked",
