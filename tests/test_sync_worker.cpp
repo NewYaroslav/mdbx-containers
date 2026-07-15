@@ -13,6 +13,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -409,6 +410,56 @@ public:
     }
 };
 
+class ThrowingPageObserver : public mdbxc::sync::ISyncWorkerObserver {
+public:
+    ThrowingPageObserver() : m_page_count(0) {}
+
+    void on_sync_worker_page_applied(
+            const mdbxc::sync::SyncWorkerPageEvent& event) override {
+        (void)event;
+        ++m_page_count;
+        throw std::runtime_error("page observer boom");
+    }
+
+    int page_count() const {
+        return m_page_count;
+    }
+
+private:
+    int m_page_count;
+};
+
+class ThrowingBackoffObserver : public mdbxc::sync::ISyncWorkerObserver {
+public:
+    ThrowingBackoffObserver() : m_backoff_count(0) {}
+
+    void on_sync_worker_backoff(
+            const mdbxc::sync::SyncWorkerRoundResult& result,
+            std::chrono::milliseconds delay) override {
+        (void)result;
+        (void)delay;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            ++m_backoff_count;
+        }
+        m_changed.notify_all();
+        throw std::runtime_error("backoff observer boom");
+    }
+
+    bool wait_for_backoffs(int count,
+                           std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this, count] { return m_backoff_count >= count; });
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    int m_backoff_count;
+};
+
 void expect_invalid_options(mdbxc::sync::SyncEngine& engine,
                             mdbxc::sync::ISyncPeer& peer,
                             const mdbxc::sync::SyncWorkerOptions& options,
@@ -614,12 +665,157 @@ void test_worker_observer_exception_does_not_fail_round() {
     if (!result.ok) {
         throw std::runtime_error("observer exception failed sync round");
     }
-    if (worker.last_error().find("observer boom") == std::string::npos) {
+    if (!worker.last_error().empty()) {
+        throw std::runtime_error("observer exception polluted last_error");
+    }
+    if (worker.last_observer_error().find("observer boom") ==
+        std::string::npos) {
         throw std::runtime_error("observer exception was not recorded");
     }
 
     conn->disconnect();
     cleanup(path);
+}
+
+void test_worker_observer_exception_keeps_pull_error() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_observer_pull_error.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    FailingPeer peer;
+    ThrowingRoundObserver observer;
+    sync::SyncWorkerOptions options;
+    options.observer = &observer;
+    sync::SyncWorker worker(engine, peer, options);
+
+    const sync::SyncWorkerRoundResult result = worker.run_once();
+    if (result.ok ||
+        result.error.find("synthetic pull failure") == std::string::npos) {
+        throw std::runtime_error("failing peer result was not preserved");
+    }
+    if (worker.state() != sync::SyncWorkerState::Failed) {
+        throw std::runtime_error("failing observer round should leave Failed");
+    }
+    if (worker.last_error().find("synthetic pull failure") ==
+        std::string::npos) {
+        throw std::runtime_error("pull error was not kept in last_error");
+    }
+    if (worker.last_observer_error().find("observer boom") ==
+        std::string::npos) {
+        throw std::runtime_error("round observer error was not recorded");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_worker_backoff_observer_exception_keeps_pull_error() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_observer_backoff_error.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    FailingPeer peer;
+    ThrowingBackoffObserver observer;
+    sync::SyncWorkerOptions options;
+    options.initial_backoff = std::chrono::milliseconds(10000);
+    options.max_backoff = std::chrono::milliseconds(10000);
+    options.observer = &observer;
+    sync::SyncWorker worker(engine, peer, options);
+
+    worker.start();
+    if (!observer.wait_for_backoffs(1, std::chrono::milliseconds(2000))) {
+        throw std::runtime_error("backoff observer was not called");
+    }
+    if (worker.last_error().find("synthetic pull failure") ==
+        std::string::npos) {
+        throw std::runtime_error("backoff observer overwrote pull error");
+    }
+    bool observer_error_recorded = false;
+    for (int i = 0; i < 200; ++i) {
+        if (worker.last_observer_error().find("backoff observer boom") !=
+            std::string::npos) {
+            observer_error_recorded = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (!observer_error_recorded) {
+        throw std::runtime_error("backoff observer error was not recorded");
+    }
+    worker.stop();
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("backoff observer worker did not stop");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_worker_page_observer_exception_does_not_fail_round() {
+    using namespace mdbxc;
+    const std::string primary_path = "test_worker_page_observer_primary.mdbx";
+    const std::string replica_path = "test_worker_page_observer_replica.mdbx";
+    cleanup(primary_path);
+    cleanup(replica_path);
+
+    std::shared_ptr<Connection> primary_conn = open_env(primary_path);
+    std::shared_ptr<Connection> replica_conn = open_env(replica_path);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+
+    sync::SyncEngine primary_engine(primary_conn);
+    sync::SyncEngine replica_engine(replica_conn);
+    primary_engine.initialize_local_identity(primary_node, db_id);
+    replica_engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ThreadLocalChangeAccumulator sink(primary_conn);
+    primary_conn->attach_sync_capture(&sink);
+    {
+        KeyValueTable<int, int> kv(primary_conn, "kv");
+        kv.insert_or_assign(1, 10);
+    }
+    primary_conn->detach_sync_capture();
+
+    sync::DirectSyncPeer peer(&primary_engine);
+    ThrowingPageObserver observer;
+    sync::SyncWorkerOptions options;
+    options.observer = &observer;
+    sync::SyncWorker worker(replica_engine, peer, options);
+
+    const sync::SyncWorkerRoundResult result = worker.run_once();
+    if (!result.ok) {
+        throw std::runtime_error("page observer exception failed sync round");
+    }
+    if (observer.page_count() != 1) {
+        throw std::runtime_error("page observer was not called once");
+    }
+    if (!worker.last_error().empty()) {
+        throw std::runtime_error("page observer exception polluted last_error");
+    }
+    if (worker.last_observer_error().find("page observer boom") ==
+        std::string::npos) {
+        throw std::runtime_error("page observer error was not recorded");
+    }
+
+    KeyValueTable<int, int> replica_kv(replica_conn, "kv");
+    if (kv_or_throw(replica_conn, replica_kv, 1, "replica kv") != 10) {
+        throw std::runtime_error("replica value missing after page observer error");
+    }
+
+    primary_conn->disconnect();
+    replica_conn->disconnect();
+    cleanup(primary_path);
+    cleanup(replica_path);
 }
 
 void test_worker_rejects_invalid_options() {
@@ -893,6 +1089,12 @@ int main() {
         { "test_worker_backoff_on_pull_error", &test_worker_backoff_on_pull_error },
         { "test_worker_observer_exception_does_not_fail_round",
           &test_worker_observer_exception_does_not_fail_round },
+        { "test_worker_observer_exception_keeps_pull_error",
+          &test_worker_observer_exception_keeps_pull_error },
+        { "test_worker_backoff_observer_exception_keeps_pull_error",
+          &test_worker_backoff_observer_exception_keeps_pull_error },
+        { "test_worker_page_observer_exception_does_not_fail_round",
+          &test_worker_page_observer_exception_does_not_fail_round },
         { "test_worker_rejects_invalid_options",
           &test_worker_rejects_invalid_options },
         { "test_worker_stop_while_pull_blocked",

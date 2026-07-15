@@ -89,7 +89,8 @@ namespace sync {
     /// \c start(). Implementations should return quickly and must not call
     /// caller-serialized lifecycle methods such as \c stop(), \c join(), or
     /// \c run_once() from a worker callback. Exceptions are caught and recorded
-    /// in \c last_error(); they do not fail the sync round.
+    /// in \c last_observer_error(); they do not fail the sync round and do not
+    /// overwrite \c last_error().
     class ISyncWorkerObserver {
     public:
         virtual ~ISyncWorkerObserver() {}
@@ -122,8 +123,8 @@ namespace sync {
     /// not be destroyed from callbacks running on that worker thread.
     /// Lifecycle mutations (\c start(), \c stop(), \c join(), \c run_once())
     /// must be serialized by the caller. State observers and stop signalling
-    /// (\c state(), \c last_error(), \c wait_until_state(),
-    /// \c request_stop()) are thread-safe.
+    /// (\c state(), \c last_error(), \c last_observer_error(),
+    /// \c wait_until_state(), \c request_stop()) are thread-safe.
     /// Optional \c ISyncWorkerObserver callbacks run synchronously on the
     /// thread that executes the sync round.
     ///
@@ -182,6 +183,7 @@ namespace sync {
                 m_peer_call_active = false;
                 m_peer_cancel_requested = false;
                 m_last_error.clear();
+                m_last_observer_error.clear();
                 m_state = SyncWorkerState::Starting;
             }
             m_state_changed.notify_all();
@@ -262,6 +264,7 @@ namespace sync {
                 m_peer_call_active = false;
                 m_peer_cancel_requested = false;
                 m_last_error.clear();
+                m_last_observer_error.clear();
             }
             const SyncWorkerRoundResult result = run_once_impl();
             notify_round_completed(result);
@@ -284,10 +287,21 @@ namespace sync {
             return m_state;
         }
 
-        /// \brief Returns the most recent failure message.
+        /// \brief Returns the most recent sync worker failure message.
+        /// \details Observer callback exceptions are reported separately via
+        /// \c last_observer_error() so they do not overwrite pull, apply,
+        /// cancellation, or lifecycle errors.
         std::string last_error() const {
             std::lock_guard<std::mutex> lock(m_mutex);
             return m_last_error;
+        }
+
+        /// \brief Returns the most recent observer callback failure message.
+        /// \details This diagnostic is independent from \c last_error().
+        /// Observer exceptions never fail the current sync round.
+        std::string last_observer_error() const {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return m_last_observer_error;
         }
 
         /// \brief Waits until \p desired is observed or \p timeout expires.
@@ -496,7 +510,7 @@ namespace sync {
                 error += ": ";
                 error += detail;
             }
-            set_last_error(error);
+            set_last_observer_error(error);
         }
 
         bool begin_peer_call(CancellationToken& token) const {
@@ -607,6 +621,11 @@ namespace sync {
             m_last_error = error;
         }
 
+        void set_last_observer_error(const std::string& error) const {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_last_observer_error = error;
+        }
+
         SyncEngine&                 m_engine;
         ISyncPeer&                  m_peer;
         SyncWorkerOptions           m_options;
@@ -619,6 +638,7 @@ namespace sync {
         mutable bool                m_peer_cancel_requested;
         mutable CancellationSource  m_peer_cancel_source;
         mutable std::string         m_last_error;
+        mutable std::string         m_last_observer_error;
     };
 
 } // namespace sync
