@@ -108,6 +108,14 @@ the sync core, pagination, and local apply path rather than network transport
 latency.
 CI also builds this benchmark target and runs a small custom scenario as a
 smoke check; full measurement runs remain manual.
+The benchmark supports named presets:
+
+```bash
+sync_tick_hub_benchmark --preset quick
+sync_tick_hub_benchmark --preset realistic
+sync_tick_hub_benchmark --list-presets
+```
+
 Pass positional arguments to run one custom scenario:
 
 ```bash

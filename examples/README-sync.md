@@ -7,6 +7,22 @@ visible without adding HTTP, WebSocket, or IPC code.
 Sync is opt-in. The examples are built with `MDBXC_SYNC_ENABLED=1`; applications
 must also compile sync users with that macro enabled.
 
+## Build And Run
+
+```bash
+cmake -S . -B tmp/build-examples \
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_TESTS=OFF \
+    -DMDBXC_BUILD_EXAMPLES=ON \
+    -DCMAKE_CXX_STANDARD=17
+
+cmake --build tmp/build-examples --target sync_01_lifecycle_direct_peer
+tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
+```
+
+Replace the target name with any example from the table below. On Windows the
+executable has the `.exe` suffix.
+
 ## Reading Order
 
 | Example | What it demonstrates | Level |

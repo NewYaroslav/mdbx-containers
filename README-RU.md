@@ -360,7 +360,8 @@ table.insert_or_assign(42, MyData{42, 3.14});
 ## 📚 Документация
 
 - Больше примеров см. в каталоге `examples/`. Примеры топологий sync кратко
-  описаны в `examples/README-sync.md`.
+  описаны в `examples/README-sync-RU.md`.
+- Команды benchmark-а sync и описание CSV находятся в `benchmarks/README-sync-RU.md`.
 - Информация об API и архитектуре находится в Doxygen-страницах `docs/*.dox`.
 - Документацию можно сгенерировать через Doxygen; сгенерированные
   `docs/html/` и `docs/latex/` нельзя редактировать вручную.
