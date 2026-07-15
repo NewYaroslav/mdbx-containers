@@ -296,8 +296,11 @@ void print_usage() {
         << "ticks_per_chunk max_batches max_bytes]\n"
         << "       sync_tick_hub_benchmark --preset quick\n"
         << "       sync_tick_hub_benchmark --preset realistic\n"
+        << "       sync_tick_hub_benchmark --list-presets\n"
         << "\n"
         << "Without arguments, runs the quick built-in scenario matrix.\n"
+        << "Positional arguments are optional from left to right; omitted\n"
+        << "trailing values use the built-in custom-scenario defaults.\n"
         << "The new_chunks_per_origin value is used for both hot and "
         << "after-restart incremental phases.\n";
 }

@@ -30,8 +30,8 @@ FetchContent lookup. Parent-provided targets take precedence over
 
 Use `tmp/` inside the repository for local verification builds, installs,
 consumer projects, and other scratch outputs. Keep these directories untracked
-and disposable. Do not scatter verification directories beside the repository
-unless the user explicitly asks for an out-of-worktree location.
+and disposable. Use an external build directory only when isolation from the
+working tree is specifically required.
 
 Configure, build, and test C++17:
 
@@ -101,6 +101,12 @@ cmake --build tmp/build-bench --target sync_tick_hub_benchmark
 tmp/build-bench/bin/benchmarks/sync_tick_hub_benchmark
 ```
 
+On Windows the executable has the `.exe` suffix, for example:
+
+```powershell
+.\tmp\build-bench\bin\benchmarks\sync_tick_hub_benchmark.exe --preset quick
+```
+
 `sync_tick_hub_benchmark` prints CSV rows for full cold-replica sync,
 incremental hot sync, and incremental sync after restarting both connections
 and sync engines. It uses `DirectSyncPeer` in one process, so the timings measure
@@ -108,6 +114,8 @@ the sync core, pagination, and local apply path rather than network transport
 latency.
 CI also builds this benchmark target and runs a small custom scenario as a
 smoke check; full measurement runs remain manual.
+See [`benchmarks/README-sync.md`](../benchmarks/README-sync.md) for scenario
+parameters, CSV columns, and measurement guidelines.
 The benchmark supports named presets:
 
 ```bash
