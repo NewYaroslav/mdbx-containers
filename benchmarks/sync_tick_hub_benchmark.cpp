@@ -620,18 +620,29 @@ void print_csv_header() {
         << "max_batches,max_bytes,seeded_batches,pulled_batches,"
         << "applied_batches,pull_pages,origin_index_entries,"
         << "seed_ms,restart_ms,pull_ms,"
-        << "apply_ms,total_ms,batches_per_sec,primary_bytes,replica_bytes\n";
+        << "apply_ms,total_ms,sync_ms,pull_pct,apply_pct,"
+        << "batches_per_page,batches_per_sec,primary_bytes,replica_bytes\n";
 }
 
 void print_csv_row(const Scenario& scenario,
                    const PhaseMetrics& metrics) {
+    const double sync_ms = metrics.pull_ms + metrics.apply_ms;
     const double total_ms =
-        metrics.seed_ms + metrics.restart_ms + metrics.pull_ms + metrics.apply_ms;
+        metrics.seed_ms + metrics.restart_ms + sync_ms;
+    const double pull_pct =
+        sync_ms <= 0.0 ? 0.0 : (metrics.pull_ms * 100.0) / sync_ms;
+    const double apply_pct =
+        sync_ms <= 0.0 ? 0.0 : (metrics.apply_ms * 100.0) / sync_ms;
+    const double batches_per_page =
+        metrics.pull_pages == 0
+            ? 0.0
+            : static_cast<double>(metrics.pulled_batches) /
+              static_cast<double>(metrics.pull_pages);
     const double batches_per_sec =
-        (metrics.pull_ms + metrics.apply_ms) <= 0.0
+        sync_ms <= 0.0
             ? 0.0
             : (static_cast<double>(metrics.applied_batches) * 1000.0) /
-              (metrics.pull_ms + metrics.apply_ms);
+              sync_ms;
     std::cout << scenario.name << ','
               << metrics.phase << ','
               << scenario.origins << ','
@@ -651,6 +662,10 @@ void print_csv_row(const Scenario& scenario,
               << metrics.pull_ms << ','
               << metrics.apply_ms << ','
               << total_ms << ','
+              << sync_ms << ','
+              << pull_pct << ','
+              << apply_pct << ','
+              << batches_per_page << ','
               << batches_per_sec << ','
               << metrics.primary_bytes << ','
               << metrics.replica_bytes << '\n';

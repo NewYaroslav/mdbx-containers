@@ -101,6 +101,10 @@ tmp/build-bench/bin/benchmarks/sync_tick_hub_benchmark \
 | `pull_ms` | Время, затраченное на вызовы `DirectSyncPeer::pull()`. |
 | `apply_ms` | Время, затраченное на вызовы `SyncEngine::handle_push()`. |
 | `total_ms` | `seed_ms + restart_ms + pull_ms + apply_ms`. |
+| `sync_ms` | `pull_ms + apply_ms`. Время подготовки данных и перезапуска не учитывается. |
+| `pull_pct` | Доля `sync_ms`, затраченная на pull-вызовы. |
+| `apply_pct` | Доля `sync_ms`, затраченная на локальное применение страниц. |
+| `batches_per_page` | Среднее значение `pulled_batches / pull_pages`. |
 | `batches_per_sec` | `applied_batches / (pull_ms + apply_ms)`. Время подготовки данных и перезапуска не учитывается. |
 | `primary_bytes` | Размер занятых страниц MDBX у primary после фазы. |
 | `replica_bytes` | Размер занятых страниц MDBX у replica после фазы. |
@@ -111,6 +115,11 @@ tmp/build-bench/bin/benchmarks/sync_tick_hub_benchmark \
 дошёл до последнего известного `seq`. Для отстающих origin-узлов
 движок выполняет точный поиск начиная с `have_seq + 1`.
 
+Перед выбором направления оптимизации смотрите на `pull_pct` и `apply_pct`.
+Если `pull_pct` низкий, текущий запуск в основном тратит время на локальное
+применение страниц; изменение алгоритма pull слабо повлияет на общую
+пропускную способность такой нагрузки.
+
 ## Как сравнивать результаты
 
 1. Соберите обе версии в одинаковом режиме, желательно `Release`.
@@ -118,8 +127,8 @@ tmp/build-bench/bin/benchmarks/sync_tick_hub_benchmark \
    раз.
 3. Первый запуск можно считать прогревом файлового кэша, если результаты
    заметно плавают.
-4. Сравнивайте медиану `pull_ms`, `apply_ms`, `pull_pages` и
-   `batches_per_sec`.
+4. Сравнивайте медиану `pull_ms`, `apply_ms`, `pull_pct`, `apply_pct`,
+   `pull_pages` и `batches_per_sec`.
 5. Не сравнивайте запуски с разными компиляторами, настройками MDBX,
    сценариями или аргументами.
 6. Используйте этот benchmark только для оценки изменений ядра синхронизации.

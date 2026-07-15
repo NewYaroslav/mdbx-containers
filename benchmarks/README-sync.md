@@ -100,6 +100,10 @@ Each scenario prints three phases:
 | `pull_ms` | Time spent in `DirectSyncPeer::pull()` calls. |
 | `apply_ms` | Time spent in `SyncEngine::handle_push()` calls. |
 | `total_ms` | `seed_ms + restart_ms + pull_ms + apply_ms`. |
+| `sync_ms` | `pull_ms + apply_ms`. This excludes seeding and restart time. |
+| `pull_pct` | Share of `sync_ms` spent in pull calls. |
+| `apply_pct` | Share of `sync_ms` spent applying pages locally. |
+| `batches_per_page` | Average `pulled_batches / pull_pages`. |
 | `batches_per_sec` | `applied_batches / (pull_ms + apply_ms)`. Seeding and restart time are excluded. |
 | `primary_bytes` | MDBX file usage reported for the primary after the phase. |
 | `replica_bytes` | MDBX file usage reported for the replica after the phase. |
@@ -109,12 +113,17 @@ index allows `SyncEngine::handle_pull()` to skip origins where the requester is
 already at the latest known sequence number. For lagging origins, the engine
 still seeks directly to `have_seq + 1`.
 
+Use `pull_pct` and `apply_pct` before choosing an optimization target. A low
+`pull_pct` means the current run is dominated by local apply work; changing the
+pull algorithm is unlikely to move total throughput for that workload.
+
 ## Comparing Results
 
 1. Build both versions in the same mode, preferably `Release`.
 2. Run the same preset or the same custom arguments at least five times.
 3. Treat the first run as a filesystem-cache warmup when results vary.
-4. Compare median `pull_ms`, `apply_ms`, `pull_pages`, and `batches_per_sec`.
+4. Compare median `pull_ms`, `apply_ms`, `pull_pct`, `apply_pct`,
+   `pull_pages`, and `batches_per_sec`.
 5. Do not compare runs with different compilers, MDBX settings, presets, or
    scenario arguments.
 6. Use this benchmark for sync-core changes only. It does not estimate HTTP,
