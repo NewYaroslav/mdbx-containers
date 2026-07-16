@@ -37,6 +37,7 @@ executable has the `.exe` suffix, for example:
 | `sync_04_primary_to_replicas.cpp` | One primary, multiple independent replica cursors. | Intermediate |
 | `sync_05_three_node_mesh.cpp` | Pairwise exchange without forwarding remote-origin batches. | Advanced |
 | `sync_06_threaded_transport.cpp` | Thread ownership and an in-memory request/response buffer. | Advanced |
+| `sync_07_worker_observer.cpp` | Background `SyncWorker` progress notifications through `ISyncWorkerObserver`. | Advanced |
 
 ## Common Rules
 
@@ -82,3 +83,7 @@ The threaded example keeps each `Connection` and `SyncEngine` on the thread that
 owns its database. The shared buffer carries only sync request/response values.
 That is the boundary to preserve when replacing the buffer with a real
 transport.
+
+`sync_07_worker_observer.cpp` shows the application side of a background
+replica: `SyncWorker` performs pull/apply rounds, while `ISyncWorkerObserver`
+notifies foreground code when pages are applied or rounds finish.
