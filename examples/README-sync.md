@@ -38,6 +38,7 @@ executable has the `.exe` suffix, for example:
 | `sync_05_three_node_mesh.cpp` | Pairwise exchange without forwarding remote-origin batches. | Advanced |
 | `sync_06_threaded_transport.cpp` | Thread ownership and an in-memory request/response buffer. | Advanced |
 | `sync_07_worker_observer.cpp` | Background `SyncWorker` progress notifications through `ISyncWorkerObserver`. | Advanced |
+| `sync_08_transport_boundary.cpp` | Pseudo-transport that exercises the `ISyncPeer` boundary contract (cancellation token + `request_cancel()`). | Advanced |
 
 ## Common Rules
 
@@ -87,3 +88,11 @@ transport.
 `sync_07_worker_observer.cpp` shows the application side of a background
 replica: `SyncWorker` performs pull/apply rounds, while `ISyncWorkerObserver`
 notifies foreground code when pages are applied or rounds finish.
+
+`sync_08_transport_boundary.cpp` formalises the contract that any transport
+adapter over `ISyncPeer` must respect. It implements a tiny in-memory
+adapter that owns no MDBX handles and demonstrates where the
+`CancellationToken` from `PullRequest` is observed and where
+`ISyncPeer::request_cancel()` closes the in-flight call. Real HTTP and
+WebSocket adapters will use the same pattern, swapping the in-memory
+queues for sockets.
