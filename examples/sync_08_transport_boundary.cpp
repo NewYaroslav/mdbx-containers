@@ -33,6 +33,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdio>
 #include <cstdint>
 #include <exception>
@@ -49,6 +50,8 @@ struct PullSlot {
     bool request_ready = false;
     bool response_ready = false;
     bool closed = false;
+    bool last_request_can_be_cancelled = false;
+    std::size_t cancel_count = 0;
     mdbxc::sync::PullRequest  request;
     mdbxc::sync::PullResponse response;
 };
@@ -72,6 +75,8 @@ public:
             m_slot.request_ready = true;
             m_slot.response_ready = false;
             m_slot.closed = false;
+            m_slot.last_request_can_be_cancelled =
+                request.cancel_token.can_be_cancelled();
         }
         m_slot.changed.notify_all();
 
@@ -108,8 +113,26 @@ public:
         {
             std::lock_guard<std::mutex> lock(m_slot.mutex);
             m_slot.closed = true;
+            ++m_slot.cancel_count;
         }
         m_slot.changed.notify_all();
+    }
+
+    bool wait_for_request(std::chrono::milliseconds timeout) {
+        std::unique_lock<std::mutex> lock(m_slot.mutex);
+        return m_slot.changed.wait_for(
+            lock, timeout,
+            [this] { return m_slot.request_ready || m_slot.closed; });
+    }
+
+    bool last_request_can_be_cancelled() const {
+        std::lock_guard<std::mutex> lock(m_slot.mutex);
+        return m_slot.last_request_can_be_cancelled;
+    }
+
+    std::size_t cancel_count() const {
+        std::lock_guard<std::mutex> lock(m_slot.mutex);
+        return m_slot.cancel_count;
     }
 
 private:
@@ -220,32 +243,30 @@ int main() {
         // calls request_cancel() during stop. This phase confirms the
         // second half of the transport contract by observing both.
         {
-            std::thread server([&handler] {
-                // Long-lived handler; exits when the peer closes the slot.
-                while (handler.serve_one_blocking()) {
-                }
-            });
-
             mdbxc::sync::SyncWorkerOptions options;
             options.idle_interval = std::chrono::milliseconds(10000);
             mdbxc::sync::SyncWorker worker(replica_engine, peer, options);
 
+            const std::size_t cancel_count_before = peer.cancel_count();
             worker.start();
-            // Give the worker a moment to enter Pulling and hand the
-            // peer a cancellable token, then stop and wait for the
-            // peer's request_cancel() to close the slot.
-            const bool reached_pulling = worker.wait_until_state(
-                mdbxc::sync::SyncWorkerState::Pulling,
+            // No server handler is running in this phase, so the worker's
+            // pull blocks inside the transport slot until stop() invokes
+            // request_cancel(). This makes the cancellation bridge
+            // deterministic instead of racing a normal server response.
+            const bool request_arrived = peer.wait_for_request(
                 std::chrono::milliseconds(2000));
             sync_example::require(
-                reached_pulling,
-                "worker did not enter Pulling within 2s");
+                request_arrived,
+                "worker did not send a pull request within 2s");
+            sync_example::require(
+                peer.last_request_can_be_cancelled(),
+                "worker did not deliver a cancellable token");
             std::printf("[phase B] worker delivered a cancellable token\n");
             worker.stop();
+            sync_example::require(
+                peer.cancel_count() == cancel_count_before + 1u,
+                "worker did not invoke request_cancel()");
             std::printf("[phase B] request_cancel() was invoked\n");
-            // The peer already closed its slot via request_cancel(), so
-            // the server thread will exit on the next iteration.
-            server.join();
 
             sync_example::require(
                 worker.state() == mdbxc::sync::SyncWorkerState::Stopped,

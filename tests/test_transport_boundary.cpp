@@ -9,9 +9,9 @@
 /// contract":
 ///
 ///   1. A transport adapter receives a cancellable \c CancellationToken on
-///      every \c pull() when the caller is the \c SyncWorker; idle or
-///      foreground \c run_once() calls without a source must hand a default
-///      (non-cancellable) token.
+///      every \c pull() when the caller is the \c SyncWorker. Manual
+///      foreground callers that build \c PullRequest themselves and do not
+///      attach a source hand a default (non-cancellable) token.
 ///   2. \c ISyncPeer::request_cancel() is best-effort: the default no-op
 ///      implementation is valid and must satisfy the type. Adapters that
 ///      can interrupt blocking calls override it.
@@ -261,16 +261,14 @@ void test_contract_dto_values_round_trip_through_peer() {
 
     struct CarrierPeer : sync::ISyncPeer {
         sync::PullRequest seen_pull_request{};
+        sync::PullResponse sent_pull_response{};
         sync::PushRequest seen_push_request{};
         sync::PushResponse sent_push_response{};
 
         sync::PullResponse pull(
                 const sync::PullRequest& request) override {
             seen_pull_request = request;
-            sync::PullResponse out;
-            out.ok = true;
-            out.has_more = false;
-            return out;
+            return sent_pull_response;
         }
         sync::PushResponse push(
                 const sync::PushRequest& request) override {
@@ -280,6 +278,8 @@ void test_contract_dto_values_round_trip_through_peer() {
     };
 
     CarrierPeer carrier;
+    carrier.sent_pull_response = pull_response;
+    carrier.sent_push_response = push_response;
     const sync::PullResponse got_pull = carrier.pull(pull_request);
     const sync::PushResponse got_push = carrier.push(push_request);
 
@@ -292,7 +292,11 @@ void test_contract_dto_values_round_trip_through_peer() {
         carrier.seen_pull_request.have.last_seq_by_origin.size() != 1u) {
         throw std::runtime_error("PullRequest DTO did not round-trip via peer");
     }
-    if (!got_pull.ok || got_pull.has_more) {
+    if (!got_pull.ok || !got_pull.has_more ||
+        got_pull.remote_have.last_seq_for(make_node(0x99)) != 5u ||
+        got_pull.batches.size() != 1u ||
+        got_pull.batches[0].origin_node_id != make_node(0xAA) ||
+        got_pull.batches[0].seq != 1u) {
         throw std::runtime_error("PullResponse shape was not honoured");
     }
     if (carrier.seen_push_request.sender != push_request.sender ||
@@ -301,7 +305,8 @@ void test_contract_dto_values_round_trip_through_peer() {
             push_request.batches.size()) {
         throw std::runtime_error("PushRequest DTO did not round-trip via peer");
     }
-    if (!got_push.ok) {
+    if (!got_push.ok ||
+        got_push.receiver_have.last_seq_for(make_node(0xAA)) != 1u) {
         throw std::runtime_error("PushResponse shape was not honoured");
     }
 }
