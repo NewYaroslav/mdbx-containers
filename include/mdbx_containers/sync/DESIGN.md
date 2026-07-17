@@ -24,6 +24,10 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 - `ChangeBatchCodec` strict versioned wire format (magic, codec version,
   batch version, batch flags, then payload); rejects unknown mandatory
   flags and version mismatches at both encode and decode.
+- `TransportMessageCodec` strict versioned envelope for transport DTOs:
+  `PullRequest`, `PullResponse`, `PushRequest`, and `PushResponse`.
+  It length-prefixes nested `ChangeBatchCodec` payloads and does not
+  serialize operation-local `CancellationToken` state.
 - Change capture hooks: `Connection::attach_sync_capture()`,
   `BaseTable::record_op()`, and the transaction pre-commit hook route table
   writes into `ThreadLocalChangeAccumulator`, which appends one local
@@ -203,6 +207,35 @@ contract:
 - Decoder rejects trailing bytes when called with `bytes_read == nullptr`
   or via `decode_exact`.
 
+## Codec - `TransportMessageCodec`
+
+Transport DTOs use a separate envelope from individual `ChangeBatch` records.
+This lets HTTP, WebSocket, IPC, or message-queue adapters exchange one
+request/response object without inventing per-adapter framing for the sync
+payload itself.
+
+Locked contract:
+
+- Magic: 8 bytes `MDBXCPRT`.
+- Version: u16 little-endian, currently `1`.
+- Message type: u8 (`1=PullRequest`, `2=PullResponse`, `3=PushRequest`,
+  `4=PushResponse`).
+- Message flags: u32 little-endian, currently zero. Unknown non-zero flags are
+  rejected.
+- Payload integers are little-endian.
+- `SyncCursor` is encoded as `u32 count` followed by `(NodeId, u64 seq)`
+  entries.
+- `ChangeBatch` values inside pull/push messages are encoded as
+  `u32 byte_length` plus exact `ChangeBatchCodec` bytes.
+- `CancellationToken` fields in request DTOs are local call-control state and
+  are never serialized. Decoded request DTOs contain default non-cancellable
+  tokens.
+- Decoders reject trailing bytes, truncated messages, invalid boolean values,
+  wrong message types, unsupported versions, and configured size-limit
+  violations.
+- A null `CodecBounds` argument uses the default `CodecBounds` limits at this
+  transport layer; adapters may pass stricter limits for their deployment.
+
 ## Sync flow (current v0.1 core behavior)
 
 Default round shape, single-writer friendly and the base case for
@@ -310,7 +343,9 @@ in place until a real adapter shows that core cannot support it.
 ### Boundary rules
 
 - Only `PullRequest`, `PullResponse`, `PushRequest`, and `PushResponse`
-  cross the boundary. `MDBX_txn*`, `MDBX_cursor*`, `Connection`,
+  cross the boundary. Binary adapters should use `TransportMessageCodec`
+  for those DTOs unless they deliberately define another documented
+  content type. `MDBX_txn*`, `MDBX_cursor*`, `Connection`,
   `SyncEngine`, table objects, the `ISyncCaptureSink`, and the system
   stores (MetaStore, ChangeLogStore, AppliedStore, OriginIndexStore,
   IdentityIndexStore) are thread-owned and never enter a transport
@@ -395,15 +430,21 @@ on repeated pull failures. It is intentionally distinct from
 connection-level reconnect and does not attempt to model
 connection-state separately from transport-call failures.
 
-### Where auth, TLS, and compression live
+### Where auth, rate limits, TLS, and compression live
 
-Auth, TLS, and compression are adapter-local. The core has no
+Auth, rate limits, allow/deny lists, TLS, and compression are adapter-local.
+The core has no
 `credentials` field on `PullRequest`/`PushRequest` and no TLS
 configuration on `ISyncPeer`. A real adapter typically wraps the
 transport with the platform's TLS layer (OpenSSL, Schannel, NSURLSession)
 or delegates to a server framework that owns the secure channel.
 Identity at the sync layer is `NodeId` (16 bytes); the adapter decides
 whether TLS terminates before or after the sync payload is parsed.
+Authorization and rate limiting should be implemented as wrappers around
+request handling: inspect transport metadata and, when needed, the decoded
+DTO header fields (`requester`, `sender`, `db_id`) before dispatching to
+`SyncEngine`. Do not put bearer tokens, ACL decisions, or rate-limit counters
+inside the sync DTO wire format.
 
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec
