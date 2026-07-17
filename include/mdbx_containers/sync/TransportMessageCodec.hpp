@@ -1,8 +1,8 @@
 #pragma once
-#ifndef MDBX_CONTAINERS_HEADER_SYNC_TRANSPORT_CODEC_HPP_INCLUDED
-#define MDBX_CONTAINERS_HEADER_SYNC_TRANSPORT_CODEC_HPP_INCLUDED
+#ifndef MDBX_CONTAINERS_HEADER_SYNC_TRANSPORT_MESSAGE_CODEC_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_SYNC_TRANSPORT_MESSAGE_CODEC_HPP_INCLUDED
 
-/// \file TransportCodec.hpp
+/// \file TransportMessageCodec.hpp
 /// \brief Stable little-endian binary codec for sync transport DTOs.
 /// \details
 /// Envelope layout for all messages:
@@ -475,4 +475,4 @@ namespace sync {
 } // namespace sync
 } // namespace mdbxc
 
-#endif // MDBX_CONTAINERS_HEADER_SYNC_TRANSPORT_CODEC_HPP_INCLUDED
+#endif // MDBX_CONTAINERS_HEADER_SYNC_TRANSPORT_MESSAGE_CODEC_HPP_INCLUDED

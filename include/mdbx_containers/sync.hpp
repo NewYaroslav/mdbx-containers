@@ -27,7 +27,7 @@
 #include "sync/ISyncPeer.hpp"
 #include "sync/SyncCursor.hpp"
 #include "sync/protocol.hpp"
-#include "sync/TransportCodec.hpp"
+#include "sync/TransportMessageCodec.hpp"
 #include "sync/SyncEngine.hpp"
 #include "sync/SyncWorker.hpp"
 #include "sync/DirectSyncPeer.hpp"
