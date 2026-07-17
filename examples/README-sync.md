@@ -42,6 +42,7 @@ executable has the `.exe` suffix, for example:
 | `sync_09_transport_codec.cpp` | Versioned binary `TransportMessageCodec` for request/response DTOs. | Advanced |
 | `sync_10_custom_transport.cpp` | Minimal custom `ISyncPeer` over encoded byte buffers. | Advanced |
 | `sync_11_http_adapter.cpp` | Framework-neutral HTTP-shaped adapter over `TransportMessageCodec`. | Advanced |
+| `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget, and metrics middleware around transport adapters. | Advanced |
 
 ## Common Rules
 
@@ -118,3 +119,10 @@ implements `ISyncPeer` over an abstract `IHttpSyncClient`, and
 `HttpSyncServer` dispatches already-parsed HTTP method/target/content-type/body
 values to `SyncEngine`. A real HTTP library supplies the socket layer around
 that seam.
+
+`sync_12_transport_middleware.cpp` shows adapter-local policy wrappers.
+`SyncPeerMiddleware` can inspect decoded `NodeId` / `DbId` values before a peer
+call, while `HttpSyncClientMiddleware` can enforce route-level policy around an
+HTTP-shaped byte exchange. These wrappers are where simple allow-lists,
+fixed-budget rate limits, and metrics hooks belong; they do not add auth tokens
+or counters to the sync DTO wire format.
