@@ -34,6 +34,9 @@ namespace sync {
         /// \param binary_message Encoded pull or push request.
         /// \param cancel_token Local call-control token; it is not serialized.
         /// \return Encoded pull or push response.
+        /// \note The v0.1 wire DTOs have no request id. Implementations must
+        /// serialize concurrent exchanges on one connection unless the
+        /// concrete WebSocket binding adds its own correlation layer.
         virtual std::vector<std::uint8_t> exchange_binary(
                 const std::vector<std::uint8_t>& binary_message,
                 const CancellationToken& cancel_token) = 0;

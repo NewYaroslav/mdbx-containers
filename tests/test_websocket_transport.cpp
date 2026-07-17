@@ -216,10 +216,40 @@ void test_websocket_server_rejects_response_messages() {
     cleanup(path);
 }
 
+void test_websocket_server_rejects_malformed_messages() {
+    const std::string path = "test_websocket_transport_malformed.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<mdbxc::Connection> db = open_db(path);
+    mdbxc::sync::SyncEngine engine(db);
+    engine.initialize_local_identity(make_node(0x40), make_node(0xD2));
+    mdbxc::sync::WebSocketSyncServer server(engine);
+
+    const std::uint8_t malformed_byte_1 = 0x01;
+    const std::uint8_t malformed_byte_2 = 0x02;
+    std::vector<std::uint8_t> malformed_message;
+    malformed_message.push_back(malformed_byte_1);
+    malformed_message.push_back(malformed_byte_2);
+
+    bool caught = false;
+    try {
+        (void)server.handle_binary_message(malformed_message);
+    } catch (const std::runtime_error&) {
+        caught = true;
+    }
+
+    db->disconnect();
+    cleanup(path);
+
+    require_true(caught,
+                 "WebSocket server must reject malformed messages");
+}
+
 } // namespace
 
 int main() {
     test_websocket_peer_pull_and_push_roundtrip();
     test_websocket_server_rejects_response_messages();
+    test_websocket_server_rejects_malformed_messages();
     return 0;
 }

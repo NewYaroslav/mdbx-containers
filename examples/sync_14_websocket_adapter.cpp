@@ -41,7 +41,7 @@ public:
             const std::vector<std::uint8_t>& binary_message,
             const mdbxc::sync::CancellationToken& cancel_token) override {
         // A real WebSocket client would send `binary_message` as one binary
-        // frame/message, wait for the response message, and map cancel_token
+        // message, wait for the response message, and map cancel_token
         // plus request_cancel() to the framework's close/interrupt primitive.
         (void)cancel_token;
         return m_server.handle_binary_message(binary_message);
