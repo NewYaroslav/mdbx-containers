@@ -173,7 +173,7 @@ if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
     set_target_properties(sync_13_http_simple_web_server PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
     )
-    target_compile_features(sync_13_http_simple_web_server PRIVATE cxx_std_17)
+    target_compile_features(sync_13_http_simple_web_server PRIVATE cxx_std_11)
     target_compile_definitions(sync_13_http_simple_web_server PRIVATE
         MDBXC_SYNC_ENABLED=1
         ASIO_STANDALONE=1

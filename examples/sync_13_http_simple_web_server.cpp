@@ -14,7 +14,7 @@
  *       -DMDBXC_BUILD_TESTS=OFF \
  *       -DMDBXC_BUILD_EXAMPLES=ON \
  *       -DMDBXC_HTTP_SYNC_EXAMPLE=ON \
- *       -DCMAKE_CXX_STANDARD=17
+ *       -DCMAKE_CXX_STANDARD=11
  *   cmake --build tmp/build-http-example \
  *       --target sync_13_http_simple_web_server
  *
@@ -132,7 +132,7 @@ public:
                             std::chrono::seconds timeout)
         : m_endpoint(endpoint(host, port)),
           m_timeout(timeout),
-          m_cancel_requested(false),
+          m_cancel_generation(0),
           m_active_client(nullptr),
           m_cancel_count(0) {}
 
@@ -145,12 +145,19 @@ public:
             return make_cancelled_response("cancelled before HTTP request");
         }
 
-        m_cancel_requested.store(false, std::memory_order_release);
+        const std::uint64_t call_generation =
+            m_cancel_generation.load(std::memory_order_acquire);
 
         HttpClient client(m_endpoint);
         client.config.timeout = static_cast<long>(m_timeout.count());
         client.config.timeout_connect = static_cast<long>(m_timeout.count());
         ActiveClientGuard active(*this, client);
+
+        if (cancel_token.is_cancellation_requested() ||
+            m_cancel_generation.load(std::memory_order_acquire) !=
+                call_generation) {
+            return make_cancelled_response("cancelled before HTTP request");
+        }
 
         try {
             SimpleWeb::CaseInsensitiveMultimap headers;
@@ -167,7 +174,8 @@ public:
             out.body = string_to_bytes(received->content.string());
             return out;
         } catch (const SimpleWeb::system_error& e) {
-            if (m_cancel_requested.load(std::memory_order_acquire) ||
+            if (m_cancel_generation.load(std::memory_order_acquire) !=
+                    call_generation ||
                 cancel_token.is_cancellation_requested()) {
                 return make_cancelled_response(e.what());
             }
@@ -176,8 +184,8 @@ public:
     }
 
     void request_cancel() override {
-        m_cancel_requested.store(true, std::memory_order_release);
-        ++m_cancel_count;
+        m_cancel_generation.fetch_add(1, std::memory_order_acq_rel);
+        m_cancel_count.fetch_add(1, std::memory_order_acq_rel);
 
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_active_client != nullptr) {
@@ -186,7 +194,7 @@ public:
     }
 
     std::size_t cancel_count() const {
-        return m_cancel_count;
+        return m_cancel_count.load(std::memory_order_acquire);
     }
 
 private:
@@ -224,10 +232,10 @@ private:
 
     std::string m_endpoint;
     std::chrono::seconds m_timeout;
-    std::atomic<bool> m_cancel_requested;
+    std::atomic<std::uint64_t> m_cancel_generation;
     mutable std::mutex m_mutex;
     HttpClient* m_active_client;
-    std::size_t m_cancel_count;
+    std::atomic<std::size_t> m_cancel_count;
 };
 
 class SimpleWebHttpSyncServer {
@@ -273,16 +281,35 @@ public:
             return;
         }
 
-        std::promise<unsigned short> started;
-        std::future<unsigned short> started_future = started.get_future();
+        std::shared_ptr<std::promise<unsigned short> > started(
+            new std::promise<unsigned short>());
+        std::future<unsigned short> started_future = started->get_future();
         m_thread = std::thread(
-            [this, &started]() {
-                m_server.start(
-                    [&started](unsigned short assigned_port) {
-                        started.set_value(assigned_port);
-                    });
+            [this, started]() {
+                bool started_callback_called = false;
+                try {
+                    m_server.start(
+                        [started, &started_callback_called](
+                            unsigned short assigned_port) {
+                            started_callback_called = true;
+                            started->set_value(assigned_port);
+                        });
+                } catch (...) {
+                    if (!started_callback_called) {
+                        try {
+                            started->set_exception(std::current_exception());
+                        } catch (...) {}
+                    }
+                }
             });
-        m_port = started_future.get();
+        try {
+            m_port = started_future.get();
+        } catch (...) {
+            if (m_thread.joinable()) {
+                m_thread.join();
+            }
+            throw;
+        }
         m_running = true;
         std::printf("[server] listening on %s:%u\n",
                     m_host.c_str(),

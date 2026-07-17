@@ -15,7 +15,7 @@ cmake -S . -B tmp/build-examples \
     -DMDBXC_DEPS_MODE=BUNDLED \
     -DMDBXC_BUILD_TESTS=OFF \
     -DMDBXC_BUILD_EXAMPLES=ON \
-    -DCMAKE_CXX_STANDARD=17
+    -DCMAKE_CXX_STANDARD=11
 
 cmake --build tmp/build-examples --target sync_01_lifecycle_direct_peer
 tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
@@ -37,7 +37,7 @@ cmake -S . -B tmp/build-http-example \
     -DMDBXC_BUILD_TESTS=OFF \
     -DMDBXC_BUILD_EXAMPLES=ON \
     -DMDBXC_HTTP_SYNC_EXAMPLE=ON \
-    -DCMAKE_CXX_STANDARD=17
+    -DCMAKE_CXX_STANDARD=11
 
 cmake --build tmp/build-http-example --target sync_13_http_simple_web_server
 tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \

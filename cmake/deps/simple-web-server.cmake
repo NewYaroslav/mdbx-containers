@@ -12,10 +12,12 @@
 include(CMakeParseArguments)
 include(FetchContent)
 
-set(MDBXC_ASIO_GIT_TAG "asio-1-30-2" CACHE STRING
-    "Asio tag used by the optional Simple-Web-Server HTTP example.")
-set(MDBXC_SIMPLE_WEB_SERVER_GIT_TAG "v3.1.1" CACHE STRING
-    "Simple-Web-Server tag used by the optional HTTP sync example.")
+set(MDBXC_ASIO_GIT_TAG
+    "12e0ce9e0500bf0f247dbd1ae894272656456079" CACHE STRING
+    "Asio commit used by the optional HTTP example; corresponds to asio-1-30-2.")
+set(MDBXC_SIMPLE_WEB_SERVER_GIT_TAG
+    "898b6abd1be568ff9de4390d44288962e3fac337" CACHE STRING
+    "Simple-Web-Server commit used by the optional HTTP example; corresponds to v3.1.1.")
 
 function(_mdbxc_fetchcontent_populate name)
     if(POLICY CMP0169)
