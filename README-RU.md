@@ -82,7 +82,9 @@
   `HttpSyncPeer` задаёт HTTP-shaped adapter seam, `WebSocketSyncPeer` задаёт
   binary message seam, а `SyncWorker` запускает фоновой polling. Пример HTTP
   на Simple-Web-Server собирается опционально; конкретные socket-bound
-  WebSocket binding-и и wire-format для специализированных таблиц отложены;
+  WebSocket binding-и и wire-format для специализированных таблиц отложены.
+  HTTP auth, remote-address checks и rate-limit headers живут в adapter-local
+  policy context, а не внутри sync DTO;
   см. `include/mdbx_containers/sync/DESIGN.md`.
 
 ### 🗄️ Структура и конфигурация

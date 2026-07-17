@@ -63,6 +63,7 @@ tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
 | `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget, and metrics middleware around transport adapters. | Advanced |
 | `sync_13_http_simple_web_server.cpp` | Optional real HTTP binding over Simple-Web-Server and standalone Asio. | Advanced |
 | `sync_14_websocket_adapter.cpp` | Framework-neutral WebSocket binary-message seam over `TransportMessageCodec`. | Advanced |
+| `sync_15_http_policy_context.cpp` | Bearer-token, remote-address, and `Retry-After` HTTP policy context. | Advanced |
 
 ## Common Rules
 
@@ -157,3 +158,8 @@ They do not replace server-framework authentication or per-remote-client rate
 limits before `HttpSyncServer::handle()`. Metrics count middleware hook
 invocations, so a shared observer installed at several stacked layers can count
 one logical action once per layer.
+
+`sync_15_http_policy_context.cpp` shows the request-context layer a concrete
+HTTP server binding can run before `HttpSyncServer::handle()`. It extracts a
+bearer token from headers, checks the remote address, and returns a `Retry-After`
+header when the fixed-window limiter rejects a request.

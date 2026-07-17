@@ -64,6 +64,7 @@ tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
 | `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget rate limit и metrics middleware вокруг транспортных адаптеров. | Продвинутый |
 | `sync_13_http_simple_web_server.cpp` | Опциональный настоящий HTTP binding через Simple-Web-Server и standalone Asio. | Продвинутый |
 | `sync_14_websocket_adapter.cpp` | Framework-neutral WebSocket binary-message seam поверх `TransportMessageCodec`. | Продвинутый |
+| `sync_15_http_policy_context.cpp` | Bearer-token, remote-address и `Retry-After` HTTP policy context. | Продвинутый |
 
 ## Общие правила
 
@@ -161,3 +162,8 @@ fixed-budget rate limits и metrics hooks; они не добавляют auth t
 limits перед `HttpSyncServer::handle()`. Метрики считают вызовы middleware
 hooks, поэтому общий observer на нескольких слоях может посчитать одно
 логическое действие по одному разу на каждом слое.
+
+`sync_15_http_policy_context.cpp` показывает request-context слой, который
+конкретный HTTP server binding может запускать перед `HttpSyncServer::handle()`.
+Он извлекает bearer token из headers, проверяет remote address и возвращает
+header `Retry-After`, когда fixed-window limiter отклоняет запрос.

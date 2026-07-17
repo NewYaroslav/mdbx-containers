@@ -24,11 +24,61 @@
 namespace mdbxc {
 namespace sync {
 
+    /// \brief One HTTP header name/value pair preserved by adapter seams.
+    struct HttpSyncHeader {
+        std::string name;
+        std::string value;
+    };
+
+    inline char http_ascii_lower(char value) {
+        return value >= 'A' && value <= 'Z'
+            ? static_cast<char>(value - 'A' + 'a')
+            : value;
+    }
+
+    /// \brief Case-insensitive ASCII comparison for HTTP header names.
+    inline bool http_header_name_equals(const std::string& lhs,
+                                        const std::string& rhs) {
+        if (lhs.size() != rhs.size()) {
+            return false;
+        }
+        for (std::size_t i = 0; i < lhs.size(); ++i) {
+            if (http_ascii_lower(lhs[i]) != http_ascii_lower(rhs[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// \brief Returns the first matching HTTP header value or an empty string.
+    inline std::string http_header_value(
+            const std::vector<HttpSyncHeader>& headers,
+            const std::string& name) {
+        for (std::size_t i = 0; i < headers.size(); ++i) {
+            if (http_header_name_equals(headers[i].name, name)) {
+                return headers[i].value;
+            }
+        }
+        return std::string();
+    }
+
+    /// \brief Appends one response/request header.
+    inline void http_add_header(std::vector<HttpSyncHeader>& headers,
+                                const std::string& name,
+                                const std::string& value) {
+        HttpSyncHeader header;
+        header.name = name;
+        header.value = value;
+        headers.push_back(header);
+    }
+
     /// \brief Minimal request shape consumed by \c HttpSyncServer.
     struct HttpSyncRequest {
         std::string method;
         std::string target;
         std::string content_type;
+        std::vector<HttpSyncHeader> headers;
+        std::string remote_address;
         std::vector<std::uint8_t> body;
     };
 
@@ -40,6 +90,7 @@ namespace sync {
     struct HttpSyncResponse {
         unsigned status_code = 200;
         std::string content_type;
+        std::vector<HttpSyncHeader> headers;
         std::vector<std::uint8_t> body;
         std::string error;
     };

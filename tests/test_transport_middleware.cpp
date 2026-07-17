@@ -1,6 +1,10 @@
+#include <mdbx_containers.hpp>
 #include <mdbx_containers/sync.hpp>
 
+#include <chrono>
+#include <cstdio>
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -26,6 +30,23 @@ void require_true(bool condition, const std::string& message) {
     if (!condition) {
         throw std::runtime_error(message);
     }
+}
+
+void cleanup(const std::string& path) {
+    std::remove(path.c_str());
+    std::remove((path + "-lck").c_str());
+}
+
+mdbxc::Config config(const std::string& path) {
+    mdbxc::Config cfg;
+    cfg.pathname = path;
+    cfg.no_subdir = true;
+    cfg.max_dbs = 32;
+    return cfg;
+}
+
+std::shared_ptr<mdbxc::Connection> open_db(const std::string& path) {
+    return mdbxc::Connection::create(config(path));
 }
 
 class RecordingPeer : public mdbxc::sync::ISyncPeer {
@@ -272,6 +293,112 @@ void test_http_client_middleware_budget_policy() {
                  "rate-limited HTTP post reached downstream client");
 }
 
+void test_http_context_policies() {
+    mdbxc::sync::HttpSyncRequest request;
+    request.method = mdbxc::sync::HttpSyncRoutes::method_post();
+    request.target = mdbxc::sync::HttpSyncRoutes::pull_target();
+    request.content_type = mdbxc::sync::HttpSyncRoutes::content_type();
+    request.remote_address = "127.0.0.1";
+    mdbxc::sync::http_add_header(
+        request.headers, "Authorization", "Bearer token-a");
+
+    require_true(mdbxc::sync::http_header_value(
+                     request.headers, "authorization") == "Bearer token-a",
+                 "HTTP header lookup must be case-insensitive");
+    require_true(mdbxc::sync::http_bearer_token(request) == "token-a",
+                 "bearer token extraction mismatch");
+
+    mdbxc::sync::HttpBearerTokenPolicy bearer;
+    bearer.allow_token("token-a");
+    mdbxc::sync::HttpRemoteAddressAllowListPolicy remote;
+    remote.allow_remote_address("127.0.0.1");
+    mdbxc::sync::FixedWindowHttpRateLimitPolicy rate(
+        1, std::chrono::seconds(10));
+
+    mdbxc::sync::CompositeSyncTransportPolicy policy;
+    policy.add(bearer);
+    policy.add(remote);
+    policy.add(rate);
+
+    mdbxc::sync::SyncTransportDecision decision =
+        policy.check_http_request(request);
+    require_true(decision.allowed, "allowed HTTP context was rejected");
+
+    decision = policy.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 429,
+                 "HTTP rate limit did not reject second request");
+    require_true(mdbxc::sync::http_header_value(
+                     decision.response_headers, "Retry-After") !=
+                     std::string(),
+                 "HTTP rate-limit rejection must include Retry-After");
+
+    mdbxc::sync::HttpSyncRequest missing_token = request;
+    missing_token.headers.clear();
+    decision = bearer.check_http_request(missing_token);
+    require_true(!decision.allowed && decision.status_code == 401,
+                 "missing bearer token must be unauthorized");
+    require_true(mdbxc::sync::http_header_value(
+                     decision.response_headers, "WWW-Authenticate") !=
+                     std::string(),
+                 "bearer rejection must include WWW-Authenticate");
+
+    request.remote_address = "203.0.113.7";
+    decision = remote.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 403,
+                 "denied remote address was not rejected");
+}
+
+void test_http_client_middleware_copies_rejection_headers() {
+    mdbxc::sync::FixedWindowHttpRateLimitPolicy rate(
+        0, std::chrono::seconds(7));
+    RecordingHttpClient client;
+    mdbxc::sync::HttpSyncClientMiddleware wrapped(client, &rate);
+
+    const std::vector<std::uint8_t> body(1u, 0x22u);
+    const mdbxc::sync::HttpSyncResponse response = wrapped.post(
+        mdbxc::sync::HttpSyncRoutes::pull_target(),
+        mdbxc::sync::HttpSyncRoutes::content_type(),
+        body,
+        mdbxc::sync::CancellationToken());
+
+    require_true(response.status_code == 429,
+                 "client middleware did not return rate-limit status");
+    require_true(mdbxc::sync::http_header_value(
+                     response.headers, "Retry-After") != std::string(),
+                 "client middleware dropped Retry-After");
+    require_true(client.post_count() == 0u,
+                 "rate-limited HTTP post reached downstream client");
+}
+
+void test_http_server_middleware_copies_rejection_headers() {
+    const std::string path = "test_transport_middleware_http_server.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<mdbxc::Connection> db = open_db(path);
+    mdbxc::sync::SyncEngine engine(db);
+    engine.initialize_local_identity(make_node(0x70), make_node(0x71));
+    mdbxc::sync::HttpSyncServer server(engine);
+    mdbxc::sync::FixedWindowHttpRateLimitPolicy rate(
+        0, std::chrono::seconds(7));
+    mdbxc::sync::HttpSyncServerMiddleware wrapped(server, &rate);
+
+    mdbxc::sync::HttpSyncRequest request;
+    request.method = mdbxc::sync::HttpSyncRoutes::method_post();
+    request.target = mdbxc::sync::HttpSyncRoutes::pull_target();
+    request.content_type = mdbxc::sync::HttpSyncRoutes::content_type();
+    request.remote_address = "127.0.0.1";
+
+    const mdbxc::sync::HttpSyncResponse response = wrapped.handle(request);
+    require_true(response.status_code == 429,
+                 "server middleware did not return rate-limit status");
+    require_true(mdbxc::sync::http_header_value(
+                     response.headers, "Retry-After") != std::string(),
+                 "server middleware dropped Retry-After");
+
+    db->disconnect();
+    cleanup(path);
+}
+
 } // namespace
 
 int main() {
@@ -279,5 +406,8 @@ int main() {
     test_observer_exceptions_are_swallowed();
     test_http_client_middleware_route_policy();
     test_http_client_middleware_budget_policy();
+    test_http_context_policies();
+    test_http_client_middleware_copies_rejection_headers();
+    test_http_server_middleware_copies_rejection_headers();
     return 0;
 }
