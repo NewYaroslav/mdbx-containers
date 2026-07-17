@@ -39,6 +39,7 @@ tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
 | `sync_05_three_node_mesh.cpp` | Попарный обмен без пересылки batches, полученных от других origin-узлов. | Продвинутый |
 | `sync_06_threaded_transport.cpp` | Владение объектами по потокам и буфер запросов и ответов в памяти. | Продвинутый |
 | `sync_07_worker_observer.cpp` | Фоновый `SyncWorker` и уведомления о прогрессе через `ISyncWorkerObserver`. | Продвинутый |
+| `sync_08_transport_boundary.cpp` | Псевдотранспорт, который проверяет контракт границы `ISyncPeer` (`CancellationToken` + `request_cancel()`). | Продвинутый |
 
 ## Общие правила
 
@@ -91,3 +92,10 @@ replica формирует PullRequest
 `sync_07_worker_observer.cpp` показывает сторону приложения у фоновой реплики:
 `SyncWorker` выполняет pull/apply циклы, а `ISyncWorkerObserver` сообщает
 основному коду, когда страницы применены или завершён очередной цикл.
+
+`sync_08_transport_boundary.cpp` фиксирует контракт, которому должен следовать
+транспортный адаптер, реализующий `ISyncPeer`. Пример показывает, где
+наблюдается `CancellationToken` из `PullRequest` и где
+`ISyncPeer::request_cancel()` закрывает выполняющийся вызов. Реальные
+адаптеры HTTP и WebSocket используют ту же схему, заменяя очереди в памяти
+на сокеты.

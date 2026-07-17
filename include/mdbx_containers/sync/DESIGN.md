@@ -298,6 +298,147 @@ adapter-local approach proves insufficient, or if benchmark data shows
 per-operation cancellation-state allocation on the `pull()` path is a measured
 hot spot.
 
+## Transport boundary contract
+
+The `ISyncPeer` interface is the single boundary between the sync core and
+any external transport (in-process, HTTP, WebSocket, IPC, message queue).
+This section locks in the rules a transport adapter must satisfy, the
+places where cancellation must be wired through, and the policy decisions
+that stay out of the core API. The design is intentionally minimal: locks
+in place until a real adapter shows that core cannot support it.
+
+### Boundary rules
+
+- Only `PullRequest`, `PullResponse`, `PushRequest`, and `PushResponse`
+  cross the boundary. `MDBX_txn*`, `MDBX_cursor*`, `Connection`,
+  `SyncEngine`, table objects, the `ISyncCaptureSink`, and the system
+  stores (MetaStore, ChangeLogStore, AppliedStore, OriginIndexStore,
+  IdentityIndexStore) are thread-owned and never enter a transport
+  payload.
+- `DirectSyncPeer` is the only peer implementation shipped in v0.1. It
+  forwards the request DTOs to another `SyncEngine` in the same process
+  and is suitable for tests, examples, and in-process demos. Production
+  code that crosses a process boundary must replace it with a transport
+  adapter that owns its own connection, threading, and lifecycle.
+- A transport adapter does not own the caller's `SyncEngine`. The
+  receiver-side `SyncEngine` (the one whose state changed because of a
+  remote write) must live on the thread that owns the receiver
+  `Connection`. Cross-thread writes are not supported.
+- A pull page and the matching apply round are owned by `SyncWorker`
+  (background) or by the caller of `run_once()` (foreground). The
+  transport's `pull()` returns detached `ChangeBatch` values; the worker
+  then calls `SyncEngine::handle_push()` which opens its own short
+  write transaction.
+
+### Where socket / RPC timeouts live
+
+Timeouts are an adapter-local concern. The core API exposes no
+`timeout` field on `PullRequest`/`PushRequest` and no `set_timeout`
+on `ISyncPeer` because transports differ about how a deadline is
+expressed (HTTP, libcurl, gRPC, Boost.Asio, raw sockets, ...). The
+adapter owns its timeout configuration and is responsible for
+honoring it. An adapter that cannot bound a blocking call without
+the core's help must say so explicitly in its documentation; do not
+silently block forever on the worker thread.
+
+The timeout policy that does belong to the core is the worker
+backoff loop: repeated pull failures increase the wait between
+attempts up to `SyncWorkerOptions::max_backoff`. That is a cooldown
+for failed *rounds*, not a per-call deadline.
+
+### Where the cancellation bridge lives
+
+A transport adapter must implement two cancellation channels, both of
+which are already in the public API:
+
+1. `PullRequest::cancel_token` and `PushRequest::cancel_token`.
+   `SyncWorker` sets a cancellable token before every `pull()` call and
+   requests cancellation on it when `request_stop()` runs. The adapter
+   receives the token by value and may poll it during any
+   interruptible wait. A `CancellationToken` is cheap to copy and
+   non-owning; copies share state with their `CancellationSource`.
+2. `ISyncPeer::request_cancel()`. `SyncWorker` calls this hook
+   at most once for each observed in-flight `pull()`. The default
+   implementation is a no-op so token-only peers stay valid. Adapters
+   whose underlying call ignores the token (TCP read, blocking RPC,
+   legacy client) must override `request_cancel()` to close their
+   socket, shutdown their transport, or call the library's native
+   cancellation primitive so the in-flight call returns promptly.
+
+The default adapter-local bridge combines both channels: the adapter
+sets the same deadline it would use for a normal timeout, polls the
+`cancel_token` while waiting on the underlying socket or future, and
+also overrides `request_cancel()` to force the socket into a closed or
+half-closed state so any blocking call returns. The bridge must be
+documented adapter-side; the core does not assume a specific
+mechanism.
+
+Cancellation is best-effort. `SyncWorker::stop()`, `join()`, and
+destruction may wait for an in-flight peer call to return when the
+adapter cannot interrupt that call. This is acknowledged in
+`SyncWorker`'s class docstring and is not a contract violation by
+the adapter.
+
+### Where reconnect policy lives
+
+Reconnect policy is transport-local. There is no `reconnect_interval`
+on `ISyncPeer` and no retry counter on `SyncWorker` because retry
+shapes differ across transports (immediate retry after transient
+connection reset, exponential backoff across peer failures, jittered
+reconnect for peer discovery, ...). An adapter may own its own
+`std::thread` that holds the transport connection and surfaces peer
+state through a small `ISyncPeer`-like façade; that façade must still
+honor the cancellation bridge above.
+
+The one retry shape that lives in core is the worker backoff loop
+on repeated pull failures. It is intentionally distinct from
+connection-level reconnect and does not attempt to model
+connection-state separately from transport-call failures.
+
+### Where auth, TLS, and compression live
+
+Auth, TLS, and compression are adapter-local. The core has no
+`credentials` field on `PullRequest`/`PushRequest` and no TLS
+configuration on `ISyncPeer`. A real adapter typically wraps the
+transport with the platform's TLS layer (OpenSSL, Schannel, NSURLSession)
+or delegates to a server framework that owns the secure channel.
+Identity at the sync layer is `NodeId` (16 bytes); the adapter decides
+whether TLS terminates before or after the sync payload is parsed.
+
+`ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
+encode and decode paths. Adding a real `zstd` backend is a codec
+change and belongs in a separate design pass; it is not part of the
+transport boundary.
+
+### What the core API explicitly does not do
+
+- It does not own a transport connection.
+- It does not expose a per-call timeout on the public DTOs.
+- It does not expose authentication, credentials, or tokens.
+- It does not own a worker thread for the transport itself; only the
+  `SyncWorker` pull/apply loop is provided, and it owns no transport
+  state.
+- It does not promise graceful shutdown of an in-flight peer call;
+  `request_cancel()` is best-effort.
+
+### Adapter-local extension pattern
+
+A new transport adapter ships as a separate pair of headers (one
+client, one server) and is gated by its own build option
+(`MDBXC_HTTP_SYNC`, `MDBXC_WEBSOCKET_SYNC`, ...). The adapter:
+
+- implements `ISyncPeer` on the client side;
+- wraps `SyncEngine::handle_pull()` / `handle_push()` on the server
+  side;
+- owns its own threading model (one acceptor thread, thread pool,
+  per-connection thread, ...);
+- owns its own timeout configuration;
+- documents how its `request_cancel()` translates into the
+  underlying transport's interrupt primitive.
+
+The first real adapter is planned for v0.2 and is not part of this
+document's scope.
+
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
 MDBX has no batch "delete by key range" primitive. The supported pattern
