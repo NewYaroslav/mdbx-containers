@@ -110,6 +110,9 @@ void write_http_response(
                     out.content_type.empty()
                         ? "text/plain; charset=utf-8"
                         : out.content_type);
+    for (std::size_t i = 0; i < out.headers.size(); ++i) {
+        headers.emplace(out.headers[i].name, out.headers[i].value);
+    }
     response->write(to_simple_status(out.status_code),
                     bytes_to_string(out.body),
                     headers);
@@ -171,6 +174,13 @@ public:
                 static_cast<unsigned>(std::atoi(
                     received->status_code.c_str()));
             out.content_type = header_value(received->header, "Content-Type");
+            for (SimpleWeb::CaseInsensitiveMultimap::const_iterator it =
+                     received->header.begin();
+                 it != received->header.end();
+                 ++it) {
+                mdbxc::sync::http_add_header(
+                    out.headers, it->first, it->second);
+            }
             out.body = string_to_bytes(received->content.string());
             return out;
         } catch (const SimpleWeb::system_error& e) {
@@ -335,26 +345,37 @@ private:
             header_value(request->header, "Content-Type");
         const std::string content = request->content.string();
 
-        const mdbxc::sync::SyncTransportDecision decision =
-            m_policy.check_http_post(request->path,
-                                     content_type,
-                                     string_to_bytes(content));
-        if (!decision.allowed) {
-            mdbxc::sync::HttpSyncResponse out;
-            out.status_code =
-                decision.status_code == 0 ? 403 : decision.status_code;
-            out.content_type = "text/plain; charset=utf-8";
-            out.error = decision.error.empty() ? "rejected" : decision.error;
-            out.body = string_to_bytes(out.error);
-            write_http_response(response, out);
-            return;
-        }
-
         mdbxc::sync::HttpSyncRequest in;
         in.method = request->method;
         in.target = request->path;
         in.content_type = content_type;
         in.body = string_to_bytes(content);
+        for (SimpleWeb::CaseInsensitiveMultimap::const_iterator it =
+                 request->header.begin();
+             it != request->header.end();
+             ++it) {
+            mdbxc::sync::http_add_header(in.headers, it->first, it->second);
+        }
+        try {
+            in.remote_address =
+                request->remote_endpoint().address().to_string();
+        } catch (...) {
+            in.remote_address.clear();
+        }
+
+        const mdbxc::sync::SyncTransportDecision decision =
+            m_policy.check_http_request(in);
+        if (!decision.allowed) {
+            mdbxc::sync::HttpSyncResponse out;
+            out.status_code =
+                decision.status_code == 0 ? 403 : decision.status_code;
+            out.content_type = "text/plain; charset=utf-8";
+            out.headers = decision.response_headers;
+            out.error = decision.error.empty() ? "rejected" : decision.error;
+            out.body = string_to_bytes(out.error);
+            write_http_response(response, out);
+            return;
+        }
 
         write_http_response(response, m_handler.handle(in));
     }

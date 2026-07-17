@@ -60,7 +60,9 @@
   adapter seam, `WebSocketSyncPeer` defines a binary message seam, and
   `SyncWorker` is the background polling driver. A Simple-Web-Server HTTP
   example is optional; concrete socket-bound WebSocket bindings and specialized
-  table wire formats remain deferred. See
+  table wire formats remain deferred. HTTP auth, remote-address checks, and
+  rate-limit headers live in adapter-local policy context, not inside sync DTOs.
+  See
   `include/mdbx_containers/sync/DESIGN.md`.
 
 ### 🗄️ Structure & Configuration

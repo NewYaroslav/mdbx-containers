@@ -38,8 +38,9 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   does not open sockets, own sessions, or depend on a WebSocket framework.
 - Transport middleware helpers: `SyncPeerMiddleware`,
   `HttpSyncClientMiddleware`, allow-list policies, fixed-budget rate limiting,
-  and a metrics observer. These wrap transport adapters and do not change the
-  sync DTO wire format.
+  HTTP request-context bearer/remote-address/fixed-window policies,
+  `Retry-After`/`WWW-Authenticate` rejection headers, and a metrics observer.
+  These wrap transport adapters and do not change the sync DTO wire format.
 - Change capture hooks: `Connection::attach_sync_capture()`,
   `BaseTable::record_op()`, and the transaction pre-commit hook route table
   writes into `ThreadLocalChangeAccumulator`, which appends one local
@@ -465,10 +466,17 @@ DTO header fields (`requester`, `sender`, `db_id`) before dispatching to
 `SyncEngine`. Do not put bearer tokens, ACL decisions, or rate-limit counters
 inside the sync DTO wire format.
 
-`SyncPeerMiddleware` and `HttpSyncClientMiddleware` are the v0.1 framework-free
+`SyncPeerMiddleware`, `HttpSyncClientMiddleware`, and
+`HttpSyncServerMiddleware` are the v0.1 framework-free
 building blocks for these wrappers. `NodeDbAllowListPolicy` checks decoded
 `requester` / `sender` and `db_id` values. `HttpRouteAllowListPolicy` checks
 HTTP-shaped targets before a concrete HTTP client sends bytes.
+`HttpSyncRequest` carries adapter-local `headers` and `remote_address` fields;
+they are not serialized by `TransportMessageCodec`. `HttpBearerTokenPolicy`,
+`HttpRemoteAddressAllowListPolicy`, and `FixedWindowHttpRateLimitPolicy` run on
+that context before dispatch. Rejections may carry response headers such as
+`WWW-Authenticate` or `Retry-After`; concrete HTTP bindings must write those
+headers to the real response.
 `FixedBudgetSyncTransportPolicy` is a deterministic fixed-budget limiter useful
 for tests, examples, and simple adapters; production adapters can replace it
 with a time-window or token-bucket policy while keeping the same middleware
