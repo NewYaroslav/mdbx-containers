@@ -164,6 +164,31 @@ void test_push_response_roundtrip() {
     require_true(decoded.error == response.error, "PushResponse error mismatch");
 }
 
+void test_peek_message_type() {
+    using namespace mdbxc::sync;
+
+    require_true(
+        TransportMessageCodec::peek_message_type(
+            TransportMessageCodec::encode_pull_request(PullRequest())) ==
+            TransportMessageType::PullRequest,
+        "PullRequest peek mismatch");
+    require_true(
+        TransportMessageCodec::peek_message_type(
+            TransportMessageCodec::encode_pull_response(PullResponse())) ==
+            TransportMessageType::PullResponse,
+        "PullResponse peek mismatch");
+    require_true(
+        TransportMessageCodec::peek_message_type(
+            TransportMessageCodec::encode_push_request(PushRequest())) ==
+            TransportMessageType::PushRequest,
+        "PushRequest peek mismatch");
+    require_true(
+        TransportMessageCodec::peek_message_type(
+            TransportMessageCodec::encode_push_response(PushResponse())) ==
+            TransportMessageType::PushResponse,
+        "PushResponse peek mismatch");
+}
+
 void test_message_header_rejections() {
     using namespace mdbxc::sync;
     const std::vector<std::uint8_t> bytes =
@@ -299,6 +324,7 @@ int main() {
     test_pull_response_roundtrip();
     test_push_request_roundtrip();
     test_push_response_roundtrip();
+    test_peek_message_type();
     test_message_header_rejections();
     test_bounds_rejections();
     test_golden_header_shape();

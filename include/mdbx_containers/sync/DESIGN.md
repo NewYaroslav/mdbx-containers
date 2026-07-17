@@ -32,6 +32,10 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   `IHttpSyncClient`, `HttpSyncServer`, and `HttpSyncRoutes`. It defines
   route/content-type/body/status mapping over `TransportMessageCodec` but does
   not open sockets or depend on an HTTP framework.
+- Framework-neutral WebSocket-shaped adapter seam: `WebSocketSyncPeer`,
+  `IWebSocketSyncChannel`, and `WebSocketSyncServer`. It defines a complete
+  binary-message request/response contract over `TransportMessageCodec` but
+  does not open sockets, own sessions, or depend on a WebSocket framework.
 - Transport middleware helpers: `SyncPeerMiddleware`,
   `HttpSyncClientMiddleware`, allow-list policies, fixed-budget rate limiting,
   and a metrics observer. These wrap transport adapters and do not change the
@@ -100,10 +104,9 @@ new wire-format semantics.
   use `LastWriterWins` in a non-test path.
 - `Custom` conflict resolver — schema-level callback; deferred until the
   first real consumer needs it.
-- Concrete socket-bound HTTP and WebSocket transports (`Simple-Web-Server`,
-  `Simple-WebSocket-Server`, Boost.Beast, libcurl, or another framework) with
-  guarded build flags. The current HTTP-shaped adapter seam does not own
-  sockets.
+- Additional concrete socket-bound HTTP and WebSocket transports
+  (`Simple-WebSocket-Server`, Boost.Beast, libcurl, or another framework) with
+  guarded build flags. The HTTP and WebSocket adapter seams do not own sockets.
 - `zstd` compression — reserved flag, encoder throws, decoder rejects.
 
 ## Endianness policy (do not change)
@@ -241,6 +244,10 @@ Locked contract:
 - Decoders reject trailing bytes, truncated messages, invalid boolean values,
   wrong message types, unsupported versions, and configured size-limit
   violations.
+- `peek_message_type()` validates the shared envelope and returns only the
+  message kind. It is for message-oriented adapters such as WebSocket servers
+  that dispatch complete binary messages before decoding the type-specific
+  payload.
 - A null `CodecBounds` argument uses the default `CodecBounds` limits at this
   transport layer; adapters may pass stricter limits for their deployment.
 
@@ -362,9 +369,11 @@ in place until a real adapter shows that core cannot support it.
   process and is suitable for tests, examples, and in-process demos.
   `HttpSyncPeer` is a framework-neutral HTTP-shaped adapter over an abstract
   `IHttpSyncClient`; it defines the route/body contract but does not own a
-  socket. Production code that crosses a process boundary must bind this seam
-  to a transport implementation that owns its own connection, threading, and
-  lifecycle.
+  socket. `WebSocketSyncPeer` is a framework-neutral binary-message adapter
+  over an abstract `IWebSocketSyncChannel`; it defines the complete-message
+  request/response contract but does not own a socket or session. Production
+  code that crosses a process boundary must bind these seams to a transport
+  implementation that owns its own connection, threading, and lifecycle.
 - A transport adapter does not own the caller's `SyncEngine`. The
   receiver-side `SyncEngine` (the one whose state changed because of a
   remote write) must live on the thread that owns the receiver
@@ -471,6 +480,10 @@ per-remote-client rate limiting before `HttpSyncServer::handle()`. They also
 count middleware hook invocations: if one observer is installed at both the
 peer layer and HTTP client layer, a forwarded `request_cancel()` can be counted
 once per layer.
+For WebSocket, decoded DTO policy can wrap `WebSocketSyncPeer` through
+`SyncPeerMiddleware`; per-session authentication, remote address checks,
+backpressure, and rate limits remain binding-local before
+`WebSocketSyncServer::handle_binary_message()`.
 
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec
@@ -496,16 +509,16 @@ A concrete socket-bound transport adapter ships as a separate pair of headers
 
 - implements or reuses `ISyncPeer` on the client side;
 - wraps `SyncEngine::handle_pull()` / `handle_push()` on the server
-  side, directly or through `HttpSyncServer`;
+  side, directly, through `HttpSyncServer`, or through `WebSocketSyncServer`;
 - owns its own threading model (one acceptor thread, thread pool,
   per-connection thread, ...);
 - owns its own timeout configuration;
 - documents how its `request_cancel()` translates into the
   underlying transport's interrupt primitive.
 
-The framework-neutral `HttpSyncPeer` / `HttpSyncServer` seam is part of v0.1.
-Concrete HTTP server/client bindings and WebSocket bindings remain separate
-optional integrations.
+The framework-neutral `HttpSyncPeer` / `HttpSyncServer` and
+`WebSocketSyncPeer` / `WebSocketSyncServer` seams are part of v0.1. Concrete
+server/client bindings remain separate optional integrations.
 
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 

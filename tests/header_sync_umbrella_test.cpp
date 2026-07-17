@@ -47,8 +47,15 @@ int main() {
         mdbxc::sync::TransportMessageCodec::decode_pull_request(wire);
     MDBXC_TEST_ASSERT(decoded_pull.requester == node);
     MDBXC_TEST_ASSERT(decoded_pull.have.last_seq_for(node) == 1u);
+    MDBXC_TEST_ASSERT(
+        mdbxc::sync::TransportMessageCodec::peek_message_type(wire) ==
+        mdbxc::sync::TransportMessageType::PullRequest);
     MDBXC_TEST_ASSERT(std::string(mdbxc::sync::HttpSyncRoutes::pull_target())
                       == "/mdbxc/sync/v1/pull");
+    mdbxc::sync::IWebSocketSyncChannel* websocket_channel = nullptr;
+    mdbxc::sync::WebSocketSyncServer* websocket_server = nullptr;
+    (void)websocket_channel;
+    (void)websocket_server;
     mdbxc::sync::NodeDbAllowListPolicy allow_list;
     allow_list.allow_node_id(node);
     allow_list.allow_db_id(node);

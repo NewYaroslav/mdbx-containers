@@ -2,8 +2,9 @@
 
 These examples show the sync v0.1 API as transport-agnostic building blocks.
 Most use `DirectSyncPeer` or a small in-memory buffer so the protocol flow is
-visible without adding HTTP, WebSocket, or IPC code. The final optional example
-binds the HTTP seam to Simple-Web-Server and standalone Asio.
+visible without adding HTTP, WebSocket, or IPC code. The optional HTTP example
+binds the HTTP seam to Simple-Web-Server and standalone Asio, while the
+WebSocket example stays framework-neutral.
 
 Sync is opt-in. The examples are built with `MDBXC_SYNC_ENABLED=1`; applications
 must also compile sync users with that macro enabled.
@@ -61,6 +62,7 @@ tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
 | `sync_11_http_adapter.cpp` | Framework-neutral HTTP-shaped adapter over `TransportMessageCodec`. | Advanced |
 | `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget, and metrics middleware around transport adapters. | Advanced |
 | `sync_13_http_simple_web_server.cpp` | Optional real HTTP binding over Simple-Web-Server and standalone Asio. | Advanced |
+| `sync_14_websocket_adapter.cpp` | Framework-neutral WebSocket binary-message seam over `TransportMessageCodec`. | Advanced |
 
 ## Common Rules
 
@@ -136,6 +138,13 @@ channel's own interruption primitive.
 implements `ISyncPeer` over an abstract `IHttpSyncClient`, and
 `HttpSyncServer` dispatches already-parsed HTTP method/target/content-type/body
 values to `SyncEngine`. A real HTTP library supplies the socket layer around
+that seam.
+
+`sync_14_websocket_adapter.cpp` shows the WebSocket-shaped adapter seam.
+`WebSocketSyncPeer` implements `ISyncPeer` over an abstract
+`IWebSocketSyncChannel`, and `WebSocketSyncServer` dispatches complete binary
+messages to `SyncEngine`. A real WebSocket library supplies connection setup,
+fragment reassembly, ping/pong, backpressure, and close/error mapping around
 that seam.
 
 `sync_12_transport_middleware.cpp` shows adapter-local policy wrappers.

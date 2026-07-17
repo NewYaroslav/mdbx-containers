@@ -63,6 +63,17 @@ namespace sync {
         /// \brief Supported transport codec version.
         static std::uint16_t codec_version() { return 1; }
 
+        /// \brief Reads the message type from a transport envelope.
+        /// \details Validates magic, codec version, and mandatory flags but
+        /// does not decode or validate the type-specific payload.
+        static TransportMessageType peek_message_type(
+                const std::vector<std::uint8_t>& data,
+                const CodecBounds* bounds = nullptr) {
+            bounds = effective_bounds(bounds);
+            Cursor cur = make_cursor(data, bounds);
+            return read_header_type(cur);
+        }
+
         /// \brief Encodes a pull request.
         static std::vector<std::uint8_t> encode_pull_request(
                 const PullRequest& request,
@@ -227,7 +238,7 @@ namespace sync {
             return cur;
         }
 
-        static void check_header(Cursor& cur, TransportMessageType expected) {
+        static TransportMessageType read_header_type(Cursor& cur) {
             check_bounds(cur, magic_size());
             if (std::memcmp(cur.data + cur.pos, magic(), magic_size()) != 0) {
                 throw std::runtime_error("Transport codec magic mismatch");
@@ -239,13 +250,34 @@ namespace sync {
                 throw std::runtime_error("Unsupported transport codec_version");
             }
             const std::uint8_t type = read_u8(cur);
-            if (type != static_cast<std::uint8_t>(expected)) {
-                throw std::runtime_error("Unexpected transport message type");
-            }
             const std::uint32_t flags = read_u32_le(cur);
             if (flags != 0) {
                 throw std::runtime_error(
                     "Unknown mandatory transport message flags");
+            }
+            switch (type) {
+                case static_cast<std::uint8_t>(
+                        TransportMessageType::PullRequest):
+                    return TransportMessageType::PullRequest;
+                case static_cast<std::uint8_t>(
+                        TransportMessageType::PullResponse):
+                    return TransportMessageType::PullResponse;
+                case static_cast<std::uint8_t>(
+                        TransportMessageType::PushRequest):
+                    return TransportMessageType::PushRequest;
+                case static_cast<std::uint8_t>(
+                        TransportMessageType::PushResponse):
+                    return TransportMessageType::PushResponse;
+                default:
+                    throw std::runtime_error(
+                        "Unexpected transport message type");
+            }
+        }
+
+        static void check_header(Cursor& cur, TransportMessageType expected) {
+            const TransportMessageType type = read_header_type(cur);
+            if (type != expected) {
+                throw std::runtime_error("Unexpected transport message type");
             }
         }
 
