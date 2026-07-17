@@ -64,6 +64,7 @@ tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
 | `sync_13_http_simple_web_server.cpp` | Optional real HTTP binding over Simple-Web-Server and standalone Asio. | Advanced |
 | `sync_14_websocket_adapter.cpp` | Framework-neutral WebSocket binary-message seam over `TransportMessageCodec`. | Advanced |
 | `sync_15_http_policy_context.cpp` | Bearer-token, remote-address, and `Retry-After` HTTP policy context. | Advanced |
+| `sync_16_worker_http_transport.cpp` | `SyncWorker` running through `HttpSyncPeer` and HTTP request-context policy. | Advanced |
 
 ## Common Rules
 
@@ -163,3 +164,8 @@ one logical action once per layer.
 HTTP server binding can run before `HttpSyncServer::handle()`. It extracts a
 bearer token from headers, checks the remote address, and returns a `Retry-After`
 header when the fixed-window limiter rejects a request.
+
+`sync_16_worker_http_transport.cpp` combines the background worker with the
+HTTP-shaped adapter. The replica owns `SyncWorker` and `HttpSyncPeer`; the
+primary-side middleware authenticates the bearer token as the replica `NodeId`
+before `HttpSyncServer` dispatches the request.

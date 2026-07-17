@@ -393,7 +393,23 @@ public:
             [this, count] { return m_backoffs.size() >= count; });
     }
 
+    bool wait_for_batches(std::size_t count,
+                          std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this, count] { return applied_batches() >= count; });
+    }
+
 private:
+    std::size_t applied_batches() const {
+        std::size_t total = 0;
+        for (std::size_t i = 0; i < m_pages.size(); ++i) {
+            total += m_pages[i].batches_applied;
+        }
+        return total;
+    }
+
     mutable std::mutex m_mutex;
     mutable std::condition_variable m_changed;
     std::vector<mdbxc::sync::SyncWorkerPageEvent> m_pages;
@@ -458,6 +474,163 @@ private:
     mutable std::mutex m_mutex;
     mutable std::condition_variable m_changed;
     int m_backoff_count;
+};
+
+class ContextHttpClient : public mdbxc::sync::IHttpSyncClient {
+public:
+    ContextHttpClient(mdbxc::sync::HttpSyncServerMiddleware& server,
+                      const std::string& bearer_token,
+                      const std::string& remote_address)
+        : m_server(server),
+          m_bearer_token(bearer_token),
+          m_remote_address(remote_address),
+          m_post_count(0),
+          m_cancel_count(0),
+          m_saw_cancellable_token(false) {}
+
+    mdbxc::sync::HttpSyncResponse post(
+            const std::string& target,
+            const std::string& content_type,
+            const std::vector<std::uint8_t>& body,
+            const mdbxc::sync::CancellationToken& cancel_token) override {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            ++m_post_count;
+            m_saw_cancellable_token =
+                m_saw_cancellable_token ||
+                cancel_token.can_be_cancelled();
+        }
+        m_changed.notify_all();
+
+        mdbxc::sync::HttpSyncRequest request;
+        request.method = mdbxc::sync::HttpSyncRoutes::method_post();
+        request.target = target;
+        request.content_type = content_type;
+        request.remote_address = m_remote_address;
+        request.body = body;
+        mdbxc::sync::http_add_header(
+            request.headers, "Authorization",
+            std::string("Bearer ") + m_bearer_token);
+        return m_server.handle(request);
+    }
+
+    void request_cancel() override {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            ++m_cancel_count;
+        }
+        m_changed.notify_all();
+    }
+
+    bool wait_for_posts(std::size_t count,
+                        std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this, count] { return m_post_count >= count; });
+    }
+
+    std::size_t post_count() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_post_count;
+    }
+
+    std::size_t cancel_count() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_cancel_count;
+    }
+
+    bool saw_cancellable_token() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_saw_cancellable_token;
+    }
+
+private:
+    mdbxc::sync::HttpSyncServerMiddleware& m_server;
+    std::string m_bearer_token;
+    std::string m_remote_address;
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    std::size_t m_post_count;
+    std::size_t m_cancel_count;
+    bool m_saw_cancellable_token;
+};
+
+class BlockingHttpClient : public mdbxc::sync::IHttpSyncClient {
+public:
+    BlockingHttpClient()
+        : m_entered(false),
+          m_cancel_requested(false),
+          m_saw_cancellable_token(false),
+          m_saw_token_cancel(false),
+          m_cancel_count(0) {}
+
+    mdbxc::sync::HttpSyncResponse post(
+            const std::string& target,
+            const std::string& content_type,
+            const std::vector<std::uint8_t>& body,
+            const mdbxc::sync::CancellationToken& cancel_token) override {
+        (void)target;
+        (void)content_type;
+        (void)body;
+
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_entered = true;
+        m_saw_cancellable_token = cancel_token.can_be_cancelled();
+        m_changed.notify_all();
+        while (!m_cancel_requested &&
+               !cancel_token.is_cancellation_requested()) {
+            m_changed.wait_for(lock, std::chrono::milliseconds(10));
+        }
+        m_saw_token_cancel = cancel_token.is_cancellation_requested();
+
+        mdbxc::sync::HttpSyncResponse response;
+        response.status_code = 503;
+        response.content_type = "text/plain; charset=utf-8";
+        response.error = "transport cancelled";
+        response.body.assign(response.error.begin(), response.error.end());
+        return response;
+    }
+
+    void request_cancel() override {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_cancel_requested = true;
+            ++m_cancel_count;
+        }
+        m_changed.notify_all();
+    }
+
+    bool wait_until_entered(std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this] { return m_entered; });
+    }
+
+    std::size_t cancel_count() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_cancel_count;
+    }
+
+    bool saw_cancellable_token() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_saw_cancellable_token;
+    }
+
+    bool saw_token_cancel() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_saw_token_cancel;
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    bool m_entered;
+    bool m_cancel_requested;
+    bool m_saw_cancellable_token;
+    bool m_saw_token_cancel;
+    std::size_t m_cancel_count;
 };
 
 void expect_invalid_options(mdbxc::sync::SyncEngine& engine,
@@ -587,6 +760,117 @@ void test_worker_start_stop_idle() {
     }
     if (peer.cancel_count() != 0) {
         throw std::runtime_error("idle stop should not cancel peer transport");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_worker_background_pull_over_http_transport() {
+    using namespace mdbxc;
+    const std::string primary_path = "test_worker_http_primary.mdbx";
+    const std::string replica_path = "test_worker_http_replica.mdbx";
+    cleanup(primary_path);
+    cleanup(replica_path);
+
+    std::shared_ptr<Connection> primary_conn = open_env(primary_path);
+    std::shared_ptr<Connection> replica_conn = open_env(replica_path);
+
+    const sync::NodeId primary_node = make_node(0xC0);
+    const sync::NodeId replica_node = make_node(0xC1);
+    const sync::DbId db_id = make_node(0xD3);
+
+    sync::SyncEngine primary_engine(primary_conn);
+    sync::SyncEngine replica_engine(replica_conn);
+    primary_engine.initialize_local_identity(primary_node, db_id);
+    replica_engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ThreadLocalChangeAccumulator sink(primary_conn);
+    primary_conn->attach_sync_capture(&sink);
+    {
+        KeyValueTable<int, int> kv(primary_conn, "kv");
+        kv.insert_or_assign(1, 10);
+        kv.insert_or_assign(2, 20);
+    }
+    primary_conn->detach_sync_capture();
+
+    sync::HttpBearerNodeIdentityPolicy identity;
+    identity.allow_token_for_node("replica-token", replica_node);
+    identity.allow_db_id_for_token("replica-token", db_id);
+    sync::HttpSyncServer primary_server(primary_engine);
+    sync::HttpSyncServerMiddleware guarded_server(primary_server, &identity);
+    ContextHttpClient http_client(
+        guarded_server, "replica-token", "127.0.0.1");
+    sync::HttpSyncPeer http_peer(http_client);
+
+    RecordingWorkerObserver observer;
+    sync::SyncWorkerOptions options;
+    options.max_batches = 1;
+    options.idle_interval = std::chrono::milliseconds(10000);
+    options.observer = &observer;
+
+    sync::SyncWorker worker(replica_engine, http_peer, options);
+    worker.start();
+    if (!observer.wait_for_batches(2u, std::chrono::milliseconds(5000))) {
+        throw std::runtime_error("HTTP worker did not apply pulled batches");
+    }
+    if (!http_client.wait_for_posts(2u, std::chrono::milliseconds(5000))) {
+        throw std::runtime_error("HTTP worker did not perform paginated posts");
+    }
+    worker.stop();
+
+    if (!http_client.saw_cancellable_token()) {
+        throw std::runtime_error("HTTP worker did not pass cancellation token");
+    }
+    if (http_client.cancel_count() != 0u) {
+        throw std::runtime_error("idle HTTP worker stop should not cancel post");
+    }
+
+    KeyValueTable<int, int> replica_kv(replica_conn, "kv");
+    if (kv_or_throw(replica_conn, replica_kv, 1, "replica kv[1]") != 10 ||
+        kv_or_throw(replica_conn, replica_kv, 2, "replica kv[2]") != 20) {
+        throw std::runtime_error("HTTP worker replica values mismatch");
+    }
+
+    primary_conn->disconnect();
+    replica_conn->disconnect();
+    cleanup(primary_path);
+    cleanup(replica_path);
+}
+
+void test_worker_stop_cancels_http_transport_peer() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_http_cancel.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xC2), make_node(0xD4));
+
+    BlockingHttpClient client;
+    sync::HttpSyncPeer peer(client);
+    sync::SyncWorkerOptions options;
+    options.idle_interval = std::chrono::milliseconds(10000);
+    sync::SyncWorker worker(engine, peer, options);
+
+    worker.start();
+    if (!client.wait_until_entered(std::chrono::milliseconds(2000))) {
+        throw std::runtime_error("HTTP worker did not enter blocking post");
+    }
+    if (!client.saw_cancellable_token()) {
+        throw std::runtime_error("HTTP blocking client did not receive token");
+    }
+    worker.request_stop();
+    worker.join();
+
+    if (client.cancel_count() != 1u) {
+        throw std::runtime_error("HTTP worker did not request client cancel");
+    }
+    if (!client.saw_token_cancel()) {
+        throw std::runtime_error("HTTP worker did not cancel request token");
+    }
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("HTTP cancelled worker did not stop");
     }
 
     conn->disconnect();
@@ -1086,6 +1370,10 @@ int main() {
         { "test_worker_run_once_drains_paginated_pull",
           &test_worker_run_once_drains_paginated_pull },
         { "test_worker_start_stop_idle", &test_worker_start_stop_idle },
+        { "test_worker_background_pull_over_http_transport",
+          &test_worker_background_pull_over_http_transport },
+        { "test_worker_stop_cancels_http_transport_peer",
+          &test_worker_stop_cancels_http_transport_peer },
         { "test_worker_backoff_on_pull_error", &test_worker_backoff_on_pull_error },
         { "test_worker_observer_exception_does_not_fail_round",
           &test_worker_observer_exception_does_not_fail_round },
