@@ -43,6 +43,7 @@ tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
 | `sync_09_transport_codec.cpp` | Версионированный бинарный `TransportMessageCodec` для DTO запросов и ответов. | Продвинутый |
 | `sync_10_custom_transport.cpp` | Минимальный кастомный `ISyncPeer` поверх закодированных byte buffers. | Продвинутый |
 | `sync_11_http_adapter.cpp` | Фреймворк-независимый HTTP-адаптер поверх `TransportMessageCodec`. | Продвинутый |
+| `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget rate limit и metrics middleware вокруг транспортных адаптеров. | Продвинутый |
 
 ## Общие правила
 
@@ -122,3 +123,14 @@ replica формирует PullRequest
 `HttpSyncServer` передаёт уже разобранные HTTP method/target/content-type/body
 значения в `SyncEngine`. Реальная HTTP-библиотека добавляет сетевой слой вокруг
 этой границы.
+
+`sync_12_transport_middleware.cpp` показывает adapter-local policy wrappers.
+`SyncPeerMiddleware` может проверять декодированные `NodeId` / `DbId` перед
+вызовом peer-а, а `HttpSyncClientMiddleware` может применять route-level policy
+вокруг HTTP-shaped обмена bytes. В такие обёртки помещаются простые allow-lists,
+fixed-budget rate limits и metrics hooks; они не добавляют auth tokens или
+счётчики в wire format sync DTO.
+Они не заменяют server-framework authentication или per-remote-client rate
+limits перед `HttpSyncServer::handle()`. Метрики считают вызовы middleware
+hooks, поэтому общий observer на нескольких слоях может посчитать одно
+логическое действие по одному разу на каждом слое.

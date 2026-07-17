@@ -49,6 +49,10 @@ int main() {
     MDBXC_TEST_ASSERT(decoded_pull.have.last_seq_for(node) == 1u);
     MDBXC_TEST_ASSERT(std::string(mdbxc::sync::HttpSyncRoutes::pull_target())
                       == "/mdbxc/sync/v1/pull");
+    mdbxc::sync::NodeDbAllowListPolicy allow_list;
+    allow_list.allow_node_id(node);
+    allow_list.allow_db_id(node);
+    MDBXC_TEST_ASSERT(allow_list.check_pull(pull).allowed);
 
     mdbxc::sync::CancellationSource source;
     const mdbxc::sync::CancellationToken token = source.token();

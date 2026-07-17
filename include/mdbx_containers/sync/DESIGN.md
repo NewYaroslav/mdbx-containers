@@ -32,6 +32,10 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   `IHttpSyncClient`, `HttpSyncServer`, and `HttpSyncRoutes`. It defines
   route/content-type/body/status mapping over `TransportMessageCodec` but does
   not open sockets or depend on an HTTP framework.
+- Transport middleware helpers: `SyncPeerMiddleware`,
+  `HttpSyncClientMiddleware`, allow-list policies, fixed-budget rate limiting,
+  and a metrics observer. These wrap transport adapters and do not change the
+  sync DTO wire format.
 - Change capture hooks: `Connection::attach_sync_capture()`,
   `BaseTable::record_op()`, and the transaction pre-commit hook route table
   writes into `ThreadLocalChangeAccumulator`, which appends one local
@@ -451,6 +455,22 @@ request handling: inspect transport metadata and, when needed, the decoded
 DTO header fields (`requester`, `sender`, `db_id`) before dispatching to
 `SyncEngine`. Do not put bearer tokens, ACL decisions, or rate-limit counters
 inside the sync DTO wire format.
+
+`SyncPeerMiddleware` and `HttpSyncClientMiddleware` are the v0.1 framework-free
+building blocks for these wrappers. `NodeDbAllowListPolicy` checks decoded
+`requester` / `sender` and `db_id` values. `HttpRouteAllowListPolicy` checks
+HTTP-shaped targets before a concrete HTTP client sends bytes.
+`FixedBudgetSyncTransportPolicy` is a deterministic fixed-budget limiter useful
+for tests, examples, and simple adapters; production adapters can replace it
+with a time-window or token-bucket policy while keeping the same middleware
+shape. `SyncTransportMetricsObserver` records basic call, rejection, failure,
+cancel, and batch counters without changing transport behavior.
+
+These helpers do not replace server-framework authentication or
+per-remote-client rate limiting before `HttpSyncServer::handle()`. They also
+count middleware hook invocations: if one observer is installed at both the
+peer layer and HTTP client layer, a forwarded `request_cancel()` can be counted
+once per layer.
 
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec
