@@ -34,6 +34,41 @@ namespace sync {
         HttpPost
     };
 
+    /// \brief Retry classification for adapter-level HTTP failures.
+    enum class HttpSyncRetryClass : std::uint8_t {
+        Success,
+        Retryable,
+        Permanent
+    };
+
+    /// \brief Classifies HTTP status codes for sync transport retry policy.
+    /// \details This helper classifies transport-level response status only.
+    /// Sync DTO responses with HTTP 200 still carry their own \c ok/error
+    /// fields and must be handled by the caller.
+    inline HttpSyncRetryClass classify_http_sync_status(unsigned status_code) {
+        if (status_code >= 200 && status_code < 300) {
+            return HttpSyncRetryClass::Success;
+        }
+        switch (status_code) {
+            case 408:
+            case 425:
+            case 429:
+            case 500:
+            case 502:
+            case 503:
+            case 504:
+                return HttpSyncRetryClass::Retryable;
+            default:
+                return HttpSyncRetryClass::Permanent;
+        }
+    }
+
+    /// \brief Returns true when an HTTP sync status is retryable.
+    inline bool http_sync_status_is_retryable(unsigned status_code) {
+        return classify_http_sync_status(status_code) ==
+               HttpSyncRetryClass::Retryable;
+    }
+
     /// \brief Result returned by a transport policy.
     struct SyncTransportDecision {
         bool allowed = true;
@@ -252,6 +287,147 @@ namespace sync {
     private:
         mutable std::mutex m_mutex;
         std::set<std::string> m_allowed_tokens;
+    };
+
+    /// \brief Binds HTTP bearer tokens to sync \c NodeId values.
+    /// \details This policy enforces the production-facing identity contract:
+    /// the authenticated bearer principal must match
+    /// \c PullRequest::requester for pull and \c PushRequest::sender for push.
+    /// Optional per-token DB allow-lists validate \c db_id before dispatch.
+    /// Empty per-token DB allow-list means any \c db_id is allowed for that
+    /// token. The policy decodes request DTOs only after the bearer token is
+    /// accepted; adapter-local headers and remote addresses are not serialized.
+    class HttpBearerNodeIdentityPolicy : public ISyncTransportPolicy {
+    public:
+        explicit HttpBearerNodeIdentityPolicy(
+                const CodecBounds& bounds = CodecBounds())
+            : m_bounds(bounds) {}
+
+        void allow_token_for_node(const std::string& token,
+                                  const NodeId& node_id) {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            Binding& binding = m_bindings[token];
+            binding.node_id = node_id;
+        }
+
+        void allow_db_id_for_token(const std::string& token,
+                                   const DbId& db_id) {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            std::map<std::string, Binding>::iterator it =
+                m_bindings.find(token);
+            if (it == m_bindings.end()) {
+                throw std::invalid_argument(
+                    "sync bearer token identity is not registered");
+            }
+            it->second.allowed_dbs.insert(db_id);
+        }
+
+        void clear() {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_bindings.clear();
+        }
+
+        SyncTransportDecision check_http_request(
+                const HttpSyncRequest& request) override {
+            const std::string token = http_bearer_token(request);
+            if (token.empty()) {
+                return unauthorized("sync bearer token is missing");
+            }
+
+            Binding binding;
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                std::map<std::string, Binding>::const_iterator it =
+                    m_bindings.find(token);
+                if (it == m_bindings.end()) {
+                    return unauthorized(
+                        "sync bearer token identity is not allowed");
+                }
+                binding = it->second;
+            }
+
+            if (request.content_type != HttpSyncRoutes::content_type()) {
+                return SyncTransportDecision::allow();
+            }
+            if (request.target == HttpSyncRoutes::pull_target()) {
+                return check_pull_identity(request.body, binding);
+            }
+            if (request.target == HttpSyncRoutes::push_target()) {
+                return check_push_identity(request.body, binding);
+            }
+            return SyncTransportDecision::allow();
+        }
+
+    private:
+        struct Binding {
+            NodeId node_id{};
+            std::set<DbId> allowed_dbs;
+        };
+
+        static SyncTransportDecision unauthorized(
+                const std::string& message) {
+            SyncTransportDecision decision =
+                SyncTransportDecision::reject(message, 401);
+            decision.add_response_header(
+                "WWW-Authenticate",
+                "Bearer realm=\"mdbx-containers-sync\"");
+            return decision;
+        }
+
+        SyncTransportDecision check_pull_identity(
+                const std::vector<std::uint8_t>& body,
+                const Binding& binding) const {
+            try {
+                const PullRequest request =
+                    TransportMessageCodec::decode_pull_request(
+                        body, &m_bounds);
+                if (request.requester != binding.node_id) {
+                    return SyncTransportDecision::reject(
+                        "sync requester does not match authenticated node",
+                        403);
+                }
+                return check_db(binding, request.db_id);
+            } catch (const std::length_error& e) {
+                return SyncTransportDecision::reject(e.what(), 413);
+            } catch (const std::exception& e) {
+                return SyncTransportDecision::reject(e.what(), 400);
+            }
+        }
+
+        SyncTransportDecision check_push_identity(
+                const std::vector<std::uint8_t>& body,
+                const Binding& binding) const {
+            try {
+                const PushRequest request =
+                    TransportMessageCodec::decode_push_request(
+                        body, &m_bounds);
+                if (request.sender != binding.node_id) {
+                    return SyncTransportDecision::reject(
+                        "sync sender does not match authenticated node",
+                        403);
+                }
+                return check_db(binding, request.db_id);
+            } catch (const std::length_error& e) {
+                return SyncTransportDecision::reject(e.what(), 413);
+            } catch (const std::exception& e) {
+                return SyncTransportDecision::reject(e.what(), 400);
+            }
+        }
+
+        static SyncTransportDecision check_db(const Binding& binding,
+                                              const DbId& db_id) {
+            if (!binding.allowed_dbs.empty() &&
+                binding.allowed_dbs.find(db_id) ==
+                    binding.allowed_dbs.end()) {
+                return SyncTransportDecision::reject(
+                    "sync db_id is not allowed for authenticated node", 403);
+            }
+            return SyncTransportDecision::allow();
+        }
+
+        mutable std::mutex m_mutex;
+        CodecBounds m_bounds;
+        std::map<std::string, Binding> m_bindings;
     };
 
     /// \brief Allows only configured remote addresses on HTTP sync requests.

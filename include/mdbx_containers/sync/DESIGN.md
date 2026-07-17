@@ -38,7 +38,8 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   does not open sockets, own sessions, or depend on a WebSocket framework.
 - Transport middleware helpers: `SyncPeerMiddleware`,
   `HttpSyncClientMiddleware`, allow-list policies, fixed-budget rate limiting,
-  HTTP request-context bearer/remote-address/fixed-window policies,
+  HTTP request-context bearer/remote-address/fixed-window policies, bearer
+  token to `NodeId` binding, HTTP retry status classification,
   `Retry-After`/`WWW-Authenticate` rejection headers, and a metrics observer.
   These wrap transport adapters and do not change the sync DTO wire format.
 - Change capture hooks: `Connection::attach_sync_capture()`,
@@ -473,10 +474,19 @@ building blocks for these wrappers. `NodeDbAllowListPolicy` checks decoded
 HTTP-shaped targets before a concrete HTTP client sends bytes.
 `HttpSyncRequest` carries adapter-local `headers` and `remote_address` fields;
 they are not serialized by `TransportMessageCodec`. `HttpBearerTokenPolicy`,
-`HttpRemoteAddressAllowListPolicy`, and `FixedWindowHttpRateLimitPolicy` run on
-that context before dispatch. Rejections may carry response headers such as
-`WWW-Authenticate` or `Retry-After`; concrete HTTP bindings must write those
-headers to the real response.
+`HttpBearerNodeIdentityPolicy`, `HttpRemoteAddressAllowListPolicy`, and
+`FixedWindowHttpRateLimitPolicy` run on that context before dispatch.
+`HttpBearerNodeIdentityPolicy` is the v0.1 authenticated-identity contract:
+the bearer token maps to one `NodeId`; a pull request is allowed only when
+`PullRequest::requester` matches that authenticated node, and a push request is
+allowed only when `PushRequest::sender` matches that authenticated node.
+Optional per-token DB allow-lists validate `db_id` before dispatch. Empty
+per-token DB allow-list means the token may access any `db_id`. This keeps the
+sync DTOs self-describing while preventing a transport principal from claiming
+another node id inside the binary payload.
+Rejections may carry response headers such as `WWW-Authenticate` or
+`Retry-After`; concrete HTTP bindings must write those headers to the real
+response.
 `FixedBudgetSyncTransportPolicy` is a deterministic fixed-budget limiter useful
 for tests, examples, and simple adapters; production adapters can replace it
 with a time-window or token-bucket policy while keeping the same middleware
@@ -492,6 +502,16 @@ For WebSocket, decoded DTO policy can wrap `WebSocketSyncPeer` through
 `SyncPeerMiddleware`; per-session authentication, remote address checks,
 backpressure, and rate limits remain binding-local before
 `WebSocketSyncServer::handle_binary_message()`.
+
+Transport retry classification is adapter-level. HTTP 2xx means transport
+success; the decoded sync response still needs its own `ok/error` handling.
+HTTP `408`, `425`, `429`, `500`, `502`, `503`, and `504` are retryable
+transport statuses by default. Auth, authorization, routing, content-type,
+payload-size, and malformed-body errors (`400`, `401`, `403`, `404`, `405`,
+`413`, `415`) are permanent for the current request unless a higher-level
+adapter refreshes credentials or changes the request. `Retry-After` is advisory
+transport metadata; `SyncWorker` backoff remains the core retry loop for failed
+sync rounds.
 
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec
