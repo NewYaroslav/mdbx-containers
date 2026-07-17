@@ -242,6 +242,10 @@ namespace sync {
     };
 
     /// \brief Runs several policies in insertion order.
+    /// \details Added policies are non-owning references and must outlive the
+    /// composite. Build the policy list before publishing the composite to
+    /// worker threads; calling \c add() concurrently with \c check_*() is not
+    /// supported.
     class CompositeSyncTransportPolicy : public ISyncTransportPolicy {
     public:
         void add(ISyncTransportPolicy& policy) {
@@ -291,6 +295,9 @@ namespace sync {
     };
 
     /// \brief Snapshot of counters recorded by \c SyncTransportMetricsObserver.
+    /// \details Counters represent middleware hook invocations. If the same
+    /// observer is installed at several stacked middleware layers, one logical
+    /// user action may increment more than one counter.
     struct SyncTransportMetricsSnapshot {
         std::uint64_t pull_calls = 0;
         std::uint64_t push_calls = 0;
@@ -348,6 +355,9 @@ namespace sync {
     };
 
     /// \brief Thread-safe counter observer for basic transport metrics.
+    /// \details Counts middleware hook invocations, not necessarily distinct
+    /// logical user operations. Use separate observers when peer-level and
+    /// HTTP-level layers should be reported independently.
     class SyncTransportMetricsObserver : public ISyncTransportObserver {
     public:
         SyncTransportMetricsSnapshot snapshot() const {
@@ -461,6 +471,9 @@ namespace sync {
     } // namespace detail
 
     /// \brief \c ISyncPeer wrapper that applies policy and observer hooks.
+    /// \details The wrapped peer must outlive the middleware. The optional
+    /// policy and observer are non-owning pointers and must also outlive the
+    /// middleware when provided.
     class SyncPeerMiddleware : public ISyncPeer {
     public:
         explicit SyncPeerMiddleware(
@@ -572,6 +585,9 @@ namespace sync {
     };
 
     /// \brief \c IHttpSyncClient wrapper that applies route-level policy.
+    /// \details The wrapped client must outlive the middleware. The optional
+    /// policy and observer are non-owning pointers and must also outlive the
+    /// middleware when provided.
     class HttpSyncClientMiddleware : public IHttpSyncClient {
     public:
         explicit HttpSyncClientMiddleware(

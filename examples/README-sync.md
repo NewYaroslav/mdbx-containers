@@ -126,3 +126,7 @@ call, while `HttpSyncClientMiddleware` can enforce route-level policy around an
 HTTP-shaped byte exchange. These wrappers are where simple allow-lists,
 fixed-budget rate limits, and metrics hooks belong; they do not add auth tokens
 or counters to the sync DTO wire format.
+They do not replace server-framework authentication or per-remote-client rate
+limits before `HttpSyncServer::handle()`. Metrics count middleware hook
+invocations, so a shared observer installed at several stacked layers can count
+one logical action once per layer.

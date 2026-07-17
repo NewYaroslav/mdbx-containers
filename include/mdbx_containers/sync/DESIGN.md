@@ -466,6 +466,12 @@ with a time-window or token-bucket policy while keeping the same middleware
 shape. `SyncTransportMetricsObserver` records basic call, rejection, failure,
 cancel, and batch counters without changing transport behavior.
 
+These helpers do not replace server-framework authentication or
+per-remote-client rate limiting before `HttpSyncServer::handle()`. They also
+count middleware hook invocations: if one observer is installed at both the
+peer layer and HTTP client layer, a forwarded `request_cancel()` can be counted
+once per layer.
+
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec
 change and belongs in a separate design pass; it is not part of the

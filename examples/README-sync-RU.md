@@ -130,3 +130,7 @@ replica формирует PullRequest
 вокруг HTTP-shaped обмена bytes. В такие обёртки помещаются простые allow-lists,
 fixed-budget rate limits и metrics hooks; они не добавляют auth tokens или
 счётчики в wire format sync DTO.
+Они не заменяют server-framework authentication или per-remote-client rate
+limits перед `HttpSyncServer::handle()`. Метрики считают вызовы middleware
+hooks, поэтому общий observer на нескольких слоях может посчитать одно
+логическое действие по одному разу на каждом слое.
