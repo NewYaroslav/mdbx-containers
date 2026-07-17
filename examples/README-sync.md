@@ -39,6 +39,7 @@ executable has the `.exe` suffix, for example:
 | `sync_06_threaded_transport.cpp` | Thread ownership and an in-memory request/response buffer. | Advanced |
 | `sync_07_worker_observer.cpp` | Background `SyncWorker` progress notifications through `ISyncWorkerObserver`. | Advanced |
 | `sync_08_transport_boundary.cpp` | Pseudo-transport that exercises the `ISyncPeer` boundary contract (cancellation token + `request_cancel()`). | Advanced |
+| `sync_09_transport_codec.cpp` | Versioned binary `TransportMessageCodec` for request/response DTOs. | Advanced |
 
 ## Common Rules
 
@@ -52,6 +53,8 @@ executable has the `.exe` suffix, for example:
 - `PullRequest`, `PullResponse`, `PushRequest`, and `PushResponse` are
   transport payload structs. Serialize and deliver these values through the
   transport used by your application.
+- `TransportMessageCodec` is the built-in versioned binary codec for those
+  DTOs. It serializes request/response data, not local cancellation state.
 - Do not pass `Connection`, `Transaction`, table objects, raw MDBX handles, or
   cursors across threads or processes.
 - A receiver applies a page with `SyncEngine::handle_push()`. One page is
@@ -96,3 +99,9 @@ adapter that owns no MDBX handles and demonstrates where the
 `ISyncPeer::request_cancel()` closes the in-flight call. Real HTTP and
 WebSocket adapters will use the same pattern, swapping the in-memory
 queues for sockets.
+
+`sync_09_transport_codec.cpp` shows the next layer down: `PullRequest`,
+`PullResponse`, `PushRequest`, and `PushResponse` are encoded into byte buffers
+with `TransportMessageCodec` before they cross the boundary. Adapter policy
+such as authorization, rate limits, allow/deny lists, routing, and TLS belongs
+around that byte exchange, not inside the sync DTOs themselves.

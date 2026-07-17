@@ -40,6 +40,7 @@ tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
 | `sync_06_threaded_transport.cpp` | Владение объектами по потокам и буфер запросов и ответов в памяти. | Продвинутый |
 | `sync_07_worker_observer.cpp` | Фоновый `SyncWorker` и уведомления о прогрессе через `ISyncWorkerObserver`. | Продвинутый |
 | `sync_08_transport_boundary.cpp` | Псевдотранспорт, который проверяет контракт границы `ISyncPeer` (`CancellationToken` + `request_cancel()`). | Продвинутый |
+| `sync_09_transport_codec.cpp` | Версионированный бинарный `TransportMessageCodec` для DTO запросов и ответов. | Продвинутый |
 
 ## Общие правила
 
@@ -53,6 +54,9 @@ tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
 - `PullRequest`, `PullResponse`, `PushRequest` и `PushResponse` - структуры
   данных протокола. Именно эти значения нужно сериализовать и передавать через
   транспорт приложения.
+- `TransportMessageCodec` - встроенный версионированный бинарный codec для
+  этих DTO. Он сериализует данные запросов и ответов, но не локальное состояние
+  отмены.
 - Не передавайте между потоками или процессами объекты `Connection`,
   `Transaction` и таблиц, а также необёрнутые дескрипторы MDBX и курсоры.
 - Получатель применяет страницу через `SyncEngine::handle_push()`. Одна
@@ -99,3 +103,9 @@ replica формирует PullRequest
 `ISyncPeer::request_cancel()` закрывает выполняющийся вызов. Реальные
 адаптеры HTTP и WebSocket используют ту же схему, заменяя очереди в памяти
 на сокеты.
+
+`sync_09_transport_codec.cpp` показывает следующий слой: `PullRequest`,
+`PullResponse`, `PushRequest` и `PushResponse` кодируются в byte buffer через
+`TransportMessageCodec` до пересечения границы. Политики адаптера, такие как
+авторизация, rate limit, allow/deny lists, маршрутизация и TLS, должны
+оборачивать этот обмен bytes, а не попадать внутрь sync DTO.

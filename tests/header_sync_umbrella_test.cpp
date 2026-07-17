@@ -37,6 +37,17 @@ int main() {
     MDBXC_TEST_ASSERT(decoded.ops.size() == 1u);
     MDBXC_TEST_ASSERT(decoded.ops[0].dbi_name == "sync_umbrella_table");
 
+    mdbxc::sync::PullRequest pull;
+    pull.requester = node;
+    pull.db_id = node;
+    pull.have.last_seq_by_origin[node] = 1u;
+    const std::vector<std::uint8_t> wire =
+        mdbxc::sync::TransportMessageCodec::encode_pull_request(pull);
+    const mdbxc::sync::PullRequest decoded_pull =
+        mdbxc::sync::TransportMessageCodec::decode_pull_request(wire);
+    MDBXC_TEST_ASSERT(decoded_pull.requester == node);
+    MDBXC_TEST_ASSERT(decoded_pull.have.last_seq_for(node) == 1u);
+
     mdbxc::sync::CancellationSource source;
     const mdbxc::sync::CancellationToken token = source.token();
     MDBXC_TEST_ASSERT(token.can_be_cancelled());
