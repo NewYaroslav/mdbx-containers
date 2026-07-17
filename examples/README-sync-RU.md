@@ -41,6 +41,8 @@ tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
 | `sync_07_worker_observer.cpp` | Фоновый `SyncWorker` и уведомления о прогрессе через `ISyncWorkerObserver`. | Продвинутый |
 | `sync_08_transport_boundary.cpp` | Псевдотранспорт, который проверяет контракт границы `ISyncPeer` (`CancellationToken` + `request_cancel()`). | Продвинутый |
 | `sync_09_transport_codec.cpp` | Версионированный бинарный `TransportMessageCodec` для DTO запросов и ответов. | Продвинутый |
+| `sync_10_custom_transport.cpp` | Минимальный кастомный `ISyncPeer` поверх закодированных byte buffers. | Продвинутый |
+| `sync_11_http_adapter.cpp` | Фреймворк-независимый HTTP-адаптер поверх `TransportMessageCodec`. | Продвинутый |
 
 ## Общие правила
 
@@ -109,3 +111,14 @@ replica формирует PullRequest
 `TransportMessageCodec` до пересечения границы. Политики адаптера, такие как
 авторизация, rate limit, allow/deny lists, маршрутизация и TLS, должны
 оборачивать этот обмен bytes, а не попадать внутрь sync DTO.
+
+`sync_10_custom_transport.cpp` показывает минимальную форму кастомного
+транспорта: реализовать `ISyncPeer`, закодировать DTO запроса, отправить bytes
+через канал приложения, декодировать DTO ответа и реализовать
+`request_cancel()` через собственный механизм прерывания канала.
+
+`sync_11_http_adapter.cpp` показывает границу HTTP-адаптера. `HttpSyncPeer`
+реализует `ISyncPeer` поверх абстрактного `IHttpSyncClient`, а
+`HttpSyncServer` передаёт уже разобранные HTTP method/target/content-type/body
+значения в `SyncEngine`. Реальная HTTP-библиотека добавляет сетевой слой вокруг
+этой границы.
