@@ -19,6 +19,7 @@ All project options use the `MDBXC_` prefix.
 | `MDBXC_BUILD_BENCHMARKS` | `OFF` | Build manual benchmark executables from `benchmarks/`. |
 | `MDBXC_ENABLE_STRESS_TESTS` | `OFF` | Register long stress tests with CTest. Stress executables are still built when tests are enabled. |
 | `MDBXC_HTTP_SYNC_EXAMPLE` | `OFF` | Build the optional Simple-Web-Server HTTP sync example and fetch standalone Asio/Simple-Web-Server headers. |
+| `MDBXC_WEBSOCKET_SYNC_EXAMPLE` | `OFF` | Build the optional Simple-WebSocket-Server sync example and fetch standalone Asio/Simple-WebSocket-Server headers. Requires OpenSSL Crypto because Simple-WebSocket-Server uses it for the WebSocket handshake. |
 | `MDBXC_USE_ASAN` | `ON` | Enable AddressSanitizer for tests/examples when supported. |
 
 When `mdbx-containers` is added as a subproject, existing parent-provided

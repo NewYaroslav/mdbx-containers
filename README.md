@@ -58,8 +58,8 @@
 - `SyncEngine` exposes pull/push/apply primitives, `DirectSyncPeer` provides
   in-process sync for tests and examples, `HttpSyncPeer` defines an HTTP-shaped
   adapter seam, `WebSocketSyncPeer` defines a binary message seam, and
-  `SyncWorker` is the background polling driver. A Simple-Web-Server HTTP
-  example is optional; concrete socket-bound WebSocket bindings and specialized
+  `SyncWorker` is the background polling driver. Simple-Web-Server HTTP and
+  Simple-WebSocket-Server WebSocket examples are optional; specialized
   table wire formats remain deferred. HTTP auth, remote-address checks, and
   rate-limit headers live in adapter-local policy context, not inside sync DTOs.
   See

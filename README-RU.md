@@ -81,8 +81,8 @@
   используется для in-process синхронизации в тестах и примерах,
   `HttpSyncPeer` задаёт HTTP-shaped adapter seam, `WebSocketSyncPeer` задаёт
   binary message seam, а `SyncWorker` запускает фоновой polling. Пример HTTP
-  на Simple-Web-Server собирается опционально; конкретные socket-bound
-  WebSocket binding-и и wire-format для специализированных таблиц отложены.
+  на Simple-Web-Server и WebSocket-пример на Simple-WebSocket-Server собираются
+  опционально; wire-format для специализированных таблиц отложен.
   HTTP auth, remote-address checks и rate-limit headers живут в adapter-local
   policy context, а не внутри sync DTO;
   см. `include/mdbx_containers/sync/DESIGN.md`.

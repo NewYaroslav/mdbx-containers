@@ -45,6 +45,23 @@ tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
     demo 127.0.0.1 18080
 ```
 
+The real WebSocket binding example is also opt-in because it fetches standalone
+Asio and Simple-WebSocket-Server headers. Simple-WebSocket-Server uses OpenSSL
+Crypto for the WebSocket handshake, so set `OPENSSL_ROOT_DIR` if CMake cannot
+find OpenSSL automatically:
+
+```bash
+cmake -S . -B tmp/build-ws-example \
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_TESTS=OFF \
+    -DMDBXC_BUILD_EXAMPLES=ON \
+    -DMDBXC_WEBSOCKET_SYNC_EXAMPLE=ON \
+    -DCMAKE_CXX_STANDARD=11
+
+cmake --build tmp/build-ws-example --target sync_17_websocket_simple_web_server
+tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server
+```
+
 ## Reading Order
 
 | Example | What it demonstrates | Level |
@@ -65,6 +82,7 @@ tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
 | `sync_14_websocket_adapter.cpp` | Framework-neutral WebSocket binary-message seam over `TransportMessageCodec`. | Advanced |
 | `sync_15_http_policy_context.cpp` | Bearer-token, remote-address, and `Retry-After` HTTP policy context. | Advanced |
 | `sync_16_worker_http_transport.cpp` | `SyncWorker` running through `HttpSyncPeer` and HTTP request-context policy. | Advanced |
+| `sync_17_websocket_simple_web_server.cpp` | Optional real WebSocket binding over Simple-WebSocket-Server and standalone Asio. | Advanced |
 
 ## Common Rules
 
@@ -169,3 +187,8 @@ header when the fixed-window limiter rejects a request.
 HTTP-shaped adapter. The replica owns `SyncWorker` and `HttpSyncPeer`; the
 primary-side middleware authenticates the bearer token as the replica `NodeId`
 before `HttpSyncServer` dispatches the request.
+
+`sync_17_websocket_simple_web_server.cpp` is the socket-backed WebSocket
+counterpart. It binds `WebSocketSyncPeer` / `WebSocketSyncServer` to
+Simple-WebSocket-Server, sends binary frames, and checks the bearer token during
+the WebSocket handshake.
