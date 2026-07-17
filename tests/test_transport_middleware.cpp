@@ -348,6 +348,125 @@ void test_http_context_policies() {
                  "denied remote address was not rejected");
 }
 
+void test_http_bearer_node_identity_policy() {
+    const mdbxc::sync::NodeId node_a = make_node(0x11);
+    const mdbxc::sync::NodeId node_b = make_node(0x22);
+    const mdbxc::sync::DbId db_a = make_node(0xD1);
+    const mdbxc::sync::DbId db_b = make_node(0xD2);
+
+    mdbxc::sync::HttpBearerNodeIdentityPolicy policy;
+    policy.allow_token_for_node("token-a", node_a);
+    policy.allow_db_id_for_token("token-a", db_a);
+
+    mdbxc::sync::PullRequest pull;
+    pull.requester = node_a;
+    pull.db_id = db_a;
+
+    mdbxc::sync::HttpSyncRequest request;
+    request.method = mdbxc::sync::HttpSyncRoutes::method_post();
+    request.target = mdbxc::sync::HttpSyncRoutes::pull_target();
+    request.content_type = mdbxc::sync::HttpSyncRoutes::content_type();
+    request.body = mdbxc::sync::TransportMessageCodec::encode_pull_request(
+        pull);
+    mdbxc::sync::http_add_header(
+        request.headers, "Authorization", "Bearer token-a");
+
+    mdbxc::sync::SyncTransportDecision decision =
+        policy.check_http_request(request);
+    require_true(decision.allowed,
+                 "matching bearer identity was rejected");
+
+    pull.requester = node_b;
+    request.body = mdbxc::sync::TransportMessageCodec::encode_pull_request(
+        pull);
+    decision = policy.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 403,
+                 "requester mismatch was not rejected");
+
+    pull.requester = node_a;
+    pull.db_id = db_b;
+    request.body = mdbxc::sync::TransportMessageCodec::encode_pull_request(
+        pull);
+    decision = policy.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 403,
+                 "db_id mismatch was not rejected");
+
+    mdbxc::sync::PushRequest push;
+    push.sender = node_b;
+    push.db_id = db_a;
+    request.target = mdbxc::sync::HttpSyncRoutes::push_target();
+    request.body = mdbxc::sync::TransportMessageCodec::encode_push_request(
+        push);
+    decision = policy.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 403,
+                 "sender mismatch was not rejected");
+
+    request.headers.clear();
+    push.sender = node_a;
+    request.body = mdbxc::sync::TransportMessageCodec::encode_push_request(
+        push);
+    decision = policy.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 401,
+                 "missing bearer identity was not rejected");
+    require_true(mdbxc::sync::http_header_value(
+                     decision.response_headers, "WWW-Authenticate") !=
+                     std::string(),
+                 "identity rejection must include WWW-Authenticate");
+}
+
+void test_http_bearer_node_identity_policy_rejects_invalid_body() {
+    const mdbxc::sync::NodeId node = make_node(0x33);
+    const mdbxc::sync::DbId db_id = make_node(0xD3);
+
+    mdbxc::sync::CodecBounds bounds;
+    bounds.max_transport_message_bytes = 8;
+
+    mdbxc::sync::HttpBearerNodeIdentityPolicy bounded_policy(bounds);
+    bounded_policy.allow_token_for_node("token-a", node);
+    bounded_policy.allow_db_id_for_token("token-a", db_id);
+
+    mdbxc::sync::HttpSyncRequest request;
+    request.method = mdbxc::sync::HttpSyncRoutes::method_post();
+    request.target = mdbxc::sync::HttpSyncRoutes::pull_target();
+    request.content_type = mdbxc::sync::HttpSyncRoutes::content_type();
+    mdbxc::sync::http_add_header(
+        request.headers, "Authorization", "Bearer token-a");
+
+    const std::uint8_t malformed_byte_1 = 0x01;
+    const std::uint8_t malformed_byte_2 = 0x02;
+    request.body.push_back(malformed_byte_1);
+    request.body.push_back(malformed_byte_2);
+
+    mdbxc::sync::SyncTransportDecision decision =
+        bounded_policy.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 400,
+                 "malformed pull body was not rejected as HTTP 400");
+
+    mdbxc::sync::PullRequest pull;
+    pull.requester = node;
+    pull.db_id = db_id;
+    request.body = mdbxc::sync::TransportMessageCodec::encode_pull_request(
+        pull);
+
+    decision = bounded_policy.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 413,
+                 "oversized pull body was not rejected as HTTP 413");
+}
+
+void test_http_retry_status_classification() {
+    require_true(mdbxc::sync::classify_http_sync_status(200) ==
+                     mdbxc::sync::HttpSyncRetryClass::Success,
+                 "HTTP 200 must be success");
+    require_true(mdbxc::sync::http_sync_status_is_retryable(429),
+                 "HTTP 429 must be retryable");
+    require_true(mdbxc::sync::http_sync_status_is_retryable(503),
+                 "HTTP 503 must be retryable");
+    require_true(!mdbxc::sync::http_sync_status_is_retryable(401),
+                 "HTTP 401 must be permanent");
+    require_true(!mdbxc::sync::http_sync_status_is_retryable(413),
+                 "HTTP 413 must be permanent");
+}
+
 void test_http_client_middleware_copies_rejection_headers() {
     mdbxc::sync::FixedWindowHttpRateLimitPolicy rate(
         0, std::chrono::seconds(7));
@@ -407,6 +526,9 @@ int main() {
     test_http_client_middleware_route_policy();
     test_http_client_middleware_budget_policy();
     test_http_context_policies();
+    test_http_bearer_node_identity_policy();
+    test_http_bearer_node_identity_policy_rejects_invalid_body();
+    test_http_retry_status_classification();
     test_http_client_middleware_copies_rejection_headers();
     test_http_server_middleware_copies_rejection_headers();
     return 0;
