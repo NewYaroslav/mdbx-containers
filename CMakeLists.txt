@@ -20,6 +20,11 @@ option(MDBXC_BUILD_BENCHMARKS   "Build benchmark executables"                   
 option(MDBXC_ENABLE_STRESS_TESTS "Register long stress tests with CTest"           OFF)
 option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmdbx)" ON)
 
+# Optional transport-binding example that pulls a third-party HTTP backend
+# (Simple-Web-Server). Off by default to keep the default build free of
+# network-stack dependencies. See examples/README-sync.md for usage.
+option(MDBXC_HTTP_SYNC_EXAMPLE "Build the Simple-Web-Server HTTP binding example" OFF)
+
 # Three-mode dependency policy for MDBX: AUTO | SYSTEM | BUNDLED
 set(MDBXC_DEPS_MODE "AUTO" CACHE STRING "Dependency mode for MDBX: AUTO|SYSTEM|BUNDLED")
 set_property(CACHE MDBXC_DEPS_MODE PROPERTY STRINGS AUTO SYSTEM BUNDLED)
@@ -29,6 +34,7 @@ message(STATUS "MDBXC_BUILD_EXAMPLES    = ${MDBXC_BUILD_EXAMPLES}")
 message(STATUS "MDBXC_BUILD_TESTS       = ${MDBXC_BUILD_TESTS}")
 message(STATUS "MDBXC_BUILD_BENCHMARKS  = ${MDBXC_BUILD_BENCHMARKS}")
 message(STATUS "MDBXC_ENABLE_STRESS_TESTS = ${MDBXC_ENABLE_STRESS_TESTS}")
+message(STATUS "MDBXC_HTTP_SYNC_EXAMPLE = ${MDBXC_HTTP_SYNC_EXAMPLE}")
 message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
 
 set(MDBXC_HAS_ASAN OFF CACHE BOOL "Compiler+linker support -fsanitize=address")
@@ -128,6 +134,8 @@ set_target_properties(${_PKG_EXPORT_TARGET} PROPERTIES
 # ---------------------------------------
 if(MDBXC_BUILD_EXAMPLES)
     file(GLOB EXAMPLES CONFIGURE_DEPENDS examples/*.cpp)
+    list(FILTER EXAMPLES EXCLUDE REGEX
+        "sync_13_http_simple_web_server\\.cpp$")
     foreach(example_file IN LISTS EXAMPLES)
         get_filename_component(example_name ${example_file} NAME_WE)
         add_executable(${example_name} ${example_file})
@@ -145,6 +153,36 @@ if(MDBXC_BUILD_EXAMPLES)
         # To enable pause-on-Enter in examples only (not in tests), uncomment:
         # target_compile_definitions(${example_name} PRIVATE INTERACTIVE_TEST)
     endforeach()
+endif()
+
+# ---------------------------------------
+# Optional HTTP transport binding example
+# ---------------------------------------
+# Pulls Simple-Web-Server through FetchContent and adds one example that
+# shows a real loopback HTTP server + client wiring around HttpSyncServer
+# and HttpSyncPeer. The default build does not touch this section; the
+# example is built only when MDBXC_HTTP_SYNC_EXAMPLE is ON.
+if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
+    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/deps)
+    include(cmake/deps/simple-web-server.cmake)
+
+    simple_web_server_provide(OUT_TARGET _MDBXC_SWS_TARGET)
+
+    add_executable(sync_13_http_simple_web_server
+        examples/sync_13_http_simple_web_server.cpp)
+    set_target_properties(sync_13_http_simple_web_server PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
+    )
+    target_compile_features(sync_13_http_simple_web_server PRIVATE cxx_std_17)
+    target_compile_definitions(sync_13_http_simple_web_server PRIVATE
+        MDBXC_SYNC_ENABLED=1
+        ASIO_STANDALONE=1
+        USE_STANDALONE_ASIO=1)
+    target_link_libraries(sync_13_http_simple_web_server PRIVATE
+        ${_PKG_TARGET}
+        ${_MDBXC_SWS_TARGET})
+    message(STATUS "HTTP binding example sync_13_http_simple_web_server -> "
+        "${_MDBXC_SWS_TARGET}")
 endif()
 
 # ---------------------------------------

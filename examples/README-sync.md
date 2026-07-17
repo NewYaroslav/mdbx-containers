@@ -1,8 +1,9 @@
 # Sync Examples
 
 These examples show the sync v0.1 API as transport-agnostic building blocks.
-They use `DirectSyncPeer` or a small in-memory buffer so the protocol flow is
-visible without adding HTTP, WebSocket, or IPC code.
+Most use `DirectSyncPeer` or a small in-memory buffer so the protocol flow is
+visible without adding HTTP, WebSocket, or IPC code. The final optional example
+binds the HTTP seam to Simple-Web-Server and standalone Asio.
 
 Sync is opt-in. The examples are built with `MDBXC_SYNC_ENABLED=1`; applications
 must also compile sync users with that macro enabled.
@@ -27,6 +28,22 @@ executable has the `.exe` suffix, for example:
 .\tmp\build-examples\bin\examples\sync_01_lifecycle_direct_peer.exe
 ```
 
+The real HTTP binding example is opt-in because it fetches standalone Asio and
+Simple-Web-Server headers:
+
+```bash
+cmake -S . -B tmp/build-http-example \
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_TESTS=OFF \
+    -DMDBXC_BUILD_EXAMPLES=ON \
+    -DMDBXC_HTTP_SYNC_EXAMPLE=ON \
+    -DCMAKE_CXX_STANDARD=17
+
+cmake --build tmp/build-http-example --target sync_13_http_simple_web_server
+tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
+    demo 127.0.0.1 18080
+```
+
 ## Reading Order
 
 | Example | What it demonstrates | Level |
@@ -43,6 +60,7 @@ executable has the `.exe` suffix, for example:
 | `sync_10_custom_transport.cpp` | Minimal custom `ISyncPeer` over encoded byte buffers. | Advanced |
 | `sync_11_http_adapter.cpp` | Framework-neutral HTTP-shaped adapter over `TransportMessageCodec`. | Advanced |
 | `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget, and metrics middleware around transport adapters. | Advanced |
+| `sync_13_http_simple_web_server.cpp` | Optional real HTTP binding over Simple-Web-Server and standalone Asio. | Advanced |
 
 ## Common Rules
 
