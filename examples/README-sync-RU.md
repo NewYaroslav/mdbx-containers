@@ -3,8 +3,8 @@
 Эти примеры показывают API sync v0.1 как набор блоков, не привязанных к
 конкретному транспорту. Большинство примеров используют `DirectSyncPeer` или
 небольшой буфер в памяти, чтобы поток протокола был виден без HTTP, WebSocket
-или IPC-кода. Последний опциональный пример связывает HTTP seam с
-Simple-Web-Server и standalone Asio.
+или IPC-кода. Опциональный HTTP-пример связывает HTTP seam с Simple-Web-Server
+и standalone Asio, а WebSocket-пример остаётся framework-neutral.
 
 Синхронизация включается явно. Примеры собираются с `MDBXC_SYNC_ENABLED=1`;
 приложениям, которые используют sync, тоже нужно компилировать соответствующий
@@ -63,6 +63,7 @@ tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
 | `sync_11_http_adapter.cpp` | Фреймворк-независимый HTTP-адаптер поверх `TransportMessageCodec`. | Продвинутый |
 | `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget rate limit и metrics middleware вокруг транспортных адаптеров. | Продвинутый |
 | `sync_13_http_simple_web_server.cpp` | Опциональный настоящий HTTP binding через Simple-Web-Server и standalone Asio. | Продвинутый |
+| `sync_14_websocket_adapter.cpp` | Framework-neutral WebSocket binary-message seam поверх `TransportMessageCodec`. | Продвинутый |
 
 ## Общие правила
 
@@ -142,6 +143,13 @@ replica формирует PullRequest
 `HttpSyncServer` передаёт уже разобранные HTTP method/target/content-type/body
 значения в `SyncEngine`. Реальная HTTP-библиотека добавляет сетевой слой вокруг
 этой границы.
+
+`sync_14_websocket_adapter.cpp` показывает границу WebSocket-адаптера.
+`WebSocketSyncPeer` реализует `ISyncPeer` поверх абстрактного
+`IWebSocketSyncChannel`, а `WebSocketSyncServer` передаёт полные бинарные
+сообщения в `SyncEngine`. Реальная WebSocket-библиотека добавляет вокруг этой
+границы подключение, сборку фрагментов, ping/pong, backpressure и mapping
+close/error.
 
 `sync_12_transport_middleware.cpp` показывает adapter-local policy wrappers.
 `SyncPeerMiddleware` может проверять декодированные `NodeId` / `DbId` перед

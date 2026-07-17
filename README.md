@@ -57,9 +57,10 @@
   DUPSORT duplicate framing, and hash-index identity semantics are specified.
 - `SyncEngine` exposes pull/push/apply primitives, `DirectSyncPeer` provides
   in-process sync for tests and examples, `HttpSyncPeer` defines an HTTP-shaped
-  adapter seam, and `SyncWorker` is the background polling driver. A
-  Simple-Web-Server HTTP example is optional; WebSocket transports and
-  specialized table wire formats remain deferred. See
+  adapter seam, `WebSocketSyncPeer` defines a binary message seam, and
+  `SyncWorker` is the background polling driver. A Simple-Web-Server HTTP
+  example is optional; concrete socket-bound WebSocket bindings and specialized
+  table wire formats remain deferred. See
   `include/mdbx_containers/sync/DESIGN.md`.
 
 ### 🗄️ Structure & Configuration

@@ -32,6 +32,7 @@
 #include "sync/SyncWorker.hpp"
 #include "sync/DirectSyncPeer.hpp"
 #include "sync/HttpTransport.hpp"
+#include "sync/WebSocketTransport.hpp"
 #include "sync/TransportMiddleware.hpp"
 #include "sync/stores/MetaStore.hpp"
 #include "sync/stores/OriginIndexStore.hpp"
