@@ -47,6 +47,8 @@ int main() {
         mdbxc::sync::TransportMessageCodec::decode_pull_request(wire);
     MDBXC_TEST_ASSERT(decoded_pull.requester == node);
     MDBXC_TEST_ASSERT(decoded_pull.have.last_seq_for(node) == 1u);
+    MDBXC_TEST_ASSERT(std::string(mdbxc::sync::HttpSyncRoutes::pull_target())
+                      == "/mdbxc/sync/v1/pull");
 
     mdbxc::sync::CancellationSource source;
     const mdbxc::sync::CancellationToken token = source.token();

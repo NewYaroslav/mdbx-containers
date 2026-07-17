@@ -40,6 +40,8 @@ executable has the `.exe` suffix, for example:
 | `sync_07_worker_observer.cpp` | Background `SyncWorker` progress notifications through `ISyncWorkerObserver`. | Advanced |
 | `sync_08_transport_boundary.cpp` | Pseudo-transport that exercises the `ISyncPeer` boundary contract (cancellation token + `request_cancel()`). | Advanced |
 | `sync_09_transport_codec.cpp` | Versioned binary `TransportMessageCodec` for request/response DTOs. | Advanced |
+| `sync_10_custom_transport.cpp` | Minimal custom `ISyncPeer` over encoded byte buffers. | Advanced |
+| `sync_11_http_adapter.cpp` | Framework-neutral HTTP-shaped adapter over `TransportMessageCodec`. | Advanced |
 
 ## Common Rules
 
@@ -105,3 +107,14 @@ queues for sockets.
 with `TransportMessageCodec` before they cross the boundary. Adapter policy
 such as authorization, rate limits, allow/deny lists, routing, and TLS belongs
 around that byte exchange, not inside the sync DTOs themselves.
+
+`sync_10_custom_transport.cpp` shows the minimal custom transport shape:
+implement `ISyncPeer`, encode request DTOs, send bytes through the application
+channel, decode response DTOs, and implement `request_cancel()` with the
+channel's own interruption primitive.
+
+`sync_11_http_adapter.cpp` shows the HTTP-shaped adapter seam. `HttpSyncPeer`
+implements `ISyncPeer` over an abstract `IHttpSyncClient`, and
+`HttpSyncServer` dispatches already-parsed HTTP method/target/content-type/body
+values to `SyncEngine`. A real HTTP library supplies the socket layer around
+that seam.

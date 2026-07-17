@@ -1,0 +1,257 @@
+#pragma once
+#ifndef MDBX_CONTAINERS_HEADER_SYNC_HTTP_TRANSPORT_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_SYNC_HTTP_TRANSPORT_HPP_INCLUDED
+
+/// \file HttpTransport.hpp
+/// \brief Framework-neutral HTTP-shaped adapter for sync transport DTOs.
+/// \details
+/// This header does not open sockets and does not depend on any HTTP library.
+/// It defines the stable route/content-type/body contract that a concrete HTTP
+/// client or server binding can adapt to its framework. Authorization, rate
+/// limits, allow/deny lists, TLS, and routing middleware belong around this
+/// adapter layer.
+
+#include <cstddef>
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#include "ISyncPeer.hpp"
+#include "SyncEngine.hpp"
+#include "TransportMessageCodec.hpp"
+
+namespace mdbxc {
+namespace sync {
+
+    /// \brief Minimal request shape consumed by \c HttpSyncServer.
+    struct HttpSyncRequest {
+        std::string method;
+        std::string target;
+        std::string content_type;
+        std::vector<std::uint8_t> body;
+    };
+
+    /// \brief Minimal response shape produced by \c HttpSyncServer.
+    /// \details Successful sync responses use the binary sync content type and
+    /// a \c TransportMessageCodec body. Non-200 responses use \c text/plain
+    /// and carry the diagnostic text in \c body; \c error mirrors the text for
+    /// in-process adapters that do not serialize the response object.
+    struct HttpSyncResponse {
+        unsigned status_code = 200;
+        std::string content_type;
+        std::vector<std::uint8_t> body;
+        std::string error;
+    };
+
+    /// \brief Client-side bridge implemented by a concrete HTTP library.
+    class IHttpSyncClient {
+    public:
+        virtual ~IHttpSyncClient() {}
+
+        /// \brief Sends one binary sync request body to \p target.
+        /// \details Implementations own connection pooling, timeouts, TLS,
+        /// authorization headers, rate-limit retries, and socket cancellation.
+        virtual HttpSyncResponse post(
+                const std::string& target,
+                const std::string& content_type,
+                const std::vector<std::uint8_t>& body,
+                const CancellationToken& cancel_token) = 0;
+
+        /// \brief Best-effort cancellation hook for an in-flight \c post().
+        virtual void request_cancel() {}
+    };
+
+    /// \brief Shared constants for HTTP sync adapters.
+    class HttpSyncRoutes {
+    public:
+        static const char* method_post() {
+            return "POST";
+        }
+
+        static const char* content_type() {
+            return "application/vnd.mdbx-containers.sync.v1+octet-stream";
+        }
+
+        static const char* pull_target() {
+            return "/mdbxc/sync/v1/pull";
+        }
+
+        static const char* push_target() {
+            return "/mdbxc/sync/v1/push";
+        }
+    };
+
+    /// \brief Server-side dispatcher from HTTP-shaped requests to SyncEngine.
+    class HttpSyncServer {
+    public:
+        explicit HttpSyncServer(SyncEngine& engine,
+                                const CodecBounds& bounds = CodecBounds())
+            : m_engine(engine), m_bounds(bounds) {}
+
+        /// \brief Handles one already-parsed HTTP request.
+        /// \details Returns HTTP-style status codes for transport/framing
+        /// failures. Sync-level failures such as db_id mismatch are encoded
+        /// inside the binary PullResponse/PushResponse with status 200.
+        HttpSyncResponse handle(const HttpSyncRequest& request) const {
+            if (request.method != HttpSyncRoutes::method_post()) {
+                return make_error(405, "method not allowed");
+            }
+            if (request.content_type != HttpSyncRoutes::content_type()) {
+                return make_error(415, "unsupported content type");
+            }
+            if (request.target == HttpSyncRoutes::pull_target()) {
+                return handle_pull(request.body);
+            }
+            if (request.target == HttpSyncRoutes::push_target()) {
+                return handle_push(request.body);
+            }
+            return make_error(404, "unknown sync route");
+        }
+
+    private:
+        HttpSyncResponse handle_pull(
+                const std::vector<std::uint8_t>& body) const {
+            PullRequest decoded;
+            try {
+                decoded = TransportMessageCodec::decode_pull_request(
+                    body, &m_bounds);
+            } catch (const std::length_error& e) {
+                return make_error(413, e.what());
+            } catch (const std::exception& e) {
+                return make_error(400, e.what());
+            }
+
+            try {
+                const PullResponse response = m_engine.handle_pull(decoded);
+                return make_binary(
+                    TransportMessageCodec::encode_pull_response(
+                        response, &m_bounds));
+            } catch (const std::exception& e) {
+                return make_error(500, e.what());
+            }
+        }
+
+        HttpSyncResponse handle_push(
+                const std::vector<std::uint8_t>& body) const {
+            PushRequest decoded;
+            try {
+                decoded = TransportMessageCodec::decode_push_request(
+                    body, &m_bounds);
+            } catch (const std::length_error& e) {
+                return make_error(413, e.what());
+            } catch (const std::exception& e) {
+                return make_error(400, e.what());
+            }
+
+            try {
+                const PushResponse response = m_engine.handle_push(decoded);
+                return make_binary(
+                    TransportMessageCodec::encode_push_response(
+                        response, &m_bounds));
+            } catch (const std::exception& e) {
+                return make_error(500, e.what());
+            }
+        }
+
+        static HttpSyncResponse make_binary(
+                const std::vector<std::uint8_t>& body) {
+            HttpSyncResponse response;
+            response.status_code = 200;
+            response.content_type = HttpSyncRoutes::content_type();
+            response.body = body;
+            return response;
+        }
+
+        static HttpSyncResponse make_error(unsigned status,
+                                           const std::string& error) {
+            HttpSyncResponse response;
+            response.status_code = status;
+            response.content_type = "text/plain; charset=utf-8";
+            response.error = error;
+            response.body.assign(error.begin(), error.end());
+            return response;
+        }
+
+        SyncEngine& m_engine;
+        CodecBounds m_bounds;
+    };
+
+    /// \brief \c ISyncPeer implementation over an abstract HTTP client.
+    class HttpSyncPeer : public ISyncPeer {
+    public:
+        explicit HttpSyncPeer(IHttpSyncClient& client,
+                              const CodecBounds& bounds = CodecBounds())
+            : m_client(client), m_bounds(bounds) {}
+
+        PullResponse pull(const PullRequest& request) override {
+            const std::vector<std::uint8_t> body =
+                TransportMessageCodec::encode_pull_request(
+                    request, &m_bounds);
+            const HttpSyncResponse response = m_client.post(
+                HttpSyncRoutes::pull_target(),
+                HttpSyncRoutes::content_type(),
+                body,
+                request.cancel_token);
+            require_ok_response(response, "pull");
+            return TransportMessageCodec::decode_pull_response(
+                response.body, &m_bounds);
+        }
+
+        PushResponse push(const PushRequest& request) override {
+            const std::vector<std::uint8_t> body =
+                TransportMessageCodec::encode_push_request(
+                    request, &m_bounds);
+            const HttpSyncResponse response = m_client.post(
+                HttpSyncRoutes::push_target(),
+                HttpSyncRoutes::content_type(),
+                body,
+                request.cancel_token);
+            require_ok_response(response, "push");
+            return TransportMessageCodec::decode_push_response(
+                response.body, &m_bounds);
+        }
+
+        void request_cancel() override {
+            m_client.request_cancel();
+        }
+
+    private:
+        static void require_ok_response(const HttpSyncResponse& response,
+                                        const char* operation) {
+            if (response.status_code != 200) {
+                const std::string diagnostic = response_diagnostic(response);
+                throw std::runtime_error(
+                    std::string("HTTP sync ") + operation +
+                    " failed with status " +
+                    std::to_string(response.status_code) + ": " +
+                    diagnostic);
+            }
+            if (response.content_type != HttpSyncRoutes::content_type()) {
+                throw std::runtime_error(
+                    std::string("HTTP sync ") + operation +
+                    " returned unexpected content type");
+            }
+        }
+
+        static std::string response_diagnostic(
+                const HttpSyncResponse& response) {
+            if (!response.error.empty()) {
+                return response.error;
+            }
+            if (response.body.empty()) {
+                return std::string();
+            }
+            return std::string(
+                reinterpret_cast<const char*>(&response.body[0]),
+                response.body.size());
+        }
+
+        IHttpSyncClient& m_client;
+        CodecBounds m_bounds;
+    };
+
+} // namespace sync
+} // namespace mdbxc
+
+#endif // MDBX_CONTAINERS_HEADER_SYNC_HTTP_TRANSPORT_HPP_INCLUDED

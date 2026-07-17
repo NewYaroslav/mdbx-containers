@@ -28,6 +28,10 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   `PullRequest`, `PullResponse`, `PushRequest`, and `PushResponse`.
   It length-prefixes nested `ChangeBatchCodec` payloads and does not
   serialize operation-local `CancellationToken` state.
+- Framework-neutral HTTP-shaped adapter seam: `HttpSyncPeer`,
+  `IHttpSyncClient`, `HttpSyncServer`, and `HttpSyncRoutes`. It defines
+  route/content-type/body/status mapping over `TransportMessageCodec` but does
+  not open sockets or depend on an HTTP framework.
 - Change capture hooks: `Connection::attach_sync_capture()`,
   `BaseTable::record_op()`, and the transaction pre-commit hook route table
   writes into `ThreadLocalChangeAccumulator`, which appends one local
@@ -92,10 +96,10 @@ new wire-format semantics.
   use `LastWriterWins` in a non-test path.
 - `Custom` conflict resolver — schema-level callback; deferred until the
   first real consumer needs it.
-- HTTP and WebSocket transports (`Simple-Web-Server`,
-  `Simple-WebSocket-Server`) — guarded build flags; first adapter lands after
-  the transport boundary and cancellation bridge are designed against a real
-  adapter.
+- Concrete socket-bound HTTP and WebSocket transports (`Simple-Web-Server`,
+  `Simple-WebSocket-Server`, Boost.Beast, libcurl, or another framework) with
+  guarded build flags. The current HTTP-shaped adapter seam does not own
+  sockets.
 - `zstd` compression — reserved flag, encoder throws, decoder rejects.
 
 ## Endianness policy (do not change)
@@ -350,11 +354,13 @@ in place until a real adapter shows that core cannot support it.
   stores (MetaStore, ChangeLogStore, AppliedStore, OriginIndexStore,
   IdentityIndexStore) are thread-owned and never enter a transport
   payload.
-- `DirectSyncPeer` is the only peer implementation shipped in v0.1. It
-  forwards the request DTOs to another `SyncEngine` in the same process
-  and is suitable for tests, examples, and in-process demos. Production
-  code that crosses a process boundary must replace it with a transport
-  adapter that owns its own connection, threading, and lifecycle.
+- `DirectSyncPeer` forwards request DTOs to another `SyncEngine` in the same
+  process and is suitable for tests, examples, and in-process demos.
+  `HttpSyncPeer` is a framework-neutral HTTP-shaped adapter over an abstract
+  `IHttpSyncClient`; it defines the route/body contract but does not own a
+  socket. Production code that crosses a process boundary must bind this seam
+  to a transport implementation that owns its own connection, threading, and
+  lifecycle.
 - A transport adapter does not own the caller's `SyncEngine`. The
   receiver-side `SyncEngine` (the one whose state changed because of a
   remote write) must live on the thread that owns the receiver
@@ -464,21 +470,22 @@ transport boundary.
 
 ### Adapter-local extension pattern
 
-A new transport adapter ships as a separate pair of headers (one
-client, one server) and is gated by its own build option
+A concrete socket-bound transport adapter ships as a separate pair of headers
+(one client, one server) and is gated by its own build option
 (`MDBXC_HTTP_SYNC`, `MDBXC_WEBSOCKET_SYNC`, ...). The adapter:
 
-- implements `ISyncPeer` on the client side;
+- implements or reuses `ISyncPeer` on the client side;
 - wraps `SyncEngine::handle_pull()` / `handle_push()` on the server
-  side;
+  side, directly or through `HttpSyncServer`;
 - owns its own threading model (one acceptor thread, thread pool,
   per-connection thread, ...);
 - owns its own timeout configuration;
 - documents how its `request_cancel()` translates into the
   underlying transport's interrupt primitive.
 
-The first real adapter is planned for v0.2 and is not part of this
-document's scope.
+The framework-neutral `HttpSyncPeer` / `HttpSyncServer` seam is part of v0.1.
+Concrete HTTP server/client bindings and WebSocket bindings remain separate
+optional integrations.
 
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
