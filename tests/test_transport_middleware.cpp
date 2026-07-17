@@ -414,6 +414,45 @@ void test_http_bearer_node_identity_policy() {
                  "identity rejection must include WWW-Authenticate");
 }
 
+void test_http_bearer_node_identity_policy_rejects_invalid_body() {
+    const mdbxc::sync::NodeId node = make_node(0x33);
+    const mdbxc::sync::DbId db_id = make_node(0xD3);
+
+    mdbxc::sync::CodecBounds bounds;
+    bounds.max_transport_message_bytes = 8;
+
+    mdbxc::sync::HttpBearerNodeIdentityPolicy bounded_policy(bounds);
+    bounded_policy.allow_token_for_node("token-a", node);
+    bounded_policy.allow_db_id_for_token("token-a", db_id);
+
+    mdbxc::sync::HttpSyncRequest request;
+    request.method = mdbxc::sync::HttpSyncRoutes::method_post();
+    request.target = mdbxc::sync::HttpSyncRoutes::pull_target();
+    request.content_type = mdbxc::sync::HttpSyncRoutes::content_type();
+    mdbxc::sync::http_add_header(
+        request.headers, "Authorization", "Bearer token-a");
+
+    const std::uint8_t malformed_byte_1 = 0x01;
+    const std::uint8_t malformed_byte_2 = 0x02;
+    request.body.push_back(malformed_byte_1);
+    request.body.push_back(malformed_byte_2);
+
+    mdbxc::sync::SyncTransportDecision decision =
+        bounded_policy.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 400,
+                 "malformed pull body was not rejected as HTTP 400");
+
+    mdbxc::sync::PullRequest pull;
+    pull.requester = node;
+    pull.db_id = db_id;
+    request.body = mdbxc::sync::TransportMessageCodec::encode_pull_request(
+        pull);
+
+    decision = bounded_policy.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 413,
+                 "oversized pull body was not rejected as HTTP 413");
+}
+
 void test_http_retry_status_classification() {
     require_true(mdbxc::sync::classify_http_sync_status(200) ==
                      mdbxc::sync::HttpSyncRetryClass::Success,
@@ -488,6 +527,7 @@ int main() {
     test_http_client_middleware_budget_policy();
     test_http_context_policies();
     test_http_bearer_node_identity_policy();
+    test_http_bearer_node_identity_policy_rejects_invalid_body();
     test_http_retry_status_classification();
     test_http_client_middleware_copies_rejection_headers();
     test_http_server_middleware_copies_rejection_headers();
