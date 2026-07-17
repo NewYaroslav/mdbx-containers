@@ -210,6 +210,29 @@ void test_message_header_rejections() {
         bad[bad.size() - 1u] = 2u;
         (void)TransportMessageCodec::decode_pull_request(bad);
     });
+
+    expect_throw("duplicate cursor origin", [] {
+        PullRequest request;
+        request.have.last_seq_by_origin[make_node(0xA0)] = 1;
+        request.have.last_seq_by_origin[make_node(0xB0)] = 2;
+        std::vector<std::uint8_t> bad =
+            TransportMessageCodec::encode_pull_request(request);
+
+        const std::size_t envelope_size =
+            TransportMessageCodec::magic_size() + 2u + 1u + 4u;
+        const std::size_t node_size = request.requester.size();
+        const std::size_t cursor_count_size = 4u;
+        const std::size_t seq_size = 8u;
+        const std::size_t first_origin_offset =
+            envelope_size + node_size + node_size + cursor_count_size;
+        const std::size_t second_origin_offset =
+            first_origin_offset + node_size + seq_size;
+
+        for (std::size_t i = 0; i < node_size; ++i) {
+            bad[second_origin_offset + i] = bad[first_origin_offset + i];
+        }
+        (void)TransportMessageCodec::decode_pull_request(bad);
+    });
 }
 
 void test_bounds_rejections() {

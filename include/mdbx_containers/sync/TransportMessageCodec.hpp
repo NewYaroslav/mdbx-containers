@@ -427,7 +427,13 @@ namespace sync {
             for (std::uint32_t i = 0; i < count; ++i) {
                 NodeId origin{};
                 read_node(cur, origin);
-                cursor.last_seq_by_origin[origin] = read_u64_le(cur);
+                const std::uint64_t seq = read_u64_le(cur);
+                if (cursor.last_seq_by_origin.find(origin) !=
+                    cursor.last_seq_by_origin.end()) {
+                    throw std::runtime_error(
+                        "Duplicate origin in transport cursor");
+                }
+                cursor.last_seq_by_origin[origin] = seq;
             }
             return cursor;
         }
