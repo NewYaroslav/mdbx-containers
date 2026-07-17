@@ -94,7 +94,8 @@ replica формирует PullRequest
 основному коду, когда страницы применены или завершён очередной цикл.
 
 `sync_08_transport_boundary.cpp` фиксирует контракт, которому должен следовать
-transport adapter поверх `ISyncPeer`. Пример показывает, где наблюдается
-`CancellationToken` из `PullRequest` и где `ISyncPeer::request_cancel()`
-закрывает выполняющийся вызов. Реальные HTTP и WebSocket adapter-ы используют
-ту же схему, заменяя очереди в памяти на сокеты.
+транспортный адаптер, реализующий `ISyncPeer`. Пример показывает, где
+наблюдается `CancellationToken` из `PullRequest` и где
+`ISyncPeer::request_cancel()` закрывает выполняющийся вызов. Реальные
+адаптеры HTTP и WebSocket используют ту же схему, заменяя очереди в памяти
+на сокеты.

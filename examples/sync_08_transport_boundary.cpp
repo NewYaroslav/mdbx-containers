@@ -201,9 +201,10 @@ int main() {
 
     try {
         // A single Connection hosts both the worker engine (replica side)
-        // and the dispatching engine (server side). In production they
-        // live on different Connections on different threads; here we
-        // keep them on one process for the contract demo.
+        // and the dispatching engine (server side) only to keep this
+        // pseudo-transport demo compact. Do not copy this arrangement into
+        // a real client/server transport: each endpoint must own its own
+        // Connection and SyncEngine on its own side of the boundary.
         std::shared_ptr<mdbxc::Connection> replica_db =
             sync_example::open(path);
         mdbxc::sync::SyncEngine replica_engine(replica_db);
