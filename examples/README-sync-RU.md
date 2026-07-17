@@ -1,8 +1,10 @@
 # Примеры синхронизации
 
 Эти примеры показывают API sync v0.1 как набор блоков, не привязанных к
-конкретному транспорту. Они используют `DirectSyncPeer` или небольшой буфер в
-памяти, чтобы поток протокола был виден без HTTP, WebSocket или IPC-кода.
+конкретному транспорту. Большинство примеров используют `DirectSyncPeer` или
+небольшой буфер в памяти, чтобы поток протокола был виден без HTTP, WebSocket
+или IPC-кода. Последний опциональный пример связывает HTTP seam с
+Simple-Web-Server и standalone Asio.
 
 Синхронизация включается явно. Примеры собираются с `MDBXC_SYNC_ENABLED=1`;
 приложениям, которые используют sync, тоже нужно компилировать соответствующий
@@ -15,7 +17,7 @@ cmake -S . -B tmp/build-examples \
     -DMDBXC_DEPS_MODE=BUNDLED \
     -DMDBXC_BUILD_TESTS=OFF \
     -DMDBXC_BUILD_EXAMPLES=ON \
-    -DCMAKE_CXX_STANDARD=17
+    -DCMAKE_CXX_STANDARD=11
 
 cmake --build tmp/build-examples --target sync_01_lifecycle_direct_peer
 tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
@@ -26,6 +28,22 @@ tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
 
 ```powershell
 .\tmp\build-examples\bin\examples\sync_01_lifecycle_direct_peer.exe
+```
+
+Реальный HTTP binding example включается отдельно, потому что он скачивает
+headers standalone Asio и Simple-Web-Server:
+
+```bash
+cmake -S . -B tmp/build-http-example \
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_TESTS=OFF \
+    -DMDBXC_BUILD_EXAMPLES=ON \
+    -DMDBXC_HTTP_SYNC_EXAMPLE=ON \
+    -DCMAKE_CXX_STANDARD=11
+
+cmake --build tmp/build-http-example --target sync_13_http_simple_web_server
+tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
+    demo 127.0.0.1 18080
 ```
 
 ## Порядок чтения
@@ -44,6 +62,7 @@ tmp/build-examples/bin/examples/sync_01_lifecycle_direct_peer
 | `sync_10_custom_transport.cpp` | Минимальный кастомный `ISyncPeer` поверх закодированных byte buffers. | Продвинутый |
 | `sync_11_http_adapter.cpp` | Фреймворк-независимый HTTP-адаптер поверх `TransportMessageCodec`. | Продвинутый |
 | `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget rate limit и metrics middleware вокруг транспортных адаптеров. | Продвинутый |
+| `sync_13_http_simple_web_server.cpp` | Опциональный настоящий HTTP binding через Simple-Web-Server и standalone Asio. | Продвинутый |
 
 ## Общие правила
 

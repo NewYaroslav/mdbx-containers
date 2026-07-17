@@ -78,10 +78,11 @@
   реплицируются в v0.1. Их wire-format отложен до явного описания type tags,
   DUPSORT duplicate framing и hash-index identity semantics.
 - `SyncEngine` предоставляет pull/push/apply primitives, `DirectSyncPeer`
-  используется для in-process синхронизации в тестах и примерах, а
-  `SyncWorker` запускает фоновой polling. HTTP/WebSocket транспорты и
-  wire-format для специализированных таблиц отложены; см.
-  `include/mdbx_containers/sync/DESIGN.md`.
+  используется для in-process синхронизации в тестах и примерах,
+  `HttpSyncPeer` задаёт HTTP-shaped adapter seam, а `SyncWorker` запускает
+  фоновой polling. Пример HTTP на Simple-Web-Server собирается опционально;
+  WebSocket транспорты и wire-format для специализированных таблиц отложены;
+  см. `include/mdbx_containers/sync/DESIGN.md`.
 
 ### 🗄️ Структура и конфигурация
 - Несколько логических таблиц внутри одного MDBX-файла.

@@ -56,9 +56,11 @@
   replicated in v0.1. Their wire formats are deferred until type tags,
   DUPSORT duplicate framing, and hash-index identity semantics are specified.
 - `SyncEngine` exposes pull/push/apply primitives, `DirectSyncPeer` provides
-  in-process sync for tests and examples, and `SyncWorker` is the background
-  polling driver. HTTP/WebSocket transports and specialized table wire formats
-  remain deferred; see `include/mdbx_containers/sync/DESIGN.md`.
+  in-process sync for tests and examples, `HttpSyncPeer` defines an HTTP-shaped
+  adapter seam, and `SyncWorker` is the background polling driver. A
+  Simple-Web-Server HTTP example is optional; WebSocket transports and
+  specialized table wire formats remain deferred. See
+  `include/mdbx_containers/sync/DESIGN.md`.
 
 ### 🗄️ Structure & Configuration
 - Multiple logical tables inside one MDBX file.
