@@ -10,6 +10,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <limits>
+#include <map>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -77,12 +79,27 @@ namespace sync {
         ISyncWorkerObserver* observer = nullptr;
     };
 
+    /// \brief Best-effort progress estimate for a worker catch-up round.
+    /// \details The estimate is based on the latest successful
+    /// \c PullResponse::remote_tail cursor and the receiver cursor known to
+    /// the worker. It counts sequence numbers, which correspond to captured
+    /// change batches. Unknown future writes and origins not yet advertised by
+    /// the peer are outside this estimate.
+    struct SyncWorkerProgressEstimate {
+        bool remote_tail_known = false; ///< Whether \c remote_tail was seen.
+        std::uint64_t batches_applied = 0; ///< Batches applied in this round.
+        std::uint64_t batches_remaining = 0; ///< Known remaining batches.
+        std::uint64_t batches_total = 0; ///< Applied plus known remaining.
+        double completion_ratio = 0.0; ///< 0.0 to 1.0 when total is known.
+    };
+
     /// \brief Result of one \c SyncWorker sync round.
     struct SyncWorkerRoundResult {
         bool        ok = true; ///< Whether the round completed without error.
         std::size_t pages_pulled = 0; ///< Number of successful pull pages.
         std::size_t batches_applied = 0; ///< Number of batches applied locally.
         bool        has_more = false; ///< Whether the peer reported more pages.
+        SyncWorkerProgressEstimate progress; ///< Last known progress.
         std::string error; ///< Failure detail when \c ok is false.
     };
 
@@ -97,6 +114,7 @@ namespace sync {
         std::size_t batches_applied = 0; ///< Batches applied so far.
         bool        has_more = false; ///< Latest peer pagination flag.
         bool        ok = true; ///< Whether the current stage succeeded.
+        SyncWorkerProgressEstimate progress; ///< Last known progress.
         std::string error; ///< Failure detail when \c ok is false.
     };
 
@@ -408,6 +426,7 @@ namespace sync {
 
         SyncWorkerRoundResult run_once_impl() {
             SyncWorkerRoundResult result;
+            SyncWorkerProgressEstimate progress;
             try {
                 notify_stage_changed(make_stage_event(
                     SyncWorkerStage::RoundStarted, result));
@@ -447,6 +466,18 @@ namespace sync {
                         event.has_more = response.has_more;
                         event.ok = response.ok;
                         event.error = response.error;
+                        if (response.ok) {
+                            if (response.remote_tail_known) {
+                                progress = make_progress_estimate(
+                                    response.remote_tail,
+                                    request.have,
+                                    result.batches_applied);
+                            } else {
+                                progress = SyncWorkerProgressEstimate();
+                            }
+                            result.progress = progress;
+                            event.progress = progress;
+                        }
                         notify_stage_changed(event);
                     }
                     if (!response.ok) {
@@ -471,12 +502,24 @@ namespace sync {
                                 SyncWorkerStage::ApplyStarted, result);
                             event.batches_in_page = response.batches.size();
                             event.has_more = has_more;
+                            event.progress = progress;
                             notify_stage_changed(event);
                         }
                         PushRequest apply;
                         apply.db_id = request.db_id;
                         apply.batches = response.batches;
                         const PushResponse applied = m_engine.handle_push(apply);
+                        SyncCursor after_apply = request.have;
+                        if (applied.ok) {
+                            after_apply = m_engine.applied_cursor();
+                            if (response.remote_tail_known) {
+                                progress = make_progress_estimate(
+                                    response.remote_tail,
+                                    after_apply,
+                                    result.batches_applied +
+                                        response.batches.size());
+                            }
+                        }
                         {
                             SyncWorkerStageEvent event = make_stage_event(
                                 SyncWorkerStage::ApplyFinished, result);
@@ -488,6 +531,9 @@ namespace sync {
                                 event.batches_applied =
                                     result.batches_applied +
                                     response.batches.size();
+                                if (response.remote_tail_known) {
+                                    event.progress = progress;
+                                }
                             }
                             notify_stage_changed(event);
                         }
@@ -499,13 +545,14 @@ namespace sync {
                             return result;
                         }
                         result.batches_applied += response.batches.size();
+                        result.progress = progress;
+                        request.have = after_apply;
                     } else if (response.has_more) {
                         result.ok = false;
                         result.error = "pull reported has_more without batches";
                         return result;
                     }
 
-                    request.have = m_engine.applied_cursor();
                     if (!response.batches.empty()) {
                         SyncWorkerPageEvent event;
                         event.pages_pulled = result.pages_pulled;
@@ -539,11 +586,63 @@ namespace sync {
             event.stage = stage;
             event.state = state();
             event.pages_pulled = result.pages_pulled;
-            event.batches_applied = result.batches_applied;
+                event.batches_applied = result.batches_applied;
             event.has_more = result.has_more;
             event.ok = result.ok;
+            event.progress = result.progress;
             event.error = result.error;
             return event;
+        }
+
+        static std::uint64_t saturating_add(std::uint64_t lhs,
+                                            std::uint64_t rhs) {
+            const std::uint64_t max =
+                (std::numeric_limits<std::uint64_t>::max)();
+            if (lhs > max - rhs) {
+                return max;
+            }
+            return lhs + rhs;
+        }
+
+        static std::uint64_t size_to_u64(std::size_t value) {
+            const std::uint64_t max =
+                (std::numeric_limits<std::uint64_t>::max)();
+            if (value > static_cast<std::size_t>(max)) {
+                return max;
+            }
+            return static_cast<std::uint64_t>(value);
+        }
+
+        static std::uint64_t cursor_distance(const SyncCursor& from,
+                                             const SyncCursor& to) {
+            std::uint64_t distance = 0;
+            std::map<NodeId, std::uint64_t>::const_iterator it =
+                to.last_seq_by_origin.begin();
+            for (; it != to.last_seq_by_origin.end(); ++it) {
+                const std::uint64_t have = from.last_seq_for(it->first);
+                if (it->second > have) {
+                    distance = saturating_add(distance, it->second - have);
+                }
+            }
+            return distance;
+        }
+
+        static SyncWorkerProgressEstimate make_progress_estimate(
+                const SyncCursor& remote,
+                const SyncCursor& have,
+                std::size_t applied_in_round) {
+            SyncWorkerProgressEstimate estimate;
+            estimate.remote_tail_known = true;
+            estimate.batches_applied = size_to_u64(applied_in_round);
+            estimate.batches_remaining = cursor_distance(have, remote);
+            estimate.batches_total =
+                saturating_add(estimate.batches_applied,
+                               estimate.batches_remaining);
+            estimate.completion_ratio = estimate.batches_total == 0
+                ? 1.0
+                : static_cast<double>(estimate.batches_applied) /
+                    static_cast<double>(estimate.batches_total);
+            return estimate;
         }
 
         void notify_stage_changed(const SyncWorkerStageEvent& event) const {
