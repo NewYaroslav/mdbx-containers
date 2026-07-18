@@ -481,6 +481,43 @@ void test_http_retry_status_classification() {
                  "HTTP 413 must be permanent");
 }
 
+void test_websocket_close_code_classification() {
+    require_true(mdbxc::sync::classify_websocket_sync_close_code(1000) ==
+                     mdbxc::sync::WebSocketSyncCloseRetryClass::Success,
+                 "WebSocket 1000 must be success");
+    require_true(mdbxc::sync::websocket_sync_close_code_is_retryable(1006),
+                 "WebSocket 1006 must be retryable");
+    require_true(mdbxc::sync::websocket_sync_close_code_is_retryable(1013),
+                 "WebSocket 1013 must be retryable");
+    require_true(!mdbxc::sync::websocket_sync_close_code_is_retryable(1008),
+                 "WebSocket 1008 must be permanent");
+    require_true(!mdbxc::sync::websocket_sync_close_code_is_retryable(1009),
+                 "WebSocket 1009 must be permanent");
+}
+
+void test_transport_message_size_policy() {
+    mdbxc::sync::TransportMessageSizePolicy policy(3u);
+
+    mdbxc::sync::SyncTransportDecision decision =
+        policy.check_http_post(
+            mdbxc::sync::HttpSyncRoutes::pull_target(),
+            mdbxc::sync::HttpSyncRoutes::content_type(),
+            std::vector<std::uint8_t>(4u, 0x11u));
+    require_true(!decision.allowed && decision.status_code == 413,
+                 "oversized HTTP body was not rejected as 413");
+
+    mdbxc::sync::WebSocketSyncRequestContext context;
+    context.binary_message.assign(4u, 0x22u);
+    decision = policy.check_websocket_message(context);
+    require_true(!decision.allowed && decision.status_code == 1009,
+                 "oversized WebSocket message was not rejected as 1009");
+
+    context.binary_message.assign(3u, 0x33u);
+    decision = policy.check_websocket_message(context);
+    require_true(decision.allowed,
+                 "size policy rejected message at the configured limit");
+}
+
 void test_http_client_middleware_copies_rejection_headers() {
     mdbxc::sync::FixedWindowHttpRateLimitPolicy rate(
         0, std::chrono::seconds(7));
@@ -520,6 +557,12 @@ void test_http_server_middleware_copies_rejection_headers() {
     request.target = mdbxc::sync::HttpSyncRoutes::pull_target();
     request.content_type = mdbxc::sync::HttpSyncRoutes::content_type();
     request.remote_address = "127.0.0.1";
+    mdbxc::sync::http_add_header(
+        request.headers, mdbxc::sync::HttpSyncHeaders::request_id(),
+        "middleware-request");
+    mdbxc::sync::http_add_header(
+        request.headers, mdbxc::sync::HttpSyncHeaders::trace_id(),
+        "middleware-trace");
 
     const mdbxc::sync::HttpSyncResponse response = wrapped.handle(request);
     require_true(response.status_code == 429,
@@ -527,6 +570,16 @@ void test_http_server_middleware_copies_rejection_headers() {
     require_true(mdbxc::sync::http_header_value(
                      response.headers, "Retry-After") != std::string(),
                  "server middleware dropped Retry-After");
+    require_true(mdbxc::sync::http_header_value(
+                     response.headers,
+                     mdbxc::sync::HttpSyncHeaders::request_id()) ==
+                     "middleware-request",
+                 "server middleware dropped request id");
+    require_true(mdbxc::sync::http_header_value(
+                     response.headers,
+                     mdbxc::sync::HttpSyncHeaders::trace_id()) ==
+                     "middleware-trace",
+                 "server middleware dropped trace id");
 
     db->disconnect();
     cleanup(path);
@@ -543,6 +596,8 @@ int main() {
     test_http_bearer_node_identity_policy();
     test_http_bearer_node_identity_policy_rejects_invalid_body();
     test_http_retry_status_classification();
+    test_websocket_close_code_classification();
+    test_transport_message_size_policy();
     test_http_client_middleware_copies_rejection_headers();
     test_http_server_middleware_copies_rejection_headers();
     return 0;

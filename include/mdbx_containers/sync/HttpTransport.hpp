@@ -72,6 +72,40 @@ namespace sync {
         headers.push_back(header);
     }
 
+    /// \brief Conventional HTTP header names used by sync adapters.
+    class HttpSyncHeaders {
+    public:
+        static const char* request_id() {
+            return "X-MDBXC-Sync-Request-Id";
+        }
+
+        static const char* trace_id() {
+            return "X-MDBXC-Sync-Trace-Id";
+        }
+    };
+
+    inline void http_copy_header_if_present(
+            const std::vector<HttpSyncHeader>& source,
+            std::vector<HttpSyncHeader>& destination,
+            const std::string& name) {
+        const std::string value = http_header_value(source, name);
+        if (!value.empty()) {
+            http_add_header(destination, name, value);
+        }
+    }
+
+    /// \brief Copies request/trace correlation headers when present.
+    /// \details Header values are adapter-local metadata. They are not part of
+    /// \c TransportMessageCodec and are intentionally optional.
+    inline void http_copy_sync_correlation_headers(
+            const std::vector<HttpSyncHeader>& source,
+            std::vector<HttpSyncHeader>& destination) {
+        http_copy_header_if_present(
+            source, destination, HttpSyncHeaders::request_id());
+        http_copy_header_if_present(
+            source, destination, HttpSyncHeaders::trace_id());
+    }
+
     /// \brief Minimal request shape consumed by \c HttpSyncServer.
     struct HttpSyncRequest {
         std::string method;
@@ -145,19 +179,21 @@ namespace sync {
         /// failures. Sync-level failures such as db_id mismatch are encoded
         /// inside the binary PullResponse/PushResponse with status 200.
         HttpSyncResponse handle(const HttpSyncRequest& request) const {
+            HttpSyncResponse response;
             if (request.method != HttpSyncRoutes::method_post()) {
-                return make_error(405, "method not allowed");
+                response = make_error(405, "method not allowed");
+            } else if (request.content_type != HttpSyncRoutes::content_type()) {
+                response = make_error(415, "unsupported content type");
+            } else if (request.target == HttpSyncRoutes::pull_target()) {
+                response = handle_pull(request.body);
+            } else if (request.target == HttpSyncRoutes::push_target()) {
+                response = handle_push(request.body);
+            } else {
+                response = make_error(404, "unknown sync route");
             }
-            if (request.content_type != HttpSyncRoutes::content_type()) {
-                return make_error(415, "unsupported content type");
-            }
-            if (request.target == HttpSyncRoutes::pull_target()) {
-                return handle_pull(request.body);
-            }
-            if (request.target == HttpSyncRoutes::push_target()) {
-                return handle_push(request.body);
-            }
-            return make_error(404, "unknown sync route");
+            http_copy_sync_correlation_headers(
+                request.headers, response.headers);
+            return response;
         }
 
     private:
