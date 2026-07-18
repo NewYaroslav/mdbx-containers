@@ -52,6 +52,13 @@ int main() {
         mdbxc::sync::TransportMessageType::PullRequest);
     MDBXC_TEST_ASSERT(std::string(mdbxc::sync::HttpSyncRoutes::pull_target())
                       == "/mdbxc/sync/v1/pull");
+    MDBXC_TEST_ASSERT(std::string(mdbxc::sync::HttpSyncHeaders::trace_id())
+                      == "X-MDBXC-Sync-Trace-Id");
+    MDBXC_TEST_ASSERT(mdbxc::sync::http_sync_status_is_retryable(503));
+    MDBXC_TEST_ASSERT(
+        mdbxc::sync::websocket_sync_close_code_is_retryable(1013u));
+    mdbxc::sync::TransportMessageSizePolicy size_policy(1024u);
+    (void)size_policy;
     mdbxc::sync::IWebSocketSyncChannel* websocket_channel = nullptr;
     mdbxc::sync::WebSocketSyncServer* websocket_server = nullptr;
     (void)websocket_channel;

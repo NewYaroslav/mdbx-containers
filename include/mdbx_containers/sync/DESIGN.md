@@ -496,12 +496,19 @@ the sync DTOs self-describing while preventing a transport principal from
 claiming another node id inside the binary payload.
 Rejections may carry response headers such as `WWW-Authenticate` or
 `Retry-After`; concrete HTTP bindings must write those headers to the real
-response.
+response. `HttpSyncHeaders::request_id()` and
+`HttpSyncHeaders::trace_id()` define optional adapter-local correlation
+headers. They are copied from request to response by the framework-neutral HTTP
+server/middleware, but they are not serialized inside sync DTOs.
 `FixedBudgetSyncTransportPolicy` is a deterministic fixed-budget limiter useful
 for tests, examples, and simple adapters; production adapters can replace it
 with a time-window or token-bucket policy while keeping the same middleware
 shape. `SyncTransportMetricsObserver` records basic call, rejection, failure,
 cancel, and batch counters without changing transport behavior.
+`TransportMessageSizePolicy` is a pre-decode guard for HTTP bodies and
+WebSocket binary messages. It complements `CodecBounds`: adapters can reject
+oversized transport frames before decoding, while the codec still validates the
+structured payload.
 
 These helpers do not replace server-framework authentication or
 per-remote-client rate limiting before `HttpSyncServer::handle()`. They also
@@ -533,7 +540,11 @@ payload-size, and malformed-body errors (`400`, `401`, `403`, `404`, `405`,
 `413`, `415`) are permanent for the current request unless a higher-level
 adapter refreshes credentials or changes the request. `Retry-After` is advisory
 transport metadata; `SyncWorker` backoff remains the core retry loop for failed
-sync rounds.
+sync rounds. For WebSocket, close code `1000` is success; `1001`, local
+observations `1005`/`1006`, and server/transient codes `1011`, `1012`, `1013`,
+and `1014` are retryable by default. Policy, malformed payload, and oversized
+message codes such as `1007`, `1008`, and `1009` are permanent for the current
+request.
 
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec

@@ -71,6 +71,41 @@ namespace sync {
                HttpSyncRetryClass::Retryable;
     }
 
+    /// \brief Retry classification for adapter-level WebSocket close codes.
+    enum class WebSocketSyncCloseRetryClass : std::uint8_t {
+        Success,
+        Retryable,
+        Permanent
+    };
+
+    /// \brief Classifies WebSocket close codes for sync retry policy.
+    /// \details Codes 1005 and 1006 are local observations rather than close
+    /// frame status values, but adapters commonly surface them to callers.
+    inline WebSocketSyncCloseRetryClass
+    classify_websocket_sync_close_code(unsigned close_code) {
+        switch (close_code) {
+            case 1000:
+                return WebSocketSyncCloseRetryClass::Success;
+            case 1001:
+            case 1005:
+            case 1006:
+            case 1011:
+            case 1012:
+            case 1013:
+            case 1014:
+                return WebSocketSyncCloseRetryClass::Retryable;
+            default:
+                return WebSocketSyncCloseRetryClass::Permanent;
+        }
+    }
+
+    /// \brief Returns true when a WebSocket close code is retryable.
+    inline bool websocket_sync_close_code_is_retryable(
+            unsigned close_code) {
+        return classify_websocket_sync_close_code(close_code) ==
+               WebSocketSyncCloseRetryClass::Retryable;
+    }
+
     /// \brief Result returned by a transport policy.
     struct SyncTransportDecision {
         bool allowed = true;
@@ -762,6 +797,47 @@ namespace sync {
         std::map<std::string, Bucket> m_buckets;
     };
 
+    /// \brief Rejects HTTP bodies and WebSocket messages above a byte limit.
+    /// \details This is a pre-decode adapter guard. \c CodecBounds still
+    /// validates the binary DTO payload during encode/decode.
+    class TransportMessageSizePolicy : public ISyncTransportPolicy {
+    public:
+        explicit TransportMessageSizePolicy(
+                std::size_t max_transport_message_bytes)
+            : m_max_transport_message_bytes(max_transport_message_bytes) {
+            if (max_transport_message_bytes == 0) {
+                throw std::invalid_argument(
+                    "sync transport message size limit must be positive");
+            }
+        }
+
+        SyncTransportDecision check_http_post(
+                const std::string& target,
+                const std::string& content_type,
+                const std::vector<std::uint8_t>& body) override {
+            (void)target;
+            (void)content_type;
+            if (body.size() > m_max_transport_message_bytes) {
+                return SyncTransportDecision::reject(
+                    "sync HTTP body is too large", 413);
+            }
+            return SyncTransportDecision::allow();
+        }
+
+        SyncTransportDecision check_websocket_message(
+                const WebSocketSyncRequestContext& request) override {
+            if (request.binary_message.size() >
+                m_max_transport_message_bytes) {
+                return SyncTransportDecision::reject(
+                    "sync WebSocket message is too large", 1009);
+            }
+            return SyncTransportDecision::allow();
+        }
+
+    private:
+        std::size_t m_max_transport_message_bytes;
+    };
+
     /// \brief Fixed request-budget policy for deterministic rate-limit tests.
     /// \details Each accepted operation consumes one budget unit. Use
     /// \c unlimited_budget() for dimensions that should not be limited.
@@ -1235,8 +1311,12 @@ namespace sync {
                     detail::notify_transport_rejected(
                         m_observer, SyncTransportOperation::HttpPost,
                         decision.error);
-                    return detail::make_http_error_response(
+                    HttpSyncResponse response =
+                        detail::make_http_error_response(
                         decision, "HTTP sync request rejected");
+                    http_copy_sync_correlation_headers(
+                        request.headers, response.headers);
+                    return response;
                 }
             }
 
