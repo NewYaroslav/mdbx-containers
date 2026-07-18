@@ -43,6 +43,8 @@ cmake -S . -B tmp/build-http-example \
 cmake --build tmp/build-http-example --target sync_13_http_simple_web_server
 tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
     demo 127.0.0.1 18080
+tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
+    worker-demo 127.0.0.1 18080
 ```
 
 The real WebSocket binding example is also opt-in because it fetches standalone
@@ -78,7 +80,7 @@ tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server
 | `sync_10_custom_transport.cpp` | Minimal custom `ISyncPeer` over encoded byte buffers. | Advanced |
 | `sync_11_http_adapter.cpp` | Framework-neutral HTTP-shaped adapter over `TransportMessageCodec`. | Advanced |
 | `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget, and metrics middleware around transport adapters. | Advanced |
-| `sync_13_http_simple_web_server.cpp` | Optional real HTTP binding over Simple-Web-Server and standalone Asio. | Advanced |
+| `sync_13_http_simple_web_server.cpp` | Optional real HTTP binding over Simple-Web-Server and standalone Asio, including a socket-backed worker demo. | Advanced |
 | `sync_14_websocket_adapter.cpp` | Framework-neutral WebSocket binary-message seam over `TransportMessageCodec`. | Advanced |
 | `sync_15_http_policy_context.cpp` | Bearer-token, remote-address, and `Retry-After` HTTP policy context. | Advanced |
 | `sync_16_worker_http_transport.cpp` | `SyncWorker` running through `HttpSyncPeer` and HTTP request-context policy. | Advanced |
@@ -184,9 +186,14 @@ bearer token from headers, checks the remote address, and returns a `Retry-After
 header when the fixed-window limiter rejects a request.
 
 `sync_16_worker_http_transport.cpp` combines the background worker with the
-HTTP-shaped adapter. The replica owns `SyncWorker` and `HttpSyncPeer`; the
-primary-side middleware authenticates the bearer token as the replica `NodeId`
-before `HttpSyncServer` dispatches the request.
+HTTP-shaped adapter inside one process. The replica owns `SyncWorker` and
+`HttpSyncPeer`; the primary-side middleware authenticates the bearer token as
+the replica `NodeId` before `HttpSyncServer` dispatches the request.
+
+`sync_13_http_simple_web_server.cpp worker-demo` runs the same worker shape
+through real loopback HTTP sockets. It uses bearer identity, a message-size
+guard, paginated pulls, and worker observer callbacks over the Simple-Web-Server
+binding.
 
 `sync_17_websocket_simple_web_server.cpp` is the socket-backed WebSocket
 counterpart. It binds `WebSocketSyncPeer` / `WebSocketSyncServer` to

@@ -22,6 +22,8 @@
  *
  *   ./tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
  *       demo 127.0.0.1 18080
+ *   ./tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
+ *       worker-demo 127.0.0.1 18080
  *
  * Manual two-process run:
  *
@@ -37,10 +39,14 @@
  *   [client] metrics pull=1 push=1 http=2 rejected=0
  *   [demo] server received pushed quote: SOL/USD
  *   OK: sync_13_http_simple_web_server
+ *   [worker-demo] HTTP page 1 applied ...
+ *   [worker-demo] HTTP page 2 applied ...
+ *   OK: sync_13_http_simple_web_server (worker-demo)
  */
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -132,9 +138,11 @@ class SimpleWebHttpSyncClient : public mdbxc::sync::IHttpSyncClient {
 public:
     SimpleWebHttpSyncClient(const std::string& host,
                             std::uint16_t port,
-                            std::chrono::seconds timeout)
+                            std::chrono::seconds timeout,
+                            const std::string& bearer_token = std::string())
         : m_endpoint(endpoint(host, port)),
           m_timeout(timeout),
+          m_bearer_token(bearer_token),
           m_cancel_generation(0),
           m_active_client(nullptr),
           m_cancel_count(0) {}
@@ -165,6 +173,10 @@ public:
         try {
             SimpleWeb::CaseInsensitiveMultimap headers;
             headers.emplace("Content-Type", content_type);
+            if (!m_bearer_token.empty()) {
+                headers.emplace("Authorization",
+                                std::string("Bearer ") + m_bearer_token);
+            }
 
             const std::shared_ptr<HttpClient::Response> received =
                 client.request("POST", target, bytes_to_string(body), headers);
@@ -242,6 +254,7 @@ private:
 
     std::string m_endpoint;
     std::chrono::seconds m_timeout;
+    std::string m_bearer_token;
     std::atomic<std::uint64_t> m_cancel_generation;
     mutable std::mutex m_mutex;
     HttpClient* m_active_client;
@@ -371,6 +384,8 @@ private:
                 decision.status_code == 0 ? 403 : decision.status_code;
             out.content_type = "text/plain; charset=utf-8";
             out.headers = decision.response_headers;
+            mdbxc::sync::http_copy_sync_correlation_headers(
+                in.headers, out.headers);
             out.error = decision.error.empty() ? "rejected" : decision.error;
             out.body = string_to_bytes(out.error);
             write_http_response(response, out);
@@ -416,6 +431,45 @@ void require_quote(const std::shared_ptr<mdbxc::Connection>& db,
                           "quote mismatch for key " +
                           std::to_string(key));
 }
+
+class WorkerHttpObserver : public mdbxc::sync::ISyncWorkerObserver {
+public:
+    explicit WorkerHttpObserver(const mdbxc::sync::NodeId& origin)
+        : m_origin(origin),
+          m_batches(0) {}
+
+    void on_sync_worker_page_applied(
+            const mdbxc::sync::SyncWorkerPageEvent& event) override {
+        const unsigned long long origin_seq =
+            static_cast<unsigned long long>(
+                event.applied_cursor.last_seq_for(m_origin));
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_batches += event.batches_applied;
+            std::printf("[worker-demo] HTTP page %zu applied %zu batch(es), "
+                        "origin_seq=%llu, has_more=%s\n",
+                        event.pages_pulled,
+                        event.batches_applied,
+                        origin_seq,
+                        event.has_more ? "true" : "false");
+        }
+        m_changed.notify_all();
+    }
+
+    bool wait_for_batches(std::size_t count,
+                          std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this, count]() { return m_batches >= count; });
+    }
+
+private:
+    mdbxc::sync::NodeId m_origin;
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    std::size_t m_batches;
+};
 
 void run_client_session(const std::shared_ptr<mdbxc::Connection>& db,
                         mdbxc::sync::SyncEngine& engine,
@@ -544,6 +598,95 @@ int run_demo(const std::string& host, std::uint16_t port) {
     return 0;
 }
 
+int run_worker_demo(const std::string& host, std::uint16_t port) {
+    const std::string server_path = "sync_13_worker_server.mdbx";
+    const std::string client_path = "sync_13_worker_client.mdbx";
+    sync_example::cleanup(server_path);
+    sync_example::cleanup(client_path);
+
+    std::shared_ptr<mdbxc::Connection> server_db =
+        sync_example::open(server_path);
+    std::shared_ptr<mdbxc::Connection> client_db =
+        sync_example::open(client_path);
+
+    const mdbxc::sync::NodeId server_node =
+        sync_example::make_node(kServerNodeSeed);
+    const mdbxc::sync::NodeId client_node =
+        sync_example::make_node(kClientNodeSeed);
+    const mdbxc::sync::DbId db_id =
+        sync_example::make_node(kDatabaseSeed);
+
+    mdbxc::sync::SyncEngine server_engine(server_db);
+    mdbxc::sync::SyncEngine client_engine(client_db);
+    server_engine.initialize_local_identity(server_node, db_id);
+    client_engine.initialize_local_identity(client_node, db_id);
+
+    seed_server_rows(server_db);
+    {
+        mdbxc::sync::ThreadLocalChangeAccumulator sink(server_db);
+        mdbxc::KeyValueTable<int, std::string> quotes(server_db, "quotes");
+        server_db->attach_sync_capture(&sink);
+        quotes.insert_or_assign(3, "SOL/USD");
+        server_db->detach_sync_capture();
+    }
+
+    mdbxc::sync::HttpSyncServer handler(server_engine);
+    mdbxc::sync::HttpRouteAllowListPolicy route_policy;
+    route_policy.allow_target(mdbxc::sync::HttpSyncRoutes::pull_target());
+    route_policy.allow_target(mdbxc::sync::HttpSyncRoutes::push_target());
+
+    mdbxc::sync::TransportMessageSizePolicy size_policy(1024u * 1024u);
+    mdbxc::sync::HttpBearerNodeIdentityPolicy identity_policy;
+    identity_policy.allow_token_for_node("replica-token", client_node);
+    identity_policy.allow_db_id_for_token("replica-token", db_id);
+
+    mdbxc::sync::CompositeSyncTransportPolicy server_policy;
+    server_policy.add(route_policy);
+    server_policy.add(size_policy);
+    server_policy.add(identity_policy);
+
+    SimpleWebHttpSyncServer listener(handler, server_policy, host, port);
+    listener.start();
+
+    SimpleWebHttpSyncClient raw_client(
+        host, port, std::chrono::seconds(2), "replica-token");
+    mdbxc::sync::SyncTransportMetricsObserver metrics;
+    mdbxc::sync::HttpSyncClientMiddleware http_client(
+        raw_client, nullptr, &metrics);
+    mdbxc::sync::HttpSyncPeer http_peer(http_client);
+
+    WorkerHttpObserver observer(server_node);
+    mdbxc::sync::SyncWorkerOptions options;
+    options.max_batches = 2;
+    options.idle_interval = std::chrono::milliseconds(10000);
+    options.observer = &observer;
+
+    mdbxc::sync::SyncWorker worker(client_engine, http_peer, options);
+    worker.start();
+    sync_example::require(
+        observer.wait_for_batches(3u, std::chrono::seconds(5)),
+        "timed out waiting for worker HTTP replication");
+    worker.stop();
+
+    const mdbxc::sync::SyncTransportMetricsSnapshot snapshot =
+        metrics.snapshot();
+    sync_example::require(snapshot.http_post_calls >= 2u,
+                          "worker demo expected paginated HTTP pulls");
+
+    require_quote(client_db, 1, "BTC/USD");
+    require_quote(client_db, 2, "ETH/USD");
+    require_quote(client_db, 3, "SOL/USD");
+    std::printf("[worker-demo] HTTP posts=%llu rejected=%llu\n",
+                static_cast<unsigned long long>(snapshot.http_post_calls),
+                static_cast<unsigned long long>(snapshot.rejected_calls));
+
+    listener.stop();
+    sync_example::disconnect_and_cleanup(server_db, server_path);
+    sync_example::disconnect_and_cleanup(client_db, client_path);
+    std::printf("OK: sync_13_http_simple_web_server (worker-demo)\n");
+    return 0;
+}
+
 int run_server(const std::string& host, std::uint16_t port) {
     const std::string path = "sync_13_server.mdbx";
     sync_example::cleanup(path);
@@ -610,7 +753,7 @@ int main(int argc, char** argv) {
     try {
         if (argc != 4) {
             std::fprintf(stderr,
-                "usage: %s (demo|server|client) <host> <port>\n",
+                "usage: %s (demo|worker-demo|server|client) <host> <port>\n",
                 argv[0]);
             return 2;
         }
@@ -621,6 +764,9 @@ int main(int argc, char** argv) {
 
         if (mode == "demo") {
             return run_demo(host, port);
+        }
+        if (mode == "worker-demo") {
+            return run_worker_demo(host, port);
         }
         if (mode == "server") {
             return run_server(host, port);
