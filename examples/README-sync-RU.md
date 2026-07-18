@@ -202,5 +202,7 @@ message-size guard, страничные pull-запросы и callbacks observ
 `sync_17_websocket_simple_web_server.cpp` - socket-backed WebSocket-вариант.
 Он связывает `WebSocketSyncPeer` / `WebSocketSyncServer` с
 Simple-WebSocket-Server, отправляет binary frames, проверяет bearer token во
-время WebSocket handshake и передаёт аутентифицированный `NodeId` replica в
-`WebSocketSyncServerMiddleware` перед dispatch.
+время WebSocket handshake, передаёт аутентифицированный `NodeId` replica вместе
+с явным `SyncDbAccess` в `WebSocketSyncServerMiddleware`, отклоняет слишком
+большие сообщения до decode и классифицирует close codes для диагностики
+клиента.

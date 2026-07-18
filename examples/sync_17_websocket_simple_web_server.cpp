@@ -5,7 +5,9 @@
  * This example binds the framework-neutral WebSocketSyncServer /
  * WebSocketSyncPeer seam to eidheim/Simple-WebSocket-Server with
  * chriskohlhoff standalone Asio. It sends complete binary WebSocket messages
- * encoded by TransportMessageCodec.
+ * encoded by TransportMessageCodec. The demo includes handshake bearer auth,
+ * explicit session DB access, pre-decode message-size limits, and close-code
+ * retry classification in client diagnostics.
  *
  * Build it explicitly:
  *
@@ -64,6 +66,11 @@ const std::uint8_t kPrimaryNodeSeed = 0xC8;
 const std::uint8_t kReplicaNodeSeed = 0xC9;
 const std::uint8_t kDatabaseSeed = 0xCA;
 const unsigned char kBinaryFrameOpcode = 130;
+const std::size_t kMaxWebSocketMessageBytes = 1024u * 1024u;
+
+const char* websocket_path() {
+    return "/mdbxc/sync/v1/ws";
+}
 
 std::string bytes_to_string(const std::vector<std::uint8_t>& bytes) {
     if (bytes.empty()) {
@@ -79,6 +86,12 @@ std::vector<std::uint8_t> string_to_bytes(const std::string& text) {
 
 std::string endpoint(const std::string& host, std::uint16_t port) {
     return host + ":" + std::to_string(static_cast<unsigned>(port));
+}
+
+const char* close_retry_label(unsigned close_code) {
+    return mdbxc::sync::websocket_sync_close_code_is_retryable(close_code)
+        ? "retryable"
+        : "permanent";
 }
 
 class ExchangeState {
@@ -116,7 +129,7 @@ public:
     SimpleWebSocketSyncChannel(const std::string& host,
                                std::uint16_t port,
                                const std::string& bearer_token)
-        : m_endpoint(endpoint(host, port) + "/mdbxc/sync/v1/ws"),
+        : m_endpoint(endpoint(host, port) + websocket_path()),
           m_bearer_token(bearer_token),
           m_cancel_generation(0),
           m_active_client(nullptr),
@@ -169,7 +182,9 @@ public:
                 if (status != 1000) {
                     state->set_exception(
                         "WebSocket closed with status " +
-                        std::to_string(status) + ": " + reason);
+                        std::to_string(status) + " (" +
+                        close_retry_label(static_cast<unsigned>(status)) +
+                        "): " + reason);
                 }
             };
 
@@ -252,13 +267,13 @@ public:
             mdbxc::sync::WebSocketSyncServerMiddleware& server,
             const std::string& bearer_token,
             const mdbxc::sync::NodeId& authenticated_node,
-            const mdbxc::sync::DbId& allowed_db,
+            const mdbxc::sync::SyncDbAccess& db_access,
             const std::string& host,
             std::uint16_t port)
         : m_server(server),
           m_bearer_token(bearer_token),
           m_authenticated_node(authenticated_node),
-          m_allowed_db(allowed_db),
+          m_db_access(db_access),
           m_host(host),
           m_port(port),
           m_running(false) {
@@ -292,7 +307,7 @@ public:
                     mdbxc::sync::WebSocketSyncRequestContext context;
                     context.has_authenticated_node = true;
                     context.authenticated_node = m_authenticated_node;
-                    context.db_access.allow_db_id(m_allowed_db);
+                    context.db_access = m_db_access;
                     context.binary_message =
                         string_to_bytes(in_message->string());
                     const std::vector<std::uint8_t> response =
@@ -378,7 +393,7 @@ private:
     mdbxc::sync::WebSocketSyncServerMiddleware& m_server;
     std::string m_bearer_token;
     mdbxc::sync::NodeId m_authenticated_node;
-    mdbxc::sync::DbId m_allowed_db;
+    mdbxc::sync::SyncDbAccess m_db_access;
     std::string m_host;
     std::uint16_t m_port;
     WsServer m_ws;
@@ -446,16 +461,29 @@ int main() {
 
         seed_primary_rows(primary);
 
-        mdbxc::sync::WebSocketSyncServer ws_server(primary_engine);
-        mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy ws_identity;
+        mdbxc::sync::CodecBounds bounds;
+        bounds.max_transport_message_bytes = kMaxWebSocketMessageBytes;
+        mdbxc::sync::WebSocketSyncServer ws_server(primary_engine, bounds);
+        mdbxc::sync::TransportMessageSizePolicy ws_size(
+            kMaxWebSocketMessageBytes);
+        mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy ws_identity(
+            bounds);
+        mdbxc::sync::CompositeSyncTransportPolicy ws_policy;
+        ws_policy.add(ws_size);
+        ws_policy.add(ws_identity);
         mdbxc::sync::WebSocketSyncServerMiddleware ws_middleware(
-            ws_server, &ws_identity);
+            ws_server, &ws_policy);
         SimpleWebSocketSyncListener listener(
-            ws_middleware, bearer_token, replica_node, db_id, host, port);
+            ws_middleware,
+            bearer_token,
+            replica_node,
+            mdbxc::sync::SyncDbAccess::only(db_id),
+            host,
+            port);
         listener.start();
 
         SimpleWebSocketSyncChannel channel(host, port, bearer_token);
-        mdbxc::sync::WebSocketSyncPeer peer(channel);
+        mdbxc::sync::WebSocketSyncPeer peer(channel, bounds);
 
         mdbxc::sync::PullRequest pull;
         pull.requester = replica_node;
