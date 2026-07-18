@@ -90,9 +90,11 @@
   binary message seam, а `SyncWorker` запускает фоновой polling.
   `mdbx_containers/sync/transport.hpp` - umbrella header транспортного слоя.
   Опциональные готовые Simple-Web HTTP/WebSocket binding headers находятся в
-  `mdbx_containers/sync/transports/simple_web/`, а socket-backed примеры
-  используют эти bindings вместо повторной реализации транспорта в каждом
-  файле. Wire-format для специализированных таблиц отложен. HTTP auth,
+  `mdbx_containers/sync/transports/simple_web/`, а опциональный Kurlyk/libcurl
+  HTTP client binding находится в `mdbx_containers/sync/transports/kurlyk/`.
+  Socket-backed примеры используют эти bindings вместо повторной реализации
+  транспорта в каждом файле. Wire-format для специализированных таблиц отложен.
+  HTTP auth,
   remote-address checks и rate-limit headers живут в adapter-local policy
   context, а не внутри sync DTO;
   см. `include/mdbx_containers/sync/DESIGN.md`.
