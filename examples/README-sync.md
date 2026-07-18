@@ -195,7 +195,8 @@ transport.
 `sync_07_worker_observer.cpp` shows the application side of a background
 replica: `SyncWorker` performs pull/apply rounds, while `ISyncWorkerObserver`
 notifies foreground code when pull/apply stages change, pages are applied, or
-rounds finish.
+rounds finish. Stage events include a best-effort catch-up progress estimate
+based on the latest remote cursor.
 
 `sync_08_transport_boundary.cpp` formalises the contract that any transport
 adapter over `ISyncPeer` must respect. It implements a tiny in-memory

@@ -8,7 +8,7 @@
 /// Envelope layout for all messages:
 /// \code
 ///   magic             "MDBXCPRT"   8 bytes
-///   codec_version     u16 le       = 1
+///   codec_version     u16 le       = 2
 ///   message_type      u8           1=pull request, 2=pull response,
 ///                                  3=push request, 4=push response
 ///   message_flags     u32 le       = 0 in v0.1
@@ -61,7 +61,7 @@ namespace sync {
         static std::size_t magic_size() { return 8; }
 
         /// \brief Supported transport codec version.
-        static std::uint16_t codec_version() { return 1; }
+        static std::uint16_t codec_version() { return 2; }
 
         /// \brief Reads the message type from a transport envelope.
         /// \details Validates magic, codec version, and mandatory flags but
@@ -99,6 +99,8 @@ namespace sync {
             std::vector<std::uint8_t> out =
                 make_header(TransportMessageType::PullResponse);
             append_cursor(out, response.remote_have, bounds);
+            append_cursor(out, response.remote_tail, bounds);
+            append_bool(out, response.remote_tail_known);
             append_batches(out, response.batches, bounds);
             append_bool(out, response.has_more);
             append_bool(out, response.ok);
@@ -162,6 +164,8 @@ namespace sync {
             check_header(cur, TransportMessageType::PullResponse);
             PullResponse response;
             response.remote_have = read_cursor(cur, bounds);
+            response.remote_tail = read_cursor(cur, bounds);
+            response.remote_tail_known = read_bool(cur);
             response.batches = read_batches(cur, bounds);
             response.has_more = read_bool(cur);
             response.ok = read_bool(cur);

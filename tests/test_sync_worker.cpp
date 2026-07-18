@@ -785,6 +785,24 @@ void test_worker_run_once_drains_paginated_pull() {
         apply_started != 3u || apply_finished != 3u) {
         throw std::runtime_error("worker observer page stage mismatch");
     }
+    if (!stages[4].progress.remote_tail_known ||
+        stages[4].progress.batches_applied != 2u ||
+        stages[4].progress.batches_remaining != 3u ||
+        stages[4].progress.batches_total != 5u) {
+        throw std::runtime_error("worker observer first progress mismatch");
+    }
+    if (!stages[12].progress.remote_tail_known ||
+        stages[12].progress.batches_applied != 5u ||
+        stages[12].progress.batches_remaining != 0u ||
+        stages[12].progress.batches_total != 5u) {
+        throw std::runtime_error("worker observer final progress mismatch");
+    }
+    if (!rounds[0].progress.remote_tail_known ||
+        rounds[0].progress.batches_applied != 5u ||
+        rounds[0].progress.batches_remaining != 0u ||
+        rounds[0].progress.batches_total != 5u) {
+        throw std::runtime_error("worker observer round progress mismatch");
+    }
 
     KeyValueTable<int, int> replica_kv(replica_conn, "kv");
     for (int i = 1; i <= 5; ++i) {

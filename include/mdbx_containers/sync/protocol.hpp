@@ -36,6 +36,12 @@ namespace sync {
     /// \brief Response to a \c PullRequest.
     struct PullResponse {
         SyncCursor               remote_have;
+        /// \brief Latest known changelog tail on the responder.
+        /// \details Used for best-effort progress estimates. When
+        /// \c remote_tail_known is false, the responder could not provide a
+        /// reliable tail cursor for this page.
+        SyncCursor               remote_tail;
+        bool                     remote_tail_known = false;
         std::vector<ChangeBatch> batches;
         bool                     has_more = false;
         bool                     ok       = true;

@@ -283,6 +283,7 @@ namespace sync {
             MDBX_dbi changelog_dbi = open_changelog_ro(txn);
             if (changelog_dbi == 0) {
                 out.remote_have = read_applied_cursor(txn, out.remote_have);
+                out.remote_tail_known = true;
                 return out;
             }
 
@@ -304,6 +305,7 @@ namespace sync {
             PullResponse out;
             out.remote_have = read_applied_cursor(txn, out.remote_have);
             const std::vector<PullOrigin> origins = collect_known_origins(txn, dbi);
+            out.remote_tail_known = copy_known_tail(origins, out.remote_tail);
             std::size_t total_bytes = 0;
             bool truncated = false;
             for (std::size_t i = 0; i < origins.size(); ++i) {
@@ -658,6 +660,19 @@ namespace sync {
                                       const PullRequest& request) {
             return origin.has_last_seq &&
                    request.have.last_seq_for(origin.origin) >= origin.last_seq;
+        }
+
+        static bool copy_known_tail(const std::vector<PullOrigin>& origins,
+                                    SyncCursor& out) {
+            for (std::size_t i = 0; i < origins.size(); ++i) {
+                if (!origins[i].has_last_seq) {
+                    out.last_seq_by_origin.clear();
+                    return false;
+                }
+                out.last_seq_by_origin[origins[i].origin] =
+                    origins[i].last_seq;
+            }
+            return true;
         }
 
         static std::vector<PullOrigin> collect_changelog_origins(MDBX_txn* txn,
