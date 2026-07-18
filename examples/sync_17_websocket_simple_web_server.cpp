@@ -300,8 +300,11 @@ public:
                     connection->send(bytes_to_string(response),
                                      nullptr,
                                      kBinaryFrameOpcode);
+                } catch (const mdbxc::sync::WebSocketSyncRejected& e) {
+                    connection->send_close(
+                        static_cast<int>(e.close_code()), e.what());
                 } catch (const std::exception& e) {
-                    connection->send_close(1008, e.what());
+                    connection->send_close(1011, e.what());
                 }
             };
 

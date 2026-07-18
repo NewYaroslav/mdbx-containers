@@ -514,7 +514,9 @@ token, cookie, mTLS principal, or remote address stays outside the sync DTO;
 authenticated `NodeId`, optional per-session DB allow-list, and one complete
 binary message. It then requires `PullRequest::requester` or
 `PushRequest::sender` to match that authenticated node before dispatching to
-`WebSocketSyncServer`.
+`WebSocketSyncServer`. `WebSocketSyncServerMiddleware` preserves policy close
+codes by throwing `WebSocketSyncRejected`; concrete bindings should catch it
+and send `close_code()` as the WebSocket close frame status.
 Backpressure, reconnects, ping/pong, and pre-DTO rate limits remain
 binding-local.
 

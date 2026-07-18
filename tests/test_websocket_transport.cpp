@@ -373,6 +373,55 @@ void test_websocket_server_middleware_rejects_spoofed_identity() {
                  "WebSocket server middleware allowed spoofed requester");
 }
 
+void test_websocket_server_middleware_preserves_close_code() {
+    const std::string path = "test_websocket_transport_close_code.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<mdbxc::Connection> db = open_db(path);
+    mdbxc::sync::SyncEngine engine(db);
+    engine.initialize_local_identity(make_node(0x77), make_node(0xD7));
+
+    mdbxc::sync::CodecBounds bounds;
+    bounds.max_transport_message_bytes = 8;
+    mdbxc::sync::WebSocketSyncServer server(engine, bounds);
+    mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy policy(bounds);
+    mdbxc::sync::SyncTransportMetricsObserver metrics;
+    mdbxc::sync::WebSocketSyncServerMiddleware wrapped(
+        server, &policy, &metrics);
+
+    mdbxc::sync::PullRequest pull;
+    pull.requester = make_node(0x88);
+    pull.db_id = make_node(0xD7);
+
+    mdbxc::sync::WebSocketSyncRequestContext context;
+    context.has_authenticated_node = true;
+    context.authenticated_node = pull.requester;
+    context.binary_message =
+        mdbxc::sync::TransportMessageCodec::encode_pull_request(pull);
+
+    bool caught = false;
+    try {
+        (void)wrapped.handle_binary_message(context);
+    } catch (const mdbxc::sync::WebSocketSyncRejected& e) {
+        caught = true;
+        require_true(e.close_code() == 1009u,
+                     "WebSocket middleware lost oversized close code");
+    }
+
+    db->disconnect();
+    cleanup(path);
+
+    require_true(caught,
+                 "WebSocket middleware did not throw typed rejection");
+
+    const mdbxc::sync::SyncTransportMetricsSnapshot snapshot =
+        metrics.snapshot();
+    require_true(snapshot.rejected_calls == 1u,
+                 "WebSocket rejection metric was not recorded");
+    require_true(snapshot.failed_calls == 0u,
+                 "WebSocket policy rejection was counted as exception");
+}
+
 } // namespace
 
 int main() {
@@ -382,5 +431,6 @@ int main() {
     test_websocket_authenticated_node_policy();
     test_websocket_authenticated_node_policy_rejects_invalid_body();
     test_websocket_server_middleware_rejects_spoofed_identity();
+    test_websocket_server_middleware_preserves_close_code();
     return 0;
 }

@@ -539,6 +539,26 @@ namespace sync {
         CodecBounds m_bounds;
     };
 
+    /// \brief WebSocket policy rejection with a concrete close code.
+    /// \details Server-side WebSocket bindings should catch this exception and
+    /// send \c close_code() as the WebSocket close frame status. Other
+    /// exceptions from the binding or server path usually map to an internal
+    /// server error close code such as 1011.
+    class WebSocketSyncRejected : public std::runtime_error {
+    public:
+        WebSocketSyncRejected(unsigned close_code,
+                              const std::string& message)
+            : std::runtime_error(message),
+              m_close_code(close_code) {}
+
+        unsigned close_code() const {
+            return m_close_code;
+        }
+
+    private:
+        unsigned m_close_code;
+    };
+
     /// \brief Allows only configured remote addresses on HTTP sync requests.
     /// \details Empty allow-list means every remote address is allowed.
     class HttpRemoteAddressAllowListPolicy : public ISyncTransportPolicy {
@@ -1191,13 +1211,18 @@ namespace sync {
                     detail::notify_transport_rejected(
                         m_observer, SyncTransportOperation::WebSocketMessage,
                         decision.error);
-                    throw std::runtime_error(reject_message(
-                        decision, "WebSocket sync request rejected"));
+                    throw WebSocketSyncRejected(
+                        decision.status_code == 0 ? 1008
+                                                  : decision.status_code,
+                        reject_message(
+                            decision, "WebSocket sync request rejected"));
                 }
             }
 
             try {
                 return m_next.handle_binary_message(request.binary_message);
+            } catch (const WebSocketSyncRejected&) {
+                throw;
             } catch (const std::exception& e) {
                 detail::notify_transport_exception(
                     m_observer, SyncTransportOperation::WebSocketMessage,
