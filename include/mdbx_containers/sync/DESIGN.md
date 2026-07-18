@@ -45,6 +45,10 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   explicit CMake options, not mandatory runtime dependencies. The backend
   umbrella is `sync/transports/simple_web.hpp`; HTTP-only or WebSocket-only
   targets can include the narrower backend-specific header.
+- Optional ready-made Kurlyk/libcurl HTTP client binding under
+  `sync/transports/kurlyk/`. It implements only the client-side
+  `IHttpSyncClient` seam and can be paired with any server binding that exposes
+  the framework-neutral `HttpSyncServer` contract.
 - Transport middleware helpers: `SyncPeerMiddleware`,
   `HttpSyncClientMiddleware`, allow-list policies, fixed-budget rate limiting,
   HTTP request-context bearer/remote-address/fixed-window policies,
@@ -612,6 +616,12 @@ The framework-neutral `HttpSyncPeer` / `HttpSyncServer` and
 server/client bindings remain separate optional integrations; the ready-made
 Simple-Web bindings live under `sync/transports/simple_web/` and are not
 included by the main sync umbrella header.
+
+The Kurlyk HTTP client binding lives under `sync/transports/kurlyk/` and is
+also excluded from the main sync umbrella header. It exists to validate that
+HTTP client backends can be swapped at the `IHttpSyncClient` boundary without
+changing `SyncEngine`, `HttpSyncPeer`, transport DTOs, or auth/rate-limit
+middleware.
 
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 

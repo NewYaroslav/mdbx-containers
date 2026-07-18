@@ -67,9 +67,10 @@
   `SyncWorker` is the background polling driver. `mdbx_containers/sync/transport.hpp`
   is the transport-layer umbrella. Optional ready-made Simple-Web
   HTTP/WebSocket binding headers live under
-  `mdbx_containers/sync/transports/simple_web/`, and the socket-backed
-  examples use those bindings instead of reimplementing the transport in each
-  file. Specialized table wire formats remain deferred.
+  `mdbx_containers/sync/transports/simple_web/`, and the optional Kurlyk/libcurl
+  HTTP client binding lives under `mdbx_containers/sync/transports/kurlyk/`.
+  Socket-backed examples use those bindings instead of reimplementing the
+  transport in each file. Specialized table wire formats remain deferred.
   HTTP auth, remote-address checks, and rate-limit headers live in
   adapter-local policy context, not inside sync DTOs.
   See
