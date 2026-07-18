@@ -162,6 +162,7 @@ cmake -S . -B tmp/build-ws-example `
 | `sync_17_websocket_simple_web_server.cpp` | Готовый Simple-WebSocket binding поверх standalone Asio. | Продвинутый |
 | `sync_18_http_node_fleet.cpp` | Fleet из нескольких процессов поверх готового Simple-Web HTTP binding. | Продвинутый |
 | `sync_19_kurlyk_http_client.cpp` | Готовый Kurlyk/libcurl HTTP client binding против Simple-Web sync listener. | Продвинутый |
+| `sync_20_transport_production_wrapper.cpp` | Production-facing wrapper: ротация токенов, request ids, cancellation, logging и worker progress. | Продвинутый |
 
 ## Общие правила
 
@@ -304,6 +305,12 @@ Simple-Web HTTP listener и меняет клиентский backend на
 `mdbxc::sync::kurlyk::HttpSyncClient`. Это показывает форму для других HTTP
 клиентов: реализовать `IHttpSyncClient`, передать его в `HttpSyncPeer` и не
 менять `SyncEngine`, DTO encoding, auth policy и локальный apply.
+
+`sync_20_transport_production_wrapper.cpp` показывает production-facing слой,
+который обычно окружает конкретный транспорт. Ротация токенов, request ids,
+structured log fields, cancellation и worker progress observer остаются вне
+sync DTO. Внутри пример всё ещё использует `DirectSyncPeer`, чтобы запускаться
+без socket dependencies; в реальном сервисе его место занимает HTTP/WSS peer.
 
 `sync_17_websocket_simple_web_server.cpp` - socket-backed WebSocket-вариант.
 Он использует `mdbxc::sync::simple_web::WebSocketSyncChannel` и

@@ -73,7 +73,9 @@
   transport in each file. Specialized table wire formats remain deferred.
   HTTP auth, remote-address checks, and rate-limit headers live in
   adapter-local policy context, not inside sync DTOs.
-  See
+  Production concerns such as TLS/WSS, token rotation, graceful shutdown,
+  request ids, structured logging, and retry classification are covered in
+  `guides/sync-production-transport.md`. See
   `include/mdbx_containers/sync/DESIGN.md`.
 
 ### 🗄️ Structure & Configuration

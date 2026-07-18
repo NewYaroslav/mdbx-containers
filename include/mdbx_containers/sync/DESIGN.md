@@ -625,6 +625,15 @@ middleware. On Windows/MinGW, its optional example can fetch a pinned
 ready-made libcurl package; that fallback is a build-time convenience for the
 example target, not a dependency of the sync core.
 
+For production deployments, keep an adapter-local wrapper around the concrete
+peer or server binding. That wrapper owns TLS/WSS configuration, token lookup
+and rotation, graceful socket shutdown, request ids / trace ids, structured
+logging, and retry classification. `ISyncWorkerObserver` supplies
+application-facing stage and progress callbacks; transport wrappers should log
+their own request lifecycle separately. See
+`guides/sync-production-transport.md` and
+`examples/sync_20_transport_production_wrapper.cpp` for the recommended shape.
+
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
 MDBX has no batch "delete by key range" primitive. The supported pattern

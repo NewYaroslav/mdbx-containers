@@ -97,7 +97,10 @@
   HTTP auth,
   remote-address checks и rate-limit headers живут в adapter-local policy
   context, а не внутри sync DTO;
-  см. `include/mdbx_containers/sync/DESIGN.md`.
+  production-вопросы вроде TLS/WSS, ротации токенов, graceful shutdown,
+  request ids, structured logging и retry classification описаны в
+  `guides/sync-production-transport.md`;
+  см. также `include/mdbx_containers/sync/DESIGN.md`.
 
 ### 🗄️ Структура и конфигурация
 - Несколько логических таблиц внутри одного MDBX-файла.
