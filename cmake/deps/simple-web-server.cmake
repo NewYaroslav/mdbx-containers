@@ -8,6 +8,9 @@
 #   simple_web_server_provide(
 #       OUT_TARGET <var>     # returns the INTERFACE target name to link against
 #   )
+#   simple_websocket_server_provide(
+#       OUT_TARGET <var>     # returns the INTERFACE target name to link against
+#   )
 
 include(CMakeParseArguments)
 include(FetchContent)
@@ -18,6 +21,9 @@ set(MDBXC_ASIO_GIT_TAG
 set(MDBXC_SIMPLE_WEB_SERVER_GIT_TAG
     "898b6abd1be568ff9de4390d44288962e3fac337" CACHE STRING
     "Simple-Web-Server commit used by the optional HTTP example; corresponds to v3.1.1.")
+set(MDBXC_SIMPLE_WEBSOCKET_SERVER_GIT_TAG
+    "89e5677789d096374edb93aaabaf23799a7e1692" CACHE STRING
+    "Simple-WebSocket-Server commit used by the optional WebSocket example; corresponds to v2.0.2.")
 
 function(_mdbxc_fetchcontent_populate name)
     if(POLICY CMP0169)
@@ -96,4 +102,75 @@ function(simple_web_server_provide)
     endif()
 
     set(${SWS_OUT_TARGET} mdbxc_simple_web_server PARENT_SCOPE)
+endfunction()
+
+function(simple_websocket_server_provide)
+    set(_options)
+    set(_one_value OUT_TARGET)
+    set(_multi_value)
+    cmake_parse_arguments(SWS "${_options}" "${_one_value}"
+        "${_multi_value}" ${ARGN})
+
+    if(NOT SWS_OUT_TARGET)
+        message(FATAL_ERROR
+            "simple_websocket_server_provide requires OUT_TARGET <var>")
+    endif()
+
+    FetchContent_Declare(
+        mdbxc_asio
+        GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+        GIT_TAG        ${MDBXC_ASIO_GIT_TAG}
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_GetProperties(mdbxc_asio)
+    if(NOT mdbxc_asio_POPULATED)
+        _mdbxc_fetchcontent_populate(mdbxc_asio)
+        FetchContent_GetProperties(mdbxc_asio)
+    endif()
+
+    FetchContent_Declare(
+        mdbxc_sws_ws
+        GIT_REPOSITORY https://gitlab.com/eidheim/Simple-WebSocket-Server.git
+        GIT_TAG        ${MDBXC_SIMPLE_WEBSOCKET_SERVER_GIT_TAG}
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_GetProperties(mdbxc_sws_ws)
+    if(NOT mdbxc_sws_ws_POPULATED)
+        _mdbxc_fetchcontent_populate(mdbxc_sws_ws)
+        FetchContent_GetProperties(mdbxc_sws_ws)
+    endif()
+
+    if(NOT EXISTS "${mdbxc_asio_SOURCE_DIR}/asio/include/asio.hpp")
+        message(FATAL_ERROR
+            "Standalone Asio headers were not found after FetchContent")
+    endif()
+    if(NOT EXISTS
+            "${mdbxc_sws_ws_SOURCE_DIR}/server_ws.hpp")
+        message(FATAL_ERROR
+            "Simple-WebSocket-Server headers were not found after FetchContent")
+    endif()
+
+    if(NOT TARGET mdbxc_simple_websocket_server)
+        find_package(OpenSSL REQUIRED)
+
+        add_library(mdbxc_simple_websocket_server INTERFACE)
+        target_include_directories(mdbxc_simple_websocket_server INTERFACE
+            "${mdbxc_sws_ws_SOURCE_DIR}"
+            "${mdbxc_asio_SOURCE_DIR}/asio/include")
+        target_compile_definitions(mdbxc_simple_websocket_server INTERFACE
+            ASIO_STANDALONE=1
+            USE_STANDALONE_ASIO=1)
+
+        find_package(Threads REQUIRED)
+        target_link_libraries(mdbxc_simple_websocket_server INTERFACE
+            Threads::Threads
+            OpenSSL::Crypto)
+        if(WIN32)
+            target_link_libraries(mdbxc_simple_websocket_server INTERFACE
+                ws2_32
+                wsock32)
+        endif()
+    endif()
+
+    set(${SWS_OUT_TARGET} mdbxc_simple_websocket_server PARENT_SCOPE)
 endfunction()

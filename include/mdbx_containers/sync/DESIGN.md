@@ -36,6 +36,10 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   `IWebSocketSyncChannel`, and `WebSocketSyncServer`. It defines a complete
   binary-message request/response contract over `TransportMessageCodec` but
   does not open sockets, own sessions, or depend on a WebSocket framework.
+- Optional socket-backed HTTP and WebSocket examples over
+  Simple-Web-Server / Simple-WebSocket-Server plus standalone Asio. These are
+  example bindings behind explicit CMake options, not mandatory runtime
+  dependencies.
 - Transport middleware helpers: `SyncPeerMiddleware`,
   `HttpSyncClientMiddleware`, allow-list policies, fixed-budget rate limiting,
   HTTP request-context bearer/remote-address/fixed-window policies, bearer
@@ -106,9 +110,11 @@ new wire-format semantics.
   use `LastWriterWins` in a non-test path.
 - `Custom` conflict resolver — schema-level callback; deferred until the
   first real consumer needs it.
-- Additional concrete socket-bound HTTP and WebSocket transports
-  (`Simple-WebSocket-Server`, Boost.Beast, libcurl, or another framework) with
-  guarded build flags. The HTTP and WebSocket adapter seams do not own sockets.
+- Production-grade concrete socket-bound HTTP and WebSocket transports
+  (`Boost.Beast`, libcurl, or another framework) with deployment-specific
+  lifecycle, TLS, reconnect, and observability policy. The optional
+  Simple-Web-Server examples demonstrate the binding shape but are not a
+  production transport layer.
 - `zstd` compression — reserved flag, encoder throws, decoder rejects.
 
 ## Endianness policy (do not change)

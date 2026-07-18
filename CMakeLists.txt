@@ -24,6 +24,7 @@ option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmd
 # (Simple-Web-Server). Off by default to keep the default build free of
 # network-stack dependencies. See examples/README-sync.md for usage.
 option(MDBXC_HTTP_SYNC_EXAMPLE "Build the Simple-Web-Server HTTP binding example" OFF)
+option(MDBXC_WEBSOCKET_SYNC_EXAMPLE "Build the Simple-WebSocket-Server sync binding example" OFF)
 
 # Three-mode dependency policy for MDBX: AUTO | SYSTEM | BUNDLED
 set(MDBXC_DEPS_MODE "AUTO" CACHE STRING "Dependency mode for MDBX: AUTO|SYSTEM|BUNDLED")
@@ -35,6 +36,7 @@ message(STATUS "MDBXC_BUILD_TESTS       = ${MDBXC_BUILD_TESTS}")
 message(STATUS "MDBXC_BUILD_BENCHMARKS  = ${MDBXC_BUILD_BENCHMARKS}")
 message(STATUS "MDBXC_ENABLE_STRESS_TESTS = ${MDBXC_ENABLE_STRESS_TESTS}")
 message(STATUS "MDBXC_HTTP_SYNC_EXAMPLE = ${MDBXC_HTTP_SYNC_EXAMPLE}")
+message(STATUS "MDBXC_WEBSOCKET_SYNC_EXAMPLE = ${MDBXC_WEBSOCKET_SYNC_EXAMPLE}")
 message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
 
 set(MDBXC_HAS_ASAN OFF CACHE BOOL "Compiler+linker support -fsanitize=address")
@@ -136,6 +138,8 @@ if(MDBXC_BUILD_EXAMPLES)
     file(GLOB EXAMPLES CONFIGURE_DEPENDS examples/*.cpp)
     list(FILTER EXAMPLES EXCLUDE REGEX
         "sync_13_http_simple_web_server\\.cpp$")
+    list(FILTER EXAMPLES EXCLUDE REGEX
+        "sync_17_websocket_simple_web_server\\.cpp$")
     foreach(example_file IN LISTS EXAMPLES)
         get_filename_component(example_name ${example_file} NAME_WE)
         add_executable(${example_name} ${example_file})
@@ -183,6 +187,35 @@ if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
         ${_MDBXC_SWS_TARGET})
     message(STATUS "HTTP binding example sync_13_http_simple_web_server -> "
         "${_MDBXC_SWS_TARGET}")
+endif()
+
+# ---------------------------------------
+# Optional WebSocket transport binding example
+# ---------------------------------------
+# Pulls Simple-WebSocket-Server through FetchContent and adds one example that
+# shows a real loopback WebSocket server + client wiring around
+# WebSocketSyncServer and WebSocketSyncPeer.
+if(MDBXC_WEBSOCKET_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
+    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/deps)
+    include(cmake/deps/simple-web-server.cmake)
+
+    simple_websocket_server_provide(OUT_TARGET _MDBXC_SWS_WS_TARGET)
+
+    add_executable(sync_17_websocket_simple_web_server
+        examples/sync_17_websocket_simple_web_server.cpp)
+    set_target_properties(sync_17_websocket_simple_web_server PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
+    )
+    target_compile_features(sync_17_websocket_simple_web_server PRIVATE cxx_std_11)
+    target_compile_definitions(sync_17_websocket_simple_web_server PRIVATE
+        MDBXC_SYNC_ENABLED=1
+        ASIO_STANDALONE=1
+        USE_STANDALONE_ASIO=1)
+    target_link_libraries(sync_17_websocket_simple_web_server PRIVATE
+        ${_PKG_TARGET}
+        ${_MDBXC_SWS_WS_TARGET})
+    message(STATUS "WebSocket binding example "
+        "sync_17_websocket_simple_web_server -> ${_MDBXC_SWS_WS_TARGET}")
 endif()
 
 # ---------------------------------------
