@@ -26,6 +26,7 @@ option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmd
 # examples/README-sync.md for usage.
 option(MDBXC_HTTP_SYNC_EXAMPLE "Build the Simple-Web-Server HTTP sync examples" OFF)
 option(MDBXC_WEBSOCKET_SYNC_EXAMPLE "Build the Simple-WebSocket-Server sync binding example" OFF)
+option(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE "Build the Kurlyk/libcurl HTTP sync client example" OFF)
 option(MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK
     "Fetch a ready-made Win64 OpenSSL Crypto package for the MinGW WebSocket example if system OpenSSL is unavailable" ON)
 
@@ -40,6 +41,7 @@ message(STATUS "MDBXC_BUILD_BENCHMARKS  = ${MDBXC_BUILD_BENCHMARKS}")
 message(STATUS "MDBXC_ENABLE_STRESS_TESTS = ${MDBXC_ENABLE_STRESS_TESTS}")
 message(STATUS "MDBXC_HTTP_SYNC_EXAMPLE = ${MDBXC_HTTP_SYNC_EXAMPLE}")
 message(STATUS "MDBXC_WEBSOCKET_SYNC_EXAMPLE = ${MDBXC_WEBSOCKET_SYNC_EXAMPLE}")
+message(STATUS "MDBXC_KURLYK_HTTP_SYNC_EXAMPLE = ${MDBXC_KURLYK_HTTP_SYNC_EXAMPLE}")
 message(STATUS "MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK = ${MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK}")
 message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
 
@@ -146,6 +148,8 @@ if(MDBXC_BUILD_EXAMPLES)
         "sync_17_websocket_simple_web_server\\.cpp$")
     list(FILTER EXAMPLES EXCLUDE REGEX
         "sync_18_http_node_fleet\\.cpp$")
+    list(FILTER EXAMPLES EXCLUDE REGEX
+        "sync_19_kurlyk_http_client\\.cpp$")
     foreach(example_file IN LISTS EXAMPLES)
         get_filename_component(example_name ${example_file} NAME_WE)
         add_executable(${example_name} ${example_file})
@@ -212,6 +216,39 @@ if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
         tiny-process-library::tiny-process-library)
     message(STATUS "HTTP node fleet example sync_18_http_node_fleet -> "
         "${_MDBXC_SWS_TARGET};tiny-process-library")
+endif()
+
+# ---------------------------------------
+# Optional Kurlyk HTTP transport client example
+# ---------------------------------------
+# Pulls Kurlyk through FetchContent and uses its libcurl-backed HTTP client
+# around HttpSyncPeer. The server side intentionally reuses the ready
+# Simple-Web listener so this example demonstrates backend interchange at the
+# framework-neutral IHttpSyncClient seam.
+if(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
+    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/deps)
+    include(cmake/deps/simple-web-server.cmake)
+    include(cmake/deps/kurlyk.cmake)
+
+    simple_web_server_provide(OUT_TARGET _MDBXC_SWS_TARGET)
+    kurlyk_http_client_provide(OUT_TARGET _MDBXC_KURLYK_HTTP_TARGET)
+
+    add_executable(sync_19_kurlyk_http_client
+        examples/sync_19_kurlyk_http_client.cpp)
+    set_target_properties(sync_19_kurlyk_http_client PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
+    )
+    target_compile_features(sync_19_kurlyk_http_client PRIVATE cxx_std_11)
+    target_compile_definitions(sync_19_kurlyk_http_client PRIVATE
+        MDBXC_SYNC_ENABLED=1
+        ASIO_STANDALONE=1
+        USE_STANDALONE_ASIO=1)
+    target_link_libraries(sync_19_kurlyk_http_client PRIVATE
+        ${_PKG_TARGET}
+        ${_MDBXC_SWS_TARGET}
+        ${_MDBXC_KURLYK_HTTP_TARGET})
+    message(STATUS "Kurlyk HTTP client example sync_19_kurlyk_http_client -> "
+        "${_MDBXC_SWS_TARGET};${_MDBXC_KURLYK_HTTP_TARGET}")
 endif()
 
 # ---------------------------------------

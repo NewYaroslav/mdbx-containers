@@ -5,7 +5,9 @@
 небольшой буфер в памяти, чтобы поток протокола был виден без HTTP, WebSocket
 или IPC-кода. Опциональные HTTP- и WebSocket-примеры используют готовые
 Simple-Web binding headers из `mdbx_containers/sync/transports/simple_web/` поверх
-Simple-Web-Server, Simple-WebSocket-Server и standalone Asio.
+Simple-Web-Server, Simple-WebSocket-Server и standalone Asio. Пример Kurlyk
+использует опциональный HTTP client binding из
+`mdbx_containers/sync/transports/kurlyk/` поверх libcurl.
 
 Синхронизация включается явно. Примеры собираются с `MDBXC_SYNC_ENABLED=1`;
 приложениям, которые используют sync, тоже нужно компилировать соответствующий
@@ -60,6 +62,28 @@ tmp/build-http-example/bin/examples/sync_18_http_node_fleet \
 
 ```cpp
 #include <mdbx_containers/sync/transports/simple_web/HttpTransport.hpp>
+```
+
+Kurlyk/libcurl HTTP client binding тоже включается отдельно. Он использует тот
+же framework-neutral `HttpSyncPeer` API и меняет только конкретную реализацию
+`IHttpSyncClient`:
+
+```bash
+cmake -S . -B tmp/build-kurlyk-http \
+    -DMDBXC_DEPS_MODE=BUNDLED \
+    -DMDBXC_BUILD_TESTS=OFF \
+    -DMDBXC_BUILD_EXAMPLES=ON \
+    -DMDBXC_KURLYK_HTTP_SYNC_EXAMPLE=ON \
+    -DCMAKE_CXX_STANDARD=11
+
+cmake --build tmp/build-kurlyk-http --target sync_19_kurlyk_http_client
+tmp/build-kurlyk-http/bin/examples/sync_19_kurlyk_http_client
+```
+
+Готовый Kurlyk HTTP client binding подключается так:
+
+```cpp
+#include <mdbx_containers/sync/transports/kurlyk/HttpTransport.hpp>
 ```
 
 Targets, которым нужны и Simple-Web HTTP, и WebSocket bindings, могут
@@ -135,6 +159,7 @@ cmake -S . -B tmp/build-ws-example `
 | `sync_16_worker_http_transport.cpp` | `SyncWorker` поверх `HttpSyncPeer` и HTTP request-context policy. | Продвинутый |
 | `sync_17_websocket_simple_web_server.cpp` | Готовый Simple-WebSocket binding поверх standalone Asio. | Продвинутый |
 | `sync_18_http_node_fleet.cpp` | Fleet из нескольких процессов поверх готового Simple-Web HTTP binding. | Продвинутый |
+| `sync_19_kurlyk_http_client.cpp` | Готовый Kurlyk/libcurl HTTP client binding против Simple-Web sync listener. | Продвинутый |
 
 ## Общие правила
 
@@ -271,6 +296,12 @@ capture sink и application loop;
 через stdin. Режим `master-replica` показывает одного активного писателя и
 одного пассивного получателя. Режим `mesh` позволяет обеим нодам писать
 локально, пока каждая нода подтягивает изменения другой по HTTP.
+
+`sync_19_kurlyk_http_client.cpp` оставляет серверную сторону на готовом
+Simple-Web HTTP listener и меняет клиентский backend на
+`mdbxc::sync::kurlyk::HttpSyncClient`. Это показывает форму для других HTTP
+клиентов: реализовать `IHttpSyncClient`, передать его в `HttpSyncPeer` и не
+менять `SyncEngine`, DTO encoding, auth policy и локальный apply.
 
 `sync_17_websocket_simple_web_server.cpp` - socket-backed WebSocket-вариант.
 Он использует `mdbxc::sync::simple_web::WebSocketSyncChannel` и
