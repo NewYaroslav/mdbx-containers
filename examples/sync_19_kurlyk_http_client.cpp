@@ -15,7 +15,7 @@
  *       -DMDBXC_BUILD_TESTS=OFF \
  *       -DMDBXC_BUILD_EXAMPLES=ON \
  *       -DMDBXC_KURLYK_HTTP_SYNC_EXAMPLE=ON \
- *       -DCMAKE_CXX_STANDARD=11
+ *       -DCMAKE_CXX_STANDARD=17
  *   cmake --build tmp/build-kurlyk-http \
  *       --target sync_19_kurlyk_http_client
  *
@@ -78,17 +78,13 @@ int main() {
         std::shared_ptr<mdbxc::Connection> replica =
             sync_example::open(replica_path);
 
-        mdbxc::sync::IdentityProvider primary_identity(
-            primary, primary_node, db_id);
-        mdbxc::sync::IdentityProvider replica_identity(
-            replica, replica_node, db_id);
-        (void)primary_identity;
-        (void)replica_identity;
+        mdbxc::sync::SyncEngine primary_engine(primary);
+        mdbxc::sync::SyncEngine replica_engine(replica);
+        primary_engine.initialize_local_identity(primary_node, db_id);
+        replica_engine.initialize_local_identity(replica_node, db_id);
 
         seed_primary_rows(primary);
 
-        mdbxc::sync::SyncEngine primary_engine(primary);
-        mdbxc::sync::SyncEngine replica_engine(replica);
         mdbxc::sync::HttpSyncServer http_server(primary_engine);
 
         mdbxc::sync::HttpBearerNodeIdentityPolicy bearer_policy;

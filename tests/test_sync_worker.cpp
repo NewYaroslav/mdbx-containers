@@ -293,7 +293,11 @@ private:
 
 class SelfStoppingPeer : public mdbxc::sync::ISyncPeer {
 public:
-    SelfStoppingPeer() : m_worker(nullptr), m_saw_logic_error(false) {}
+    SelfStoppingPeer()
+        : m_worker(nullptr),
+          m_entered_pull(false),
+          m_allow_stop(false),
+          m_saw_logic_error(false) {}
 
     void set_worker(mdbxc::sync::SyncWorker* worker) {
         m_worker = worker;
@@ -305,6 +309,14 @@ public:
         if (m_worker == nullptr) {
             throw std::runtime_error("self-stopping peer has no worker");
         }
+        {
+            std::unique_lock<std::mutex> lock(m_mutex);
+            m_entered_pull = true;
+            m_changed.notify_all();
+            while (!m_allow_stop) {
+                m_changed.wait(lock);
+            }
+        }
         try {
             m_worker->stop();
         } catch (const std::logic_error& e) {
@@ -312,7 +324,11 @@ public:
                 std::string::npos) {
                 throw;
             }
-            m_saw_logic_error = true;
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_saw_logic_error = true;
+            }
+            m_changed.notify_all();
         }
         return mdbxc::sync::PullResponse();
     }
@@ -324,11 +340,31 @@ public:
     }
 
     bool saw_logic_error() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
         return m_saw_logic_error;
+    }
+
+    bool wait_until_pull_entered(std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+                lock, timeout,
+                [this]() { return m_entered_pull; });
+    }
+
+    void allow_stop() {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_allow_stop = true;
+        }
+        m_changed.notify_all();
     }
 
 private:
     mdbxc::sync::SyncWorker* m_worker;
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    bool m_entered_pull;
+    bool m_allow_stop;
     bool m_saw_logic_error;
 };
 
@@ -1468,6 +1504,13 @@ void test_worker_rejects_self_join() {
     peer.set_worker(&worker);
 
     worker.start();
+    if (!peer.wait_until_pull_entered(std::chrono::seconds(5))) {
+        worker.request_stop();
+        peer.allow_stop();
+        worker.join();
+        throw std::runtime_error("self-join worker did not enter pull");
+    }
+    peer.allow_stop();
     worker.join();
 
     if (!peer.saw_logic_error()) {
