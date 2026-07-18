@@ -224,9 +224,25 @@ void test_http_server_status_mapping() {
     request.method = "GET";
     request.target = mdbxc::sync::HttpSyncRoutes::pull_target();
     request.content_type = mdbxc::sync::HttpSyncRoutes::content_type();
+    mdbxc::sync::http_add_header(
+        request.headers, mdbxc::sync::HttpSyncHeaders::request_id(),
+        "request-123");
+    mdbxc::sync::http_add_header(
+        request.headers, mdbxc::sync::HttpSyncHeaders::trace_id(),
+        "trace-abc");
     mdbxc::sync::HttpSyncResponse response = server.handle(request);
     require_true(response.status_code == 405, "GET must be rejected");
     require_true(!response.body.empty(), "GET rejection must carry body text");
+    require_true(mdbxc::sync::http_header_value(
+                     response.headers,
+                     mdbxc::sync::HttpSyncHeaders::request_id()) ==
+                     "request-123",
+                 "HTTP server did not echo request id");
+    require_true(mdbxc::sync::http_header_value(
+                     response.headers,
+                     mdbxc::sync::HttpSyncHeaders::trace_id()) ==
+                     "trace-abc",
+                 "HTTP server did not echo trace id");
 
     request.method = mdbxc::sync::HttpSyncRoutes::method_post();
     request.content_type = "application/octet-stream";
