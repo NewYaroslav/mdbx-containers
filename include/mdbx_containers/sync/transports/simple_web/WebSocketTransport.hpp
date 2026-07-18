@@ -234,6 +234,11 @@ namespace simple_web {
             }
 
             client.start();
+            if (cancel_token.is_cancellation_requested() ||
+                m_cancel_generation.load(std::memory_order_acquire) !=
+                    call_generation) {
+                throw std::runtime_error("cancelled during WebSocket exchange");
+            }
             return result.get();
         }
 
