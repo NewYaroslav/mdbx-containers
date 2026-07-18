@@ -243,7 +243,7 @@ payload itself.
 Locked contract:
 
 - Magic: 8 bytes `MDBXCPRT`.
-- Version: u16 little-endian, currently `1`.
+- Version: u16 little-endian, currently `2`.
 - Message type: u8 (`1=PullRequest`, `2=PullResponse`, `3=PushRequest`,
   `4=PushResponse`).
 - Message flags: u32 little-endian, currently zero. Unknown non-zero flags are
@@ -253,6 +253,9 @@ Locked contract:
   entries.
 - `ChangeBatch` values inside pull/push messages are encoded as
   `u32 byte_length` plus exact `ChangeBatchCodec` bytes.
+- `PullResponse` carries both `remote_have` (responder applied cursor) and
+  optional `remote_tail` (responder changelog tail) so receivers can report
+  catch-up progress without changing pagination semantics.
 - `CancellationToken` fields in request DTOs are local call-control state and
   are never serialized. Decoded request DTOs contain default non-cancellable
   tokens.
@@ -354,6 +357,9 @@ Worker invariants:
   and backoff entry synchronously on the thread that runs the sync round;
   observer implementations must outlive the worker, return quickly, and avoid
   caller-serialized lifecycle calls from worker-thread callbacks;
+- worker stage and round events include a best-effort progress estimate derived
+  from the latest `PullResponse::remote_tail` cursor and the receiver cursor;
+  it reports known catch-up progress only, not future writes or wall-clock ETA;
 - observer exceptions never fail the sync round and are reported through
   `last_observer_error`; they do not overwrite `last_error`, which remains
   reserved for pull/apply, cancellation, and lifecycle failures;

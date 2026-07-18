@@ -70,14 +70,24 @@ public:
             event.stage == mdbxc::sync::SyncWorkerStage::PullStarted
                 ? event.pages_pulled + 1
                 : event.pages_pulled;
+        const unsigned long long remaining =
+            static_cast<unsigned long long>(
+                event.progress.batches_remaining);
+        const double progress_pct =
+            event.progress.remote_tail_known
+                ? event.progress.completion_ratio * 100.0
+                : 0.0;
         std::lock_guard<std::mutex> lock(m_mutex);
         std::printf(
             "[worker observer] stage=%s page=%zu page_batches=%zu "
-            "total_batches=%zu has_more=%s\n",
+            "total_batches=%zu remaining=%llu progress=%.1f%% "
+            "has_more=%s\n",
             stage_name(event.stage),
             page,
             event.batches_in_page,
             event.batches_applied,
+            remaining,
+            progress_pct,
             event.has_more ? "true" : "false");
     }
 

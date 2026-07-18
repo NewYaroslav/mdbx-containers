@@ -91,6 +91,9 @@ void test_pull_response_roundtrip() {
     PullResponse response;
     response.remote_have.last_seq_by_origin[make_node(0xA0)] = 4;
     response.remote_have.last_seq_by_origin[make_node(0xB0)] = 8;
+    response.remote_tail.last_seq_by_origin[make_node(0xA0)] = 5;
+    response.remote_tail.last_seq_by_origin[make_node(0xB0)] = 9;
+    response.remote_tail_known = true;
     response.batches.push_back(make_batch(0xA0, 5));
     response.batches.push_back(make_batch(0xB0, 9));
     response.has_more = true;
@@ -106,6 +109,12 @@ void test_pull_response_roundtrip() {
                  "PullResponse cursor A mismatch");
     require_true(decoded.remote_have.last_seq_for(make_node(0xB0)) == 8,
                  "PullResponse cursor B mismatch");
+    require_true(decoded.remote_tail.last_seq_for(make_node(0xA0)) == 5,
+                 "PullResponse tail A mismatch");
+    require_true(decoded.remote_tail.last_seq_for(make_node(0xB0)) == 9,
+                 "PullResponse tail B mismatch");
+    require_true(decoded.remote_tail_known,
+                 "PullResponse tail-known mismatch");
     require_true(decoded.batches.size() == 2u,
                  "PullResponse batch count mismatch");
     require_true(decoded.batches[0].origin_node_id == make_node(0xA0),
@@ -308,7 +317,7 @@ void test_golden_header_shape() {
         require_true(bytes[i] == expected_magic[i],
                      "TransportMessageCodec magic mismatch");
     }
-    require_true(bytes[8] == 1u && bytes[9] == 0u,
+    require_true(bytes[8] == 2u && bytes[9] == 0u,
                  "TransportMessageCodec version mismatch");
     require_true(bytes[10] == 1u,
                  "TransportMessageCodec pull request type mismatch");
