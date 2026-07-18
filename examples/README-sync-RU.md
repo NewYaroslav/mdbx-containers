@@ -3,8 +3,9 @@
 Эти примеры показывают API sync v0.1 как набор блоков, не привязанных к
 конкретному транспорту. Большинство примеров используют `DirectSyncPeer` или
 небольшой буфер в памяти, чтобы поток протокола был виден без HTTP, WebSocket
-или IPC-кода. Опциональный HTTP-пример связывает HTTP seam с Simple-Web-Server
-и standalone Asio, а WebSocket-пример остаётся framework-neutral.
+или IPC-кода. Опциональные HTTP- и WebSocket-примеры связывают границы
+транспортных адаптеров с Simple-Web-Server, Simple-WebSocket-Server и
+standalone Asio.
 
 Синхронизация включается явно. Примеры собираются с `MDBXC_SYNC_ENABLED=1`;
 приложениям, которые используют sync, тоже нужно компилировать соответствующий
@@ -63,6 +64,19 @@ cmake -S . -B tmp/build-ws-example \
 
 cmake --build tmp/build-ws-example --target sync_17_websocket_simple_web_server
 tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server
+```
+
+На Windows/MinGW с готовым бинарным пакетом OpenSSL укажите CMake корень
+пакета, в котором лежат `include`, `lib` и `bin`, например:
+
+```powershell
+cmake -S . -B tmp/build-ws-example `
+    -DMDBXC_DEPS_MODE=BUNDLED `
+    -DMDBXC_BUILD_TESTS=OFF `
+    -DMDBXC_BUILD_EXAMPLES=ON `
+    -DMDBXC_WEBSOCKET_SYNC_EXAMPLE=ON `
+    -DOPENSSL_ROOT_DIR=C:/deps/openssl-win64-v3.4.0 `
+    -DCMAKE_CXX_STANDARD=11
 ```
 
 ## Порядок чтения
@@ -202,5 +216,7 @@ message-size guard, страничные pull-запросы и callbacks observ
 `sync_17_websocket_simple_web_server.cpp` - socket-backed WebSocket-вариант.
 Он связывает `WebSocketSyncPeer` / `WebSocketSyncServer` с
 Simple-WebSocket-Server, отправляет binary frames, проверяет bearer token во
-время WebSocket handshake и передаёт аутентифицированный `NodeId` replica в
-`WebSocketSyncServerMiddleware` перед dispatch.
+время WebSocket handshake, передаёт аутентифицированный `NodeId` replica вместе
+с явным `SyncDbAccess` в `WebSocketSyncServerMiddleware`, отклоняет слишком
+большие сообщения до decode и классифицирует close codes для диагностики
+клиента.
