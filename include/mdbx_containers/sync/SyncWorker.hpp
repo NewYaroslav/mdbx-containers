@@ -37,6 +37,17 @@ namespace sync {
         Failed,   ///< Worker thread exited after an unexpected exception.
     };
 
+    /// \brief Fine-grained sync round stage reported to observers.
+    enum class SyncWorkerStage {
+        RoundStarted,   ///< A foreground or background sync round started.
+        PullStarted,    ///< A pull page request is about to be sent.
+        PullFinished,   ///< A pull page request returned.
+        ApplyStarted,   ///< A non-empty pulled page is about to be applied.
+        ApplyFinished,  ///< A non-empty pulled page finished applying.
+        RoundCompleted, ///< The round finished with a final result.
+        BackoffStarted, ///< Background worker entered retry backoff.
+    };
+
     /// \brief Timing and pagination settings for \c SyncWorker.
     struct SyncWorkerOptions {
         /// \brief Max batches requested from the peer per pull page.
@@ -60,7 +71,7 @@ namespace sync {
         /// \brief Whether one round drains all \c has_more pages immediately.
         bool drain_pages = true;
 
-        /// \brief Optional observer for page, round, and backoff events.
+        /// \brief Optional observer for stage, page, round, and backoff events.
         /// \details The worker does not own the observer. When set, the
         /// observer must outlive the worker.
         ISyncWorkerObserver* observer = nullptr;
@@ -75,6 +86,20 @@ namespace sync {
         std::string error; ///< Failure detail when \c ok is false.
     };
 
+    /// \brief Fine-grained observer event for sync round stages.
+    struct SyncWorkerStageEvent {
+        SyncWorkerStage stage =
+            SyncWorkerStage::RoundStarted; ///< Reported stage.
+        SyncWorkerState state =
+            SyncWorkerState::Stopped; ///< Worker state near the callback.
+        std::size_t pages_pulled = 0; ///< Pages pulled so far in the round.
+        std::size_t batches_in_page = 0; ///< Batches in the current page.
+        std::size_t batches_applied = 0; ///< Batches applied so far.
+        bool        has_more = false; ///< Latest peer pagination flag.
+        bool        ok = true; ///< Whether the current stage succeeded.
+        std::string error; ///< Failure detail when \c ok is false.
+    };
+
     /// \brief Details for a successfully applied page.
     struct SyncWorkerPageEvent {
         std::size_t pages_pulled = 0; ///< 1-based page count in the round.
@@ -83,7 +108,7 @@ namespace sync {
         SyncCursor  applied_cursor; ///< Receiver cursor after the page commit.
     };
 
-    /// \brief Optional observer for \c SyncWorker progress.
+    /// \brief Optional observer for \c SyncWorker progress and stage changes.
     /// \details Callbacks are invoked synchronously on the thread that runs the
     /// sync round: the caller thread for \c run_once() and the worker thread for
     /// \c start(). Implementations should return quickly and must not call
@@ -94,6 +119,15 @@ namespace sync {
     class ISyncWorkerObserver {
     public:
         virtual ~ISyncWorkerObserver() {}
+
+        /// \brief Called when a sync round enters a coarse-grained stage.
+        /// \details This callback is intended for logging, metrics, and UI
+        /// status updates. It complements the more specific page, round, and
+        /// backoff callbacks below.
+        virtual void on_sync_worker_stage_changed(
+                const SyncWorkerStageEvent& event) {
+            (void)event;
+        }
 
         /// \brief Called after a pulled page was applied locally.
         virtual void on_sync_worker_page_applied(
@@ -375,6 +409,9 @@ namespace sync {
         SyncWorkerRoundResult run_once_impl() {
             SyncWorkerRoundResult result;
             try {
+                notify_stage_changed(make_stage_event(
+                    SyncWorkerStage::RoundStarted, result));
+
                 PullRequest request;
                 request.requester = m_engine.local_node_id();
                 request.db_id = m_engine.db_uuid();
@@ -398,8 +435,19 @@ namespace sync {
                             result.has_more = has_more;
                             return result;
                         }
+                        notify_stage_changed(make_stage_event(
+                            SyncWorkerStage::PullStarted, result));
                         request.cancel_token = cancel_token;
                         response = m_peer.pull(request);
+                    }
+                    {
+                        SyncWorkerStageEvent event = make_stage_event(
+                            SyncWorkerStage::PullFinished, result);
+                        event.batches_in_page = response.batches.size();
+                        event.has_more = response.has_more;
+                        event.ok = response.ok;
+                        event.error = response.error;
+                        notify_stage_changed(event);
                     }
                     if (!response.ok) {
                         result.ok = false;
@@ -418,10 +466,31 @@ namespace sync {
 
                     if (!response.batches.empty()) {
                         set_state(SyncWorkerState::Applying);
+                        {
+                            SyncWorkerStageEvent event = make_stage_event(
+                                SyncWorkerStage::ApplyStarted, result);
+                            event.batches_in_page = response.batches.size();
+                            event.has_more = has_more;
+                            notify_stage_changed(event);
+                        }
                         PushRequest apply;
                         apply.db_id = request.db_id;
                         apply.batches = response.batches;
                         const PushResponse applied = m_engine.handle_push(apply);
+                        {
+                            SyncWorkerStageEvent event = make_stage_event(
+                                SyncWorkerStage::ApplyFinished, result);
+                            event.batches_in_page = response.batches.size();
+                            event.has_more = has_more;
+                            event.ok = applied.ok;
+                            event.error = applied.error;
+                            if (applied.ok) {
+                                event.batches_applied =
+                                    result.batches_applied +
+                                    response.batches.size();
+                            }
+                            notify_stage_changed(event);
+                        }
                         if (!applied.ok) {
                             result.ok = false;
                             result.error = applied.error.empty()
@@ -463,6 +532,33 @@ namespace sync {
             return result;
         }
 
+        SyncWorkerStageEvent make_stage_event(
+                SyncWorkerStage stage,
+                const SyncWorkerRoundResult& result) const {
+            SyncWorkerStageEvent event;
+            event.stage = stage;
+            event.state = state();
+            event.pages_pulled = result.pages_pulled;
+            event.batches_applied = result.batches_applied;
+            event.has_more = result.has_more;
+            event.ok = result.ok;
+            event.error = result.error;
+            return event;
+        }
+
+        void notify_stage_changed(const SyncWorkerStageEvent& event) const {
+            if (m_options.observer == nullptr) {
+                return;
+            }
+            try {
+                m_options.observer->on_sync_worker_stage_changed(event);
+            } catch (const std::exception& e) {
+                record_observer_error("on_sync_worker_stage_changed", e.what());
+            } catch (...) {
+                record_observer_error("on_sync_worker_stage_changed", nullptr);
+            }
+        }
+
         void notify_page_applied(const SyncWorkerPageEvent& event) const {
             if (m_options.observer == nullptr) {
                 return;
@@ -478,6 +574,8 @@ namespace sync {
 
         void notify_round_completed(
                 const SyncWorkerRoundResult& result) const {
+            notify_stage_changed(make_stage_event(
+                SyncWorkerStage::RoundCompleted, result));
             if (m_options.observer == nullptr) {
                 return;
             }
@@ -492,6 +590,10 @@ namespace sync {
 
         void notify_backoff(const SyncWorkerRoundResult& result,
                             std::chrono::milliseconds delay) const {
+            SyncWorkerStageEvent event = make_stage_event(
+                SyncWorkerStage::BackoffStarted, result);
+            event.state = SyncWorkerState::Backoff;
+            notify_stage_changed(event);
             if (m_options.observer == nullptr) {
                 return;
             }

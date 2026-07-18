@@ -348,6 +348,15 @@ public:
         m_changed.notify_all();
     }
 
+    void on_sync_worker_stage_changed(
+            const mdbxc::sync::SyncWorkerStageEvent& event) override {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_stages.push_back(event);
+        }
+        m_changed.notify_all();
+    }
+
     void on_sync_worker_round_completed(
             const mdbxc::sync::SyncWorkerRoundResult& result) override {
         {
@@ -385,6 +394,11 @@ public:
         return m_backoffs;
     }
 
+    std::vector<mdbxc::sync::SyncWorkerStageEvent> stages() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_stages;
+    }
+
     bool wait_for_backoffs(std::size_t count,
                            std::chrono::milliseconds timeout) const {
         std::unique_lock<std::mutex> lock(m_mutex);
@@ -415,6 +429,7 @@ private:
     std::vector<mdbxc::sync::SyncWorkerPageEvent> m_pages;
     std::vector<mdbxc::sync::SyncWorkerRoundResult> m_rounds;
     std::vector<BackoffRecord> m_backoffs;
+    std::vector<mdbxc::sync::SyncWorkerStageEvent> m_stages;
 };
 
 class ThrowingRoundObserver : public mdbxc::sync::ISyncWorkerObserver {
@@ -474,6 +489,25 @@ private:
     mutable std::mutex m_mutex;
     mutable std::condition_variable m_changed;
     int m_backoff_count;
+};
+
+class ThrowingStageObserver : public mdbxc::sync::ISyncWorkerObserver {
+public:
+    ThrowingStageObserver() : m_stage_count(0) {}
+
+    void on_sync_worker_stage_changed(
+            const mdbxc::sync::SyncWorkerStageEvent& event) override {
+        (void)event;
+        ++m_stage_count;
+        throw std::runtime_error("stage observer boom");
+    }
+
+    int stage_count() const {
+        return m_stage_count;
+    }
+
+private:
+    int m_stage_count;
 };
 
 class ContextHttpClient : public mdbxc::sync::IHttpSyncClient {
@@ -718,6 +752,39 @@ void test_worker_run_once_drains_paginated_pull() {
         rounds[0].batches_applied != 5u) {
         throw std::runtime_error("worker observer round mismatch");
     }
+    const std::vector<sync::SyncWorkerStageEvent> stages =
+        observer.stages();
+    if (stages.size() != 14u) {
+        throw std::runtime_error("worker observer stage count mismatch");
+    }
+    if (stages.front().stage != sync::SyncWorkerStage::RoundStarted ||
+        stages.back().stage != sync::SyncWorkerStage::RoundCompleted ||
+        !stages.back().ok || stages.back().pages_pulled != 3u ||
+        stages.back().batches_applied != 5u) {
+        throw std::runtime_error("worker observer round stage mismatch");
+    }
+    std::size_t pull_started = 0;
+    std::size_t pull_finished = 0;
+    std::size_t apply_started = 0;
+    std::size_t apply_finished = 0;
+    for (std::size_t i = 0; i < stages.size(); ++i) {
+        if (stages[i].stage == sync::SyncWorkerStage::PullStarted) {
+            ++pull_started;
+        } else if (stages[i].stage ==
+                   sync::SyncWorkerStage::PullFinished) {
+            ++pull_finished;
+        } else if (stages[i].stage ==
+                   sync::SyncWorkerStage::ApplyStarted) {
+            ++apply_started;
+        } else if (stages[i].stage ==
+                   sync::SyncWorkerStage::ApplyFinished) {
+            ++apply_finished;
+        }
+    }
+    if (pull_started != 3u || pull_finished != 3u ||
+        apply_started != 3u || apply_finished != 3u) {
+        throw std::runtime_error("worker observer page stage mismatch");
+    }
 
     KeyValueTable<int, int> replica_kv(replica_conn, "kv");
     for (int i = 1; i <= 5; ++i) {
@@ -955,6 +1022,40 @@ void test_worker_observer_exception_does_not_fail_round() {
     if (worker.last_observer_error().find("observer boom") ==
         std::string::npos) {
         throw std::runtime_error("observer exception was not recorded");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_worker_stage_observer_exception_does_not_fail_round() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_stage_observer_exception.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    EmptyPeer peer;
+    ThrowingStageObserver observer;
+    sync::SyncWorkerOptions options;
+    options.observer = &observer;
+    sync::SyncWorker worker(engine, peer, options);
+
+    const sync::SyncWorkerRoundResult result = worker.run_once();
+    if (!result.ok) {
+        throw std::runtime_error("stage observer exception failed sync round");
+    }
+    if (observer.stage_count() == 0) {
+        throw std::runtime_error("stage observer was not called");
+    }
+    if (!worker.last_error().empty()) {
+        throw std::runtime_error("stage observer exception polluted last_error");
+    }
+    if (worker.last_observer_error().find("stage observer boom") ==
+        std::string::npos) {
+        throw std::runtime_error("stage observer exception was not recorded");
     }
 
     conn->disconnect();
@@ -1377,6 +1478,8 @@ int main() {
         { "test_worker_backoff_on_pull_error", &test_worker_backoff_on_pull_error },
         { "test_worker_observer_exception_does_not_fail_round",
           &test_worker_observer_exception_does_not_fail_round },
+        { "test_worker_stage_observer_exception_does_not_fail_round",
+          &test_worker_stage_observer_exception_does_not_fail_round },
         { "test_worker_observer_exception_keeps_pull_error",
           &test_worker_observer_exception_keeps_pull_error },
         { "test_worker_backoff_observer_exception_keeps_pull_error",

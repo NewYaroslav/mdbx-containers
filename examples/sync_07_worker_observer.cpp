@@ -34,11 +34,52 @@ namespace {
 const int writer_cycles = 3;
 const int writes_per_cycle = 3;
 
+const char* stage_name(mdbxc::sync::SyncWorkerStage stage) {
+    switch (stage) {
+        case mdbxc::sync::SyncWorkerStage::RoundStarted:
+            return "round-started";
+        case mdbxc::sync::SyncWorkerStage::PullStarted:
+            return "pull-started";
+        case mdbxc::sync::SyncWorkerStage::PullFinished:
+            return "pull-finished";
+        case mdbxc::sync::SyncWorkerStage::ApplyStarted:
+            return "apply-started";
+        case mdbxc::sync::SyncWorkerStage::ApplyFinished:
+            return "apply-finished";
+        case mdbxc::sync::SyncWorkerStage::RoundCompleted:
+            return "round-completed";
+        case mdbxc::sync::SyncWorkerStage::BackoffStarted:
+            return "backoff-started";
+    }
+    return "unknown";
+}
+
 class ConsoleWorkerObserver : public mdbxc::sync::ISyncWorkerObserver {
 public:
     explicit ConsoleWorkerObserver(const mdbxc::sync::NodeId& origin)
         : m_origin(origin), m_pages(0), m_batches(0), m_rounds(0),
           m_backoffs(0) {}
+
+    void on_sync_worker_stage_changed(
+            const mdbxc::sync::SyncWorkerStageEvent& event) override {
+        if (event.stage != mdbxc::sync::SyncWorkerStage::PullStarted &&
+            event.stage != mdbxc::sync::SyncWorkerStage::ApplyFinished) {
+            return;
+        }
+        const std::size_t page =
+            event.stage == mdbxc::sync::SyncWorkerStage::PullStarted
+                ? event.pages_pulled + 1
+                : event.pages_pulled;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::printf(
+            "[worker observer] stage=%s page=%zu page_batches=%zu "
+            "total_batches=%zu has_more=%s\n",
+            stage_name(event.stage),
+            page,
+            event.batches_in_page,
+            event.batches_applied,
+            event.has_more ? "true" : "false");
+    }
 
     void on_sync_worker_page_applied(
             const mdbxc::sync::SyncWorkerPageEvent& event) override {
