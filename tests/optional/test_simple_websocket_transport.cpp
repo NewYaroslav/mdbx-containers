@@ -152,16 +152,36 @@ void test_websocket_channel_cancel_unblocks_silent_exchange() {
             }
         });
 
-    require_true(server.wait_for_message(std::chrono::seconds(5)),
+    const bool server_received =
+        server.wait_for_message(std::chrono::seconds(5));
+    if (!server_received) {
+        cancel.request_cancel();
+        channel.request_cancel();
+        if (client.joinable()) {
+            client.join();
+        }
+        server.stop();
+    }
+    require_true(server_received,
                  "WebSocket server did not receive test message");
+
     cancel.request_cancel();
     channel.request_cancel();
 
-    require_true(result.wait_for(std::chrono::seconds(5)) ==
-                     std::future_status::ready,
-                 "WebSocket exchange did not unblock after cancellation");
-    client.join();
+    const bool exchange_ready =
+        result.wait_for(std::chrono::seconds(5)) ==
+        std::future_status::ready;
+    if (!exchange_ready) {
+        cancel.request_cancel();
+        channel.request_cancel();
+    }
+    if (client.joinable()) {
+        client.join();
+    }
     server.stop();
+
+    require_true(exchange_ready,
+                 "WebSocket exchange did not unblock after cancellation");
 
     require_true(channel.cancel_count() == 1u,
                  "WebSocket channel did not count request_cancel");

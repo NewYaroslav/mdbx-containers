@@ -209,7 +209,10 @@ namespace simple_web {
                     int status,
                     const std::string& reason) {
                     (void)connection;
-                    if (status != 1000) {
+                    if (status == 1000) {
+                        state->set_exception(
+                            "WebSocket closed before sync response");
+                    } else {
                         state->set_exception(
                             "WebSocket closed with status " +
                             std::to_string(status) + " (" +
