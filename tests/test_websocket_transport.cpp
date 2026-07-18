@@ -245,11 +245,192 @@ void test_websocket_server_rejects_malformed_messages() {
                  "WebSocket server must reject malformed messages");
 }
 
+void test_websocket_authenticated_node_policy() {
+    const mdbxc::sync::NodeId node_a = make_node(0x11);
+    const mdbxc::sync::NodeId node_b = make_node(0x22);
+    const mdbxc::sync::DbId db_a = make_node(0xD1);
+    const mdbxc::sync::DbId db_b = make_node(0xD2);
+
+    mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy policy;
+    mdbxc::sync::WebSocketSyncRequestContext context;
+    context.has_authenticated_node = true;
+    context.authenticated_node = node_a;
+    context.allowed_dbs.insert(db_a);
+
+    mdbxc::sync::PullRequest pull;
+    pull.requester = node_a;
+    pull.db_id = db_a;
+    context.binary_message =
+        mdbxc::sync::TransportMessageCodec::encode_pull_request(pull);
+
+    mdbxc::sync::SyncTransportDecision decision =
+        policy.check_websocket_message(context);
+    require_true(decision.allowed,
+                 "matching WebSocket node identity was rejected");
+
+    pull.requester = node_b;
+    context.binary_message =
+        mdbxc::sync::TransportMessageCodec::encode_pull_request(pull);
+    decision = policy.check_websocket_message(context);
+    require_true(!decision.allowed && decision.status_code == 1008,
+                 "WebSocket requester mismatch was not rejected");
+
+    pull.requester = node_a;
+    pull.db_id = db_b;
+    context.binary_message =
+        mdbxc::sync::TransportMessageCodec::encode_pull_request(pull);
+    decision = policy.check_websocket_message(context);
+    require_true(!decision.allowed && decision.status_code == 1008,
+                 "WebSocket db_id mismatch was not rejected");
+
+    mdbxc::sync::PushRequest push;
+    push.sender = node_b;
+    push.db_id = db_a;
+    context.binary_message =
+        mdbxc::sync::TransportMessageCodec::encode_push_request(push);
+    decision = policy.check_websocket_message(context);
+    require_true(!decision.allowed && decision.status_code == 1008,
+                 "WebSocket sender mismatch was not rejected");
+
+    context.has_authenticated_node = false;
+    push.sender = node_a;
+    context.binary_message =
+        mdbxc::sync::TransportMessageCodec::encode_push_request(push);
+    decision = policy.check_websocket_message(context);
+    require_true(!decision.allowed && decision.status_code == 1008,
+                 "missing WebSocket authenticated node was not rejected");
+}
+
+void test_websocket_authenticated_node_policy_rejects_invalid_body() {
+    const mdbxc::sync::NodeId node = make_node(0x33);
+    const mdbxc::sync::DbId db_id = make_node(0xD3);
+
+    mdbxc::sync::CodecBounds bounds;
+    bounds.max_transport_message_bytes = 8;
+    mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy policy(bounds);
+
+    mdbxc::sync::WebSocketSyncRequestContext context;
+    context.has_authenticated_node = true;
+    context.authenticated_node = node;
+    context.allowed_dbs.insert(db_id);
+
+    const std::uint8_t malformed_byte_1 = 0x01;
+    const std::uint8_t malformed_byte_2 = 0x02;
+    context.binary_message.push_back(malformed_byte_1);
+    context.binary_message.push_back(malformed_byte_2);
+
+    mdbxc::sync::SyncTransportDecision decision =
+        policy.check_websocket_message(context);
+    require_true(!decision.allowed && decision.status_code == 1007,
+                 "malformed WebSocket sync body was not rejected as 1007");
+
+    mdbxc::sync::PullRequest pull;
+    pull.requester = node;
+    pull.db_id = db_id;
+    context.binary_message =
+        mdbxc::sync::TransportMessageCodec::encode_pull_request(pull);
+
+    decision = policy.check_websocket_message(context);
+    require_true(!decision.allowed && decision.status_code == 1009,
+                 "oversized WebSocket sync body was not rejected as 1009");
+}
+
+void test_websocket_server_middleware_rejects_spoofed_identity() {
+    const std::string path = "test_websocket_transport_policy.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<mdbxc::Connection> db = open_db(path);
+    mdbxc::sync::SyncEngine engine(db);
+    engine.initialize_local_identity(make_node(0x44), make_node(0xD4));
+
+    mdbxc::sync::WebSocketSyncServer server(engine);
+    mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy policy;
+    mdbxc::sync::WebSocketSyncServerMiddleware wrapped(server, &policy);
+
+    const mdbxc::sync::NodeId authenticated = make_node(0x55);
+    mdbxc::sync::PullRequest pull;
+    pull.requester = make_node(0x66);
+    pull.db_id = make_node(0xD4);
+
+    mdbxc::sync::WebSocketSyncRequestContext context;
+    context.has_authenticated_node = true;
+    context.authenticated_node = authenticated;
+    context.binary_message =
+        mdbxc::sync::TransportMessageCodec::encode_pull_request(pull);
+
+    bool caught = false;
+    try {
+        (void)wrapped.handle_binary_message(context);
+    } catch (const std::runtime_error& e) {
+        caught = std::string(e.what()).find("requester does not match") !=
+                 std::string::npos;
+    }
+
+    db->disconnect();
+    cleanup(path);
+
+    require_true(caught,
+                 "WebSocket server middleware allowed spoofed requester");
+}
+
+void test_websocket_server_middleware_preserves_close_code() {
+    const std::string path = "test_websocket_transport_close_code.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<mdbxc::Connection> db = open_db(path);
+    mdbxc::sync::SyncEngine engine(db);
+    engine.initialize_local_identity(make_node(0x77), make_node(0xD7));
+
+    mdbxc::sync::CodecBounds bounds;
+    bounds.max_transport_message_bytes = 8;
+    mdbxc::sync::WebSocketSyncServer server(engine, bounds);
+    mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy policy(bounds);
+    mdbxc::sync::SyncTransportMetricsObserver metrics;
+    mdbxc::sync::WebSocketSyncServerMiddleware wrapped(
+        server, &policy, &metrics);
+
+    mdbxc::sync::PullRequest pull;
+    pull.requester = make_node(0x88);
+    pull.db_id = make_node(0xD7);
+
+    mdbxc::sync::WebSocketSyncRequestContext context;
+    context.has_authenticated_node = true;
+    context.authenticated_node = pull.requester;
+    context.binary_message =
+        mdbxc::sync::TransportMessageCodec::encode_pull_request(pull);
+
+    bool caught = false;
+    try {
+        (void)wrapped.handle_binary_message(context);
+    } catch (const mdbxc::sync::WebSocketSyncRejected& e) {
+        caught = true;
+        require_true(e.close_code() == 1009u,
+                     "WebSocket middleware lost oversized close code");
+    }
+
+    db->disconnect();
+    cleanup(path);
+
+    require_true(caught,
+                 "WebSocket middleware did not throw typed rejection");
+
+    const mdbxc::sync::SyncTransportMetricsSnapshot snapshot =
+        metrics.snapshot();
+    require_true(snapshot.rejected_calls == 1u,
+                 "WebSocket rejection metric was not recorded");
+    require_true(snapshot.failed_calls == 0u,
+                 "WebSocket policy rejection was counted as exception");
+}
+
 } // namespace
 
 int main() {
     test_websocket_peer_pull_and_push_roundtrip();
     test_websocket_server_rejects_response_messages();
     test_websocket_server_rejects_malformed_messages();
+    test_websocket_authenticated_node_policy();
+    test_websocket_authenticated_node_policy_rejects_invalid_body();
+    test_websocket_server_middleware_rejects_spoofed_identity();
+    test_websocket_server_middleware_preserves_close_code();
     return 0;
 }

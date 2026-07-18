@@ -190,5 +190,6 @@ before `HttpSyncServer` dispatches the request.
 
 `sync_17_websocket_simple_web_server.cpp` is the socket-backed WebSocket
 counterpart. It binds `WebSocketSyncPeer` / `WebSocketSyncServer` to
-Simple-WebSocket-Server, sends binary frames, and checks the bearer token during
-the WebSocket handshake.
+Simple-WebSocket-Server, sends binary frames, checks the bearer token during
+the WebSocket handshake, and passes the authenticated replica `NodeId` to
+`WebSocketSyncServerMiddleware` before dispatch.

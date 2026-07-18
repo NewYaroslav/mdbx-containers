@@ -248,12 +248,17 @@ private:
 
 class SimpleWebSocketSyncListener {
 public:
-    SimpleWebSocketSyncListener(mdbxc::sync::WebSocketSyncServer& server,
-                                const std::string& bearer_token,
-                                const std::string& host,
-                                std::uint16_t port)
+    SimpleWebSocketSyncListener(
+            mdbxc::sync::WebSocketSyncServerMiddleware& server,
+            const std::string& bearer_token,
+            const mdbxc::sync::NodeId& authenticated_node,
+            const mdbxc::sync::DbId& allowed_db,
+            const std::string& host,
+            std::uint16_t port)
         : m_server(server),
           m_bearer_token(bearer_token),
+          m_authenticated_node(authenticated_node),
+          m_allowed_db(allowed_db),
           m_host(host),
           m_port(port),
           m_running(false) {
@@ -284,14 +289,22 @@ public:
                 std::shared_ptr<WsServer::Connection> connection,
                 std::shared_ptr<WsServer::InMessage> in_message) {
                 try {
+                    mdbxc::sync::WebSocketSyncRequestContext context;
+                    context.has_authenticated_node = true;
+                    context.authenticated_node = m_authenticated_node;
+                    context.allowed_dbs.insert(m_allowed_db);
+                    context.binary_message =
+                        string_to_bytes(in_message->string());
                     const std::vector<std::uint8_t> response =
-                        m_server.handle_binary_message(
-                            string_to_bytes(in_message->string()));
+                        m_server.handle_binary_message(context);
                     connection->send(bytes_to_string(response),
                                      nullptr,
                                      kBinaryFrameOpcode);
+                } catch (const mdbxc::sync::WebSocketSyncRejected& e) {
+                    connection->send_close(
+                        static_cast<int>(e.close_code()), e.what());
                 } catch (const std::exception& e) {
-                    connection->send_close(1008, e.what());
+                    connection->send_close(1011, e.what());
                 }
             };
 
@@ -362,8 +375,10 @@ public:
     }
 
 private:
-    mdbxc::sync::WebSocketSyncServer& m_server;
+    mdbxc::sync::WebSocketSyncServerMiddleware& m_server;
     std::string m_bearer_token;
+    mdbxc::sync::NodeId m_authenticated_node;
+    mdbxc::sync::DbId m_allowed_db;
     std::string m_host;
     std::uint16_t m_port;
     WsServer m_ws;
@@ -432,8 +447,11 @@ int main() {
         seed_primary_rows(primary);
 
         mdbxc::sync::WebSocketSyncServer ws_server(primary_engine);
+        mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy ws_identity;
+        mdbxc::sync::WebSocketSyncServerMiddleware ws_middleware(
+            ws_server, &ws_identity);
         SimpleWebSocketSyncListener listener(
-            ws_server, bearer_token, host, port);
+            ws_middleware, bearer_token, replica_node, db_id, host, port);
         listener.start();
 
         SimpleWebSocketSyncChannel channel(host, port, bearer_token);

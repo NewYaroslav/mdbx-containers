@@ -23,6 +23,7 @@
 
 #include "HttpTransport.hpp"
 #include "ISyncPeer.hpp"
+#include "WebSocketTransport.hpp"
 
 namespace mdbxc {
 namespace sync {
@@ -31,7 +32,8 @@ namespace sync {
     enum class SyncTransportOperation : std::uint8_t {
         Pull,
         Push,
-        HttpPost
+        HttpPost,
+        WebSocketMessage
     };
 
     /// \brief Retry classification for adapter-level HTTP failures.
@@ -95,6 +97,18 @@ namespace sync {
         }
     };
 
+    /// \brief Adapter-local context for one WebSocket sync message.
+    /// \details Concrete WebSocket bindings authenticate the session during
+    /// handshake or with framework-specific metadata, then pass the resulting
+    /// node identity here before dispatching the binary sync message. The
+    /// identity and DB allow-list are not serialized in the sync DTO.
+    struct WebSocketSyncRequestContext {
+        bool has_authenticated_node = false;
+        NodeId authenticated_node{};
+        std::set<DbId> allowed_dbs;
+        std::vector<std::uint8_t> binary_message;
+    };
+
     /// \brief Policy hook for sync transport requests.
     /// \details Default methods allow every request. Implementations may
     /// inspect DTO metadata, route names, or message sizes before forwarding.
@@ -129,6 +143,12 @@ namespace sync {
             return check_http_post(request.target,
                                    request.content_type,
                                    request.body);
+        }
+
+        virtual SyncTransportDecision check_websocket_message(
+                const WebSocketSyncRequestContext& request) {
+            (void)request;
+            return SyncTransportDecision::allow();
         }
     };
 
@@ -430,6 +450,115 @@ namespace sync {
         std::map<std::string, Binding> m_bindings;
     };
 
+    /// \brief Binds a WebSocket session identity to sync \c NodeId values.
+    /// \details Concrete WebSocket bindings should authenticate the session
+    /// before constructing \c WebSocketSyncRequestContext. This policy then
+    /// decodes the binary DTO and requires \c PullRequest::requester or
+    /// \c PushRequest::sender to match the authenticated session node.
+    /// Optional per-session DB allow-lists validate \c db_id before dispatch.
+    /// Empty \c allowed_dbs means the authenticated session may access any
+    /// \c db_id. For WebSocket bindings, \c SyncTransportDecision::status_code
+    /// may be interpreted as a WebSocket close code by the concrete adapter.
+    class WebSocketAuthenticatedNodeIdentityPolicy
+        : public ISyncTransportPolicy {
+    public:
+        explicit WebSocketAuthenticatedNodeIdentityPolicy(
+                const CodecBounds& bounds = CodecBounds())
+            : m_bounds(bounds) {}
+
+        SyncTransportDecision check_websocket_message(
+                const WebSocketSyncRequestContext& request) override {
+            if (!request.has_authenticated_node) {
+                return SyncTransportDecision::reject(
+                    "sync WebSocket authenticated node is missing", 1008);
+            }
+
+            try {
+                const TransportMessageType type =
+                    TransportMessageCodec::peek_message_type(
+                        request.binary_message, &m_bounds);
+                switch (type) {
+                    case TransportMessageType::PullRequest:
+                        return check_pull_identity(request);
+                    case TransportMessageType::PushRequest:
+                        return check_push_identity(request);
+                    case TransportMessageType::PullResponse:
+                    case TransportMessageType::PushResponse:
+                        return SyncTransportDecision::reject(
+                            "sync WebSocket server received response message",
+                            1008);
+                }
+            } catch (const std::length_error& e) {
+                return SyncTransportDecision::reject(e.what(), 1009);
+            } catch (const std::exception& e) {
+                return SyncTransportDecision::reject(e.what(), 1007);
+            }
+            return SyncTransportDecision::reject(
+                "Unexpected WebSocket sync message type", 1008);
+        }
+
+    private:
+        SyncTransportDecision check_pull_identity(
+                const WebSocketSyncRequestContext& context) const {
+            const PullRequest request =
+                TransportMessageCodec::decode_pull_request(
+                    context.binary_message, &m_bounds);
+            if (request.requester != context.authenticated_node) {
+                return SyncTransportDecision::reject(
+                    "sync requester does not match authenticated WebSocket node",
+                    1008);
+            }
+            return check_db(context.allowed_dbs, request.db_id);
+        }
+
+        SyncTransportDecision check_push_identity(
+                const WebSocketSyncRequestContext& context) const {
+            const PushRequest request =
+                TransportMessageCodec::decode_push_request(
+                    context.binary_message, &m_bounds);
+            if (request.sender != context.authenticated_node) {
+                return SyncTransportDecision::reject(
+                    "sync sender does not match authenticated WebSocket node",
+                    1008);
+            }
+            return check_db(context.allowed_dbs, request.db_id);
+        }
+
+        static SyncTransportDecision check_db(
+                const std::set<DbId>& allowed_dbs,
+                const DbId& db_id) {
+            if (!allowed_dbs.empty() &&
+                allowed_dbs.find(db_id) == allowed_dbs.end()) {
+                return SyncTransportDecision::reject(
+                    "sync db_id is not allowed for authenticated WebSocket node",
+                    1008);
+            }
+            return SyncTransportDecision::allow();
+        }
+
+        CodecBounds m_bounds;
+    };
+
+    /// \brief WebSocket policy rejection with a concrete close code.
+    /// \details Server-side WebSocket bindings should catch this exception and
+    /// send \c close_code() as the WebSocket close frame status. Other
+    /// exceptions from the binding or server path usually map to an internal
+    /// server error close code such as 1011.
+    class WebSocketSyncRejected : public std::runtime_error {
+    public:
+        WebSocketSyncRejected(unsigned close_code,
+                              const std::string& message)
+            : std::runtime_error(message),
+              m_close_code(close_code) {}
+
+        unsigned close_code() const {
+            return m_close_code;
+        }
+
+    private:
+        unsigned m_close_code;
+    };
+
     /// \brief Allows only configured remote addresses on HTTP sync requests.
     /// \details Empty allow-list means every remote address is allowed.
     class HttpRemoteAddressAllowListPolicy : public ISyncTransportPolicy {
@@ -672,6 +801,18 @@ namespace sync {
             for (std::size_t i = 0; i < m_policies.size(); ++i) {
                 const SyncTransportDecision decision =
                     m_policies[i]->check_http_request(request);
+                if (!decision.allowed) {
+                    return decision;
+                }
+            }
+            return SyncTransportDecision::allow();
+        }
+
+        SyncTransportDecision check_websocket_message(
+                const WebSocketSyncRequestContext& request) override {
+            for (std::size_t i = 0; i < m_policies.size(); ++i) {
+                const SyncTransportDecision decision =
+                    m_policies[i]->check_websocket_message(request);
                 if (!decision.allowed) {
                     return decision;
                 }
@@ -1043,6 +1184,67 @@ namespace sync {
         }
 
         HttpSyncServer& m_next;
+        ISyncTransportPolicy* m_policy;
+        ISyncTransportObserver* m_observer;
+    };
+
+    /// \brief \c WebSocketSyncServer wrapper that applies session policy.
+    /// \details The wrapped server must outlive the middleware. Concrete
+    /// WebSocket bindings provide an adapter-local request context containing
+    /// the authenticated session node and one complete binary sync message.
+    class WebSocketSyncServerMiddleware {
+    public:
+        explicit WebSocketSyncServerMiddleware(
+                WebSocketSyncServer& next,
+                ISyncTransportPolicy* policy = nullptr,
+                ISyncTransportObserver* observer = nullptr)
+            : m_next(next),
+              m_policy(policy),
+              m_observer(observer) {}
+
+        std::vector<std::uint8_t> handle_binary_message(
+                const WebSocketSyncRequestContext& request) {
+            if (m_policy != nullptr) {
+                const SyncTransportDecision decision =
+                    m_policy->check_websocket_message(request);
+                if (!decision.allowed) {
+                    detail::notify_transport_rejected(
+                        m_observer, SyncTransportOperation::WebSocketMessage,
+                        decision.error);
+                    throw WebSocketSyncRejected(
+                        decision.status_code == 0 ? 1008
+                                                  : decision.status_code,
+                        reject_message(
+                            decision, "WebSocket sync request rejected"));
+                }
+            }
+
+            try {
+                return m_next.handle_binary_message(request.binary_message);
+            } catch (const WebSocketSyncRejected&) {
+                throw;
+            } catch (const std::exception& e) {
+                detail::notify_transport_exception(
+                    m_observer, SyncTransportOperation::WebSocketMessage,
+                    e.what());
+                throw;
+            } catch (...) {
+                detail::notify_transport_exception(
+                    m_observer, SyncTransportOperation::WebSocketMessage,
+                    "unknown WebSocket server exception");
+                throw;
+            }
+        }
+
+    private:
+        static std::string reject_message(
+                const SyncTransportDecision& decision,
+                const char* fallback) {
+            return decision.error.empty() ? std::string(fallback)
+                                          : decision.error;
+        }
+
+        WebSocketSyncServer& m_next;
         ISyncTransportPolicy* m_policy;
         ISyncTransportObserver* m_observer;
     };
