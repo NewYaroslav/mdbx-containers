@@ -194,5 +194,6 @@ primary аутентифицирует bearer token как `NodeId` replica пе
 
 `sync_17_websocket_simple_web_server.cpp` - socket-backed WebSocket-вариант.
 Он связывает `WebSocketSyncPeer` / `WebSocketSyncServer` с
-Simple-WebSocket-Server, отправляет binary frames и проверяет bearer token во
-время WebSocket handshake.
+Simple-WebSocket-Server, отправляет binary frames, проверяет bearer token во
+время WebSocket handshake и передаёт аутентифицированный `NodeId` replica в
+`WebSocketSyncServerMiddleware` перед dispatch.

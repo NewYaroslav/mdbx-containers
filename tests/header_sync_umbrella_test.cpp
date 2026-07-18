@@ -56,6 +56,13 @@ int main() {
     mdbxc::sync::WebSocketSyncServer* websocket_server = nullptr;
     (void)websocket_channel;
     (void)websocket_server;
+    mdbxc::sync::WebSocketSyncRequestContext websocket_context;
+    websocket_context.has_authenticated_node = true;
+    websocket_context.authenticated_node = node;
+    websocket_context.binary_message = wire;
+    mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy websocket_policy;
+    MDBXC_TEST_ASSERT(
+        websocket_policy.check_websocket_message(websocket_context).allowed);
     mdbxc::sync::NodeDbAllowListPolicy allow_list;
     allow_list.allow_node_id(node);
     allow_list.allow_db_id(node);

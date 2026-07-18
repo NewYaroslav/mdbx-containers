@@ -42,8 +42,9 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   dependencies.
 - Transport middleware helpers: `SyncPeerMiddleware`,
   `HttpSyncClientMiddleware`, allow-list policies, fixed-budget rate limiting,
-  HTTP request-context bearer/remote-address/fixed-window policies, bearer
-  token to `NodeId` binding, HTTP retry status classification,
+  HTTP request-context bearer/remote-address/fixed-window policies,
+  WebSocket session identity policy, bearer token to `NodeId` binding,
+  HTTP retry status classification,
   `Retry-After`/`WWW-Authenticate` rejection headers, and a metrics observer.
   These wrap transport adapters and do not change the sync DTO wire format.
 - Change capture hooks: `Connection::attach_sync_capture()`,
@@ -505,9 +506,17 @@ count middleware hook invocations: if one observer is installed at both the
 peer layer and HTTP client layer, a forwarded `request_cancel()` can be counted
 once per layer.
 For WebSocket, decoded DTO policy can wrap `WebSocketSyncPeer` through
-`SyncPeerMiddleware`; per-session authentication, remote address checks,
-backpressure, and rate limits remain binding-local before
-`WebSocketSyncServer::handle_binary_message()`.
+`SyncPeerMiddleware`. Server-side bindings can pass a
+`WebSocketSyncRequestContext` to `WebSocketSyncServerMiddleware` after the
+concrete WebSocket framework authenticates the session. The framework-specific
+token, cookie, mTLS principal, or remote address stays outside the sync DTO;
+`WebSocketAuthenticatedNodeIdentityPolicy` receives only the resulting
+authenticated `NodeId`, optional per-session DB allow-list, and one complete
+binary message. It then requires `PullRequest::requester` or
+`PushRequest::sender` to match that authenticated node before dispatching to
+`WebSocketSyncServer`.
+Backpressure, reconnects, ping/pong, and pre-DTO rate limits remain
+binding-local.
 
 Transport retry classification is adapter-level. HTTP 2xx means transport
 success; the decoded sync response still needs its own `ok/error` handling.
