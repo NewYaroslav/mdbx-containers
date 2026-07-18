@@ -349,10 +349,11 @@ Worker invariants:
 - lifecycle mutations (`start`, `stop`, `join`, `run_once`) are caller-serialized,
   while `request_stop`, `state`, `last_error`, `last_observer_error`, and
   `wait_until_state` are thread-safe;
-- optional `ISyncWorkerObserver` callbacks report page application, round
-  completion, and backoff entry synchronously on the thread that runs the sync
-  round; observer implementations must outlive the worker, return quickly, and
-  avoid caller-serialized lifecycle calls from worker-thread callbacks;
+- optional `ISyncWorkerObserver` callbacks report coarse sync stages
+  (`round`, `pull`, `apply`, `backoff`), page application, round completion,
+  and backoff entry synchronously on the thread that runs the sync round;
+  observer implementations must outlive the worker, return quickly, and avoid
+  caller-serialized lifecycle calls from worker-thread callbacks;
 - observer exceptions never fail the sync round and are reported through
   `last_observer_error`; they do not overwrite `last_error`, which remains
   reserved for pull/apply, cancellation, and lifecycle failures;
