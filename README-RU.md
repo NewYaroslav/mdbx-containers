@@ -77,14 +77,24 @@
 - `AnyValueTable`, `KeyMultiValueTable` и `HashedKeyValueStore` не
   реплицируются в v0.1. Их wire-format отложен до явного описания type tags,
   DUPSORT duplicate framing и hash-index identity semantics.
+- Для поддерживаемых таблиц прикладной CRUD-код не нужно оборачивать
+  отдельными sync-вызовами на каждый метод. Прикрепите
+  `ThreadLocalChangeAccumulator` к пишущему `Connection`; закоммиченные
+  одиночные записи становятся одиночными sync batches, а явная транзакция,
+  объединяющая несколько поддерживаемых таблиц, становится одним атомарным
+  локальным batch. Read/search-вызовы не захватываются. Отдельный `SyncWorker`
+  плюс транспорт `ISyncPeer` переносят закоммиченные batches между узлами.
 - `SyncEngine` предоставляет pull/push/apply primitives, `DirectSyncPeer`
   используется для in-process синхронизации в тестах и примерах,
   `HttpSyncPeer` задаёт HTTP-shaped adapter seam, `WebSocketSyncPeer` задаёт
-  binary message seam, а `SyncWorker` запускает фоновой polling. Пример HTTP
-  на Simple-Web-Server и WebSocket-пример на Simple-WebSocket-Server собираются
-  опционально; wire-format для специализированных таблиц отложен.
-  HTTP auth, remote-address checks и rate-limit headers живут в adapter-local
-  policy context, а не внутри sync DTO;
+  binary message seam, а `SyncWorker` запускает фоновой polling.
+  `mdbx_containers/sync/transport.hpp` - umbrella header транспортного слоя.
+  Опциональные готовые Simple-Web HTTP/WebSocket binding headers находятся в
+  `mdbx_containers/sync/transports/simple_web/`, а socket-backed примеры
+  используют эти bindings вместо повторной реализации транспорта в каждом
+  файле. Wire-format для специализированных таблиц отложен. HTTP auth,
+  remote-address checks и rate-limit headers живут в adapter-local policy
+  context, а не внутри sync DTO;
   см. `include/mdbx_containers/sync/DESIGN.md`.
 
 ### 🗄️ Структура и конфигурация

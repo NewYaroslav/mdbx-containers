@@ -36,10 +36,15 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   `IWebSocketSyncChannel`, and `WebSocketSyncServer`. It defines a complete
   binary-message request/response contract over `TransportMessageCodec` but
   does not open sockets, own sessions, or depend on a WebSocket framework.
-- Optional socket-backed HTTP and WebSocket examples over
-  Simple-Web-Server / Simple-WebSocket-Server plus standalone Asio. These are
-  example bindings behind explicit CMake options, not mandatory runtime
-  dependencies.
+- `sync/transport.hpp` umbrella for framework-neutral transport seams and
+  middleware.
+- Optional ready-made Simple-Web HTTP/WebSocket bindings under
+  `sync/transports/simple_web/` plus socket-backed examples over Simple-Web-Server /
+  Simple-WebSocket-Server, standalone Asio, and a process-supervised HTTP
+  node-fleet example over tiny-process-library. These integrations are behind
+  explicit CMake options, not mandatory runtime dependencies. The backend
+  umbrella is `sync/transports/simple_web.hpp`; HTTP-only or WebSocket-only
+  targets can include the narrower backend-specific header.
 - Transport middleware helpers: `SyncPeerMiddleware`,
   `HttpSyncClientMiddleware`, allow-list policies, fixed-budget rate limiting,
   HTTP request-context bearer/remote-address/fixed-window policies,
@@ -111,11 +116,12 @@ new wire-format semantics.
   use `LastWriterWins` in a non-test path.
 - `Custom` conflict resolver — schema-level callback; deferred until the
   first real consumer needs it.
-- Production-grade concrete socket-bound HTTP and WebSocket transports
-  (`Boost.Beast`, libcurl, or another framework) with deployment-specific
-  lifecycle, TLS, reconnect, and observability policy. The optional
-  Simple-Web-Server examples demonstrate the binding shape but are not a
-  production transport layer.
+- Production-grade deployment wrappers for concrete socket-bound HTTP and
+  WebSocket transports (`Boost.Beast`, libcurl, Simple-Web-Server, or another
+  framework) with deployment-specific lifecycle, TLS, reconnect, and
+  observability policy. The optional Simple-Web bindings are convenience and
+  reference integrations; production services may still wrap or replace them
+  for their own operations model.
 - `zstd` compression — reserved flag, encoder throws, decoder rejects.
 
 ## Endianness policy (do not change)
@@ -282,6 +288,23 @@ receiver B
                 mark_applied(origin, seq)
             -> commit
 ```
+
+Application integration contract:
+
+- supported table write methods keep the same public API with or without sync;
+- callers do not wrap each individual `insert`, `insert_or_assign`, `erase`,
+  `reconcile`, or range erase in a sync-specific call;
+- `Connection::attach_sync_capture()` installs the capture sink for commits on
+  that connection; supported write operations are recorded by table code and
+  flushed by the transaction pre-commit hook;
+- a standalone write method call that opens its own transaction commits as one
+  local change batch;
+- an explicit transaction passed through several supported table calls commits
+  those writes atomically and flushes one local change batch;
+- reads, searches, range scans, and failed/rolled-back transactions emit no
+  change batch;
+- local commit never contacts a remote node. Pull/push delivery is performed
+  later by explicit protocol code or by `SyncWorker` through an `ISyncPeer`.
 
 Cold replica sync currently uses changelog replay:
 
@@ -579,7 +602,9 @@ A concrete socket-bound transport adapter ships as a separate pair of headers
 
 The framework-neutral `HttpSyncPeer` / `HttpSyncServer` and
 `WebSocketSyncPeer` / `WebSocketSyncServer` seams are part of v0.1. Concrete
-server/client bindings remain separate optional integrations.
+server/client bindings remain separate optional integrations; the ready-made
+Simple-Web bindings live under `sync/transports/simple_web/` and are not
+included by the main sync umbrella header.
 
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 

@@ -23,22 +23,25 @@
  * Run the self-contained demo:
  *
  *   ./tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server
+ *   ./tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server \
+ *       127.0.0.1 18194
  *
  * Expected output:
  *
- *   [websocket server] listening on 127.0.0.1:18081
+ *   [websocket server] listening on 127.0.0.1:<port>
  *   [websocket client] pull applied 2 batch(es)
  *   [websocket client] push sent 1 batch(es)
  *   [websocket client] request_cancel forwarded once
  *   OK: sync_17_websocket_simple_web_server
  */
 
-#include <atomic>
+#include <mdbx_containers/sync/transports/simple_web/WebSocketTransport.hpp>
+
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
-#include <future>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -46,360 +49,14 @@
 #include <thread>
 #include <vector>
 
-#ifndef ASIO_STANDALONE
-#define ASIO_STANDALONE 1
-#endif
-#ifndef USE_STANDALONE_ASIO
-#define USE_STANDALONE_ASIO 1
-#endif
-#include <client_ws.hpp>
-#include <server_ws.hpp>
-
 #include "sync_example_utils.hpp"
 
 namespace {
 
-using WsClient = SimpleWeb::SocketClient<SimpleWeb::WS>;
-using WsServer = SimpleWeb::SocketServer<SimpleWeb::WS>;
-
 const std::uint8_t kPrimaryNodeSeed = 0xC8;
 const std::uint8_t kReplicaNodeSeed = 0xC9;
 const std::uint8_t kDatabaseSeed = 0xCA;
-const unsigned char kBinaryFrameOpcode = 130;
 const std::size_t kMaxWebSocketMessageBytes = 1024u * 1024u;
-
-const char* websocket_path() {
-    return "/mdbxc/sync/v1/ws";
-}
-
-std::string bytes_to_string(const std::vector<std::uint8_t>& bytes) {
-    if (bytes.empty()) {
-        return std::string();
-    }
-    return std::string(reinterpret_cast<const char*>(&bytes[0]),
-                       bytes.size());
-}
-
-std::vector<std::uint8_t> string_to_bytes(const std::string& text) {
-    return std::vector<std::uint8_t>(text.begin(), text.end());
-}
-
-std::string endpoint(const std::string& host, std::uint16_t port) {
-    return host + ":" + std::to_string(static_cast<unsigned>(port));
-}
-
-const char* close_retry_label(unsigned close_code) {
-    return mdbxc::sync::websocket_sync_close_code_is_retryable(close_code)
-        ? "retryable"
-        : "permanent";
-}
-
-class ExchangeState {
-public:
-    void set_value(const std::vector<std::uint8_t>& bytes) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_completed) {
-            m_completed = true;
-            m_promise.set_value(bytes);
-        }
-    }
-
-    void set_exception(const std::string& message) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_completed) {
-            m_completed = true;
-            m_promise.set_exception(std::make_exception_ptr(
-                std::runtime_error(message)));
-        }
-    }
-
-    std::future<std::vector<std::uint8_t> > future() {
-        return m_promise.get_future();
-    }
-
-private:
-    std::mutex m_mutex;
-    bool m_completed = false;
-    std::promise<std::vector<std::uint8_t> > m_promise;
-};
-
-class SimpleWebSocketSyncChannel
-    : public mdbxc::sync::IWebSocketSyncChannel {
-public:
-    SimpleWebSocketSyncChannel(const std::string& host,
-                               std::uint16_t port,
-                               const std::string& bearer_token)
-        : m_endpoint(endpoint(host, port) + websocket_path()),
-          m_bearer_token(bearer_token),
-          m_cancel_generation(0),
-          m_active_client(nullptr),
-          m_cancel_count(0) {}
-
-    std::vector<std::uint8_t> exchange_binary(
-            const std::vector<std::uint8_t>& binary_message,
-            const mdbxc::sync::CancellationToken& cancel_token) override {
-        if (cancel_token.is_cancellation_requested()) {
-            throw std::runtime_error("cancelled before WebSocket exchange");
-        }
-
-        const std::uint64_t call_generation =
-            m_cancel_generation.load(std::memory_order_acquire);
-
-        WsClient client(m_endpoint);
-        client.config.header.emplace(
-            "Authorization", std::string("Bearer ") + m_bearer_token);
-        ActiveClientGuard active(*this, client);
-
-        std::shared_ptr<ExchangeState> state(new ExchangeState());
-        std::future<std::vector<std::uint8_t> > result = state->future();
-        const std::string outbound = bytes_to_string(binary_message);
-
-        client.on_open =
-            [state, outbound](
-                std::shared_ptr<WsClient::Connection> connection) {
-                try {
-                    connection->send(outbound, nullptr, kBinaryFrameOpcode);
-                } catch (const std::exception& e) {
-                    state->set_exception(e.what());
-                    connection->send_close(1011);
-                }
-            };
-
-        client.on_message =
-            [state](
-                std::shared_ptr<WsClient::Connection> connection,
-                std::shared_ptr<WsClient::InMessage> in_message) {
-                state->set_value(string_to_bytes(in_message->string()));
-                connection->send_close(1000);
-            };
-
-        client.on_close =
-            [state](
-                std::shared_ptr<WsClient::Connection> connection,
-                int status,
-                const std::string& reason) {
-                (void)connection;
-                if (status != 1000) {
-                    state->set_exception(
-                        "WebSocket closed with status " +
-                        std::to_string(status) + " (" +
-                        close_retry_label(static_cast<unsigned>(status)) +
-                        "): " + reason);
-                }
-            };
-
-        client.on_error =
-            [state](
-                std::shared_ptr<WsClient::Connection> connection,
-                const SimpleWeb::error_code& ec) {
-                (void)connection;
-                state->set_exception(ec.message());
-            };
-
-        if (cancel_token.is_cancellation_requested() ||
-            m_cancel_generation.load(std::memory_order_acquire) !=
-                call_generation) {
-            throw std::runtime_error("cancelled before WebSocket start");
-        }
-
-        client.start();
-        return result.get();
-    }
-
-    void request_cancel() override {
-        m_cancel_generation.fetch_add(1, std::memory_order_acq_rel);
-        m_cancel_count.fetch_add(1, std::memory_order_acq_rel);
-
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_active_client != nullptr) {
-            m_active_client->stop();
-        }
-    }
-
-    std::size_t cancel_count() const {
-        return m_cancel_count.load(std::memory_order_acquire);
-    }
-
-private:
-    class ActiveClientGuard {
-    public:
-        ActiveClientGuard(SimpleWebSocketSyncChannel& owner,
-                          WsClient& client)
-            : m_owner(owner), m_client(&client) {
-            m_owner.set_active_client(m_client);
-        }
-
-        ~ActiveClientGuard() {
-            m_owner.clear_active_client(m_client);
-        }
-
-        ActiveClientGuard(const ActiveClientGuard&) = delete;
-        ActiveClientGuard& operator=(const ActiveClientGuard&) = delete;
-
-    private:
-        SimpleWebSocketSyncChannel& m_owner;
-        WsClient* m_client;
-    };
-
-    void set_active_client(WsClient* client) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_active_client = client;
-    }
-
-    void clear_active_client(WsClient* client) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_active_client == client) {
-            m_active_client = nullptr;
-        }
-    }
-
-    std::string m_endpoint;
-    std::string m_bearer_token;
-    std::atomic<std::uint64_t> m_cancel_generation;
-    mutable std::mutex m_mutex;
-    WsClient* m_active_client;
-    std::atomic<std::size_t> m_cancel_count;
-};
-
-class SimpleWebSocketSyncListener {
-public:
-    SimpleWebSocketSyncListener(
-            mdbxc::sync::WebSocketSyncServerMiddleware& server,
-            const std::string& bearer_token,
-            const mdbxc::sync::NodeId& authenticated_node,
-            const mdbxc::sync::SyncDbAccess& db_access,
-            const std::string& host,
-            std::uint16_t port)
-        : m_server(server),
-          m_bearer_token(bearer_token),
-          m_authenticated_node(authenticated_node),
-          m_db_access(db_access),
-          m_host(host),
-          m_port(port),
-          m_running(false) {
-        m_ws.config.address = host;
-        m_ws.config.port = port;
-        m_ws.config.thread_pool_size = 1;
-
-        WsServer::Endpoint& endpoint =
-            m_ws.endpoint["^/mdbxc/sync/v1/ws/?$"];
-
-        endpoint.on_handshake =
-            [this](
-                std::shared_ptr<WsServer::Connection> connection,
-                SimpleWeb::CaseInsensitiveMultimap& response_header) {
-                (void)response_header;
-                const SimpleWeb::CaseInsensitiveMultimap::const_iterator it =
-                    connection->header.find("Authorization");
-                if (it == connection->header.end() ||
-                    it->second !=
-                        std::string("Bearer ") + m_bearer_token) {
-                    return SimpleWeb::StatusCode::client_error_unauthorized;
-                }
-                return SimpleWeb::StatusCode::information_switching_protocols;
-            };
-
-        endpoint.on_message =
-            [this](
-                std::shared_ptr<WsServer::Connection> connection,
-                std::shared_ptr<WsServer::InMessage> in_message) {
-                try {
-                    mdbxc::sync::WebSocketSyncRequestContext context;
-                    context.has_authenticated_node = true;
-                    context.authenticated_node = m_authenticated_node;
-                    context.db_access = m_db_access;
-                    context.binary_message =
-                        string_to_bytes(in_message->string());
-                    const std::vector<std::uint8_t> response =
-                        m_server.handle_binary_message(context);
-                    connection->send(bytes_to_string(response),
-                                     nullptr,
-                                     kBinaryFrameOpcode);
-                } catch (const mdbxc::sync::WebSocketSyncRejected& e) {
-                    connection->send_close(
-                        static_cast<int>(e.close_code()), e.what());
-                } catch (const std::exception& e) {
-                    connection->send_close(1011, e.what());
-                }
-            };
-
-        endpoint.on_error =
-            [](
-                std::shared_ptr<WsServer::Connection> connection,
-                const SimpleWeb::error_code& ec) {
-                (void)connection;
-                (void)ec;
-            };
-    }
-
-    ~SimpleWebSocketSyncListener() {
-        stop();
-    }
-
-    void start() {
-        if (m_running) {
-            return;
-        }
-
-        std::shared_ptr<std::promise<unsigned short> > started(
-            new std::promise<unsigned short>());
-        std::future<unsigned short> started_future = started->get_future();
-
-        m_thread = std::thread(
-            [this, started]() {
-                bool started_callback_called = false;
-                try {
-                    m_ws.start(
-                        [started, &started_callback_called](
-                            unsigned short assigned_port) {
-                            started_callback_called = true;
-                            started->set_value(assigned_port);
-                        });
-                } catch (...) {
-                    if (!started_callback_called) {
-                        try {
-                            started->set_exception(std::current_exception());
-                        } catch (...) {}
-                    }
-                }
-            });
-
-        try {
-            m_port = started_future.get();
-        } catch (...) {
-            if (m_thread.joinable()) {
-                m_thread.join();
-            }
-            throw;
-        }
-        m_running = true;
-        std::printf("[websocket server] listening on %s:%u\n",
-                    m_host.c_str(),
-                    static_cast<unsigned>(m_port));
-    }
-
-    void stop() {
-        if (!m_running) {
-            return;
-        }
-        m_ws.stop();
-        if (m_thread.joinable()) {
-            m_thread.join();
-        }
-        m_running = false;
-    }
-
-private:
-    mdbxc::sync::WebSocketSyncServerMiddleware& m_server;
-    std::string m_bearer_token;
-    mdbxc::sync::NodeId m_authenticated_node;
-    mdbxc::sync::SyncDbAccess m_db_access;
-    std::string m_host;
-    std::uint16_t m_port;
-    WsServer m_ws;
-    std::thread m_thread;
-    bool m_running;
-};
 
 void seed_primary_rows(const std::shared_ptr<mdbxc::Connection>& db) {
     mdbxc::sync::ThreadLocalChangeAccumulator sink(db);
@@ -429,17 +86,29 @@ void require_quote(const std::shared_ptr<mdbxc::Connection>& db,
                           std::to_string(key));
 }
 
+std::uint16_t parse_port(const char* text) {
+    const int value = std::atoi(text);
+    if (value <= 0 || value > 65535) {
+        throw std::invalid_argument("port must be in 1..65535");
+    }
+    return static_cast<std::uint16_t>(value);
+}
+
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc != 1 && argc != 3) {
+        std::fprintf(stderr, "usage: %s [host port]\n", argv[0]);
+        return 2;
+    }
+
+    const std::string host = argc == 3 ? argv[1] : "127.0.0.1";
+    const std::uint16_t port = argc == 3 ? parse_port(argv[2]) : 18081;
+    const std::string bearer_token = "replica-token";
     const std::string primary_path = "sync_17_primary.mdbx";
     const std::string replica_path = "sync_17_replica.mdbx";
     sync_example::cleanup(primary_path);
     sync_example::cleanup(replica_path);
-
-    const std::string host = "127.0.0.1";
-    const std::uint16_t port = 18081;
-    const std::string bearer_token = "replica-token";
 
     try {
         std::shared_ptr<mdbxc::Connection> primary =
@@ -473,16 +142,23 @@ int main() {
         ws_policy.add(ws_identity);
         mdbxc::sync::WebSocketSyncServerMiddleware ws_middleware(
             ws_server, &ws_policy);
-        SimpleWebSocketSyncListener listener(
-            ws_middleware,
-            bearer_token,
-            replica_node,
-            mdbxc::sync::SyncDbAccess::only(db_id),
-            host,
-            port);
+        mdbxc::sync::simple_web::WebSocketSyncListenerConfig
+            listener_config;
+        listener_config.host = host;
+        listener_config.port = port;
+        listener_config.bearer_token = bearer_token;
+        listener_config.has_authenticated_node = true;
+        listener_config.authenticated_node = replica_node;
+        listener_config.db_access = mdbxc::sync::SyncDbAccess::only(db_id);
+        mdbxc::sync::simple_web::WebSocketSyncListener listener(
+            ws_middleware, listener_config);
         listener.start();
+        std::printf("[websocket server] listening on %s:%u\n",
+                    host.c_str(),
+                    static_cast<unsigned>(listener.port()));
 
-        SimpleWebSocketSyncChannel channel(host, port, bearer_token);
+        mdbxc::sync::simple_web::WebSocketSyncChannel channel(
+            host, port, bearer_token);
         mdbxc::sync::WebSocketSyncPeer peer(channel, bounds);
 
         mdbxc::sync::PullRequest pull;

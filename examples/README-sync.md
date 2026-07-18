@@ -3,7 +3,8 @@
 These examples show the sync v0.1 API as transport-agnostic building blocks.
 Most use `DirectSyncPeer` or a small in-memory buffer so the protocol flow is
 visible without adding HTTP, WebSocket, or IPC code. The optional HTTP and
-WebSocket examples bind the transport seams to Simple-Web-Server,
+WebSocket examples use ready-made Simple-Web binding headers from
+`mdbx_containers/sync/transports/simple_web/` over Simple-Web-Server,
 Simple-WebSocket-Server, and standalone Asio.
 
 Sync is opt-in. The examples are built with `MDBXC_SYNC_ENABLED=1`; applications
@@ -29,8 +30,9 @@ executable has the `.exe` suffix, for example:
 .\tmp\build-examples\bin\examples\sync_01_lifecycle_direct_peer.exe
 ```
 
-The real HTTP binding example is opt-in because it fetches standalone Asio and
-Simple-Web-Server headers:
+The real HTTP binding examples are opt-in because they fetch standalone Asio,
+Simple-Web-Server headers, and, for the process-supervised demo,
+tiny-process-library:
 
 ```bash
 cmake -S . -B tmp/build-http-example \
@@ -45,6 +47,25 @@ tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
     demo 127.0.0.1 18080
 tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
     worker-demo 127.0.0.1 18080
+
+cmake --build tmp/build-http-example --target sync_18_http_node_fleet
+tmp/build-http-example/bin/examples/sync_18_http_node_fleet \
+    master-replica 3
+tmp/build-http-example/bin/examples/sync_18_http_node_fleet \
+    mesh 3
+```
+
+The reusable HTTP binding lives in:
+
+```cpp
+#include <mdbx_containers/sync/transports/simple_web/HttpTransport.hpp>
+```
+
+Targets that intentionally use both Simple-Web HTTP and WebSocket bindings can
+include the backend umbrella:
+
+```cpp
+#include <mdbx_containers/sync/transports/simple_web.hpp>
 ```
 
 The real WebSocket binding example is also opt-in because it fetches standalone
@@ -68,7 +89,14 @@ cmake -S . -B tmp/build-ws-example \
     -DCMAKE_CXX_STANDARD=11
 
 cmake --build tmp/build-ws-example --target sync_17_websocket_simple_web_server
-tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server
+tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server \
+    127.0.0.1 18194
+```
+
+The reusable WebSocket binding lives in:
+
+```cpp
+#include <mdbx_containers/sync/transports/simple_web/WebSocketTransport.hpp>
 ```
 
 To use your own ready-made OpenSSL package instead, point CMake at the package
@@ -100,11 +128,12 @@ cmake -S . -B tmp/build-ws-example `
 | `sync_10_custom_transport.cpp` | Minimal custom `ISyncPeer` over encoded byte buffers. | Advanced |
 | `sync_11_http_adapter.cpp` | Framework-neutral HTTP-shaped adapter over `TransportMessageCodec`. | Advanced |
 | `sync_12_transport_middleware.cpp` | Allow-list, fixed-budget, and metrics middleware around transport adapters. | Advanced |
-| `sync_13_http_simple_web_server.cpp` | Optional real HTTP binding over Simple-Web-Server and standalone Asio, including a socket-backed worker demo. | Advanced |
+| `sync_13_http_simple_web_server.cpp` | Ready-made Simple-Web HTTP binding, direct pull/push, and socket-backed worker demo. | Advanced |
 | `sync_14_websocket_adapter.cpp` | Framework-neutral WebSocket binary-message seam over `TransportMessageCodec`. | Advanced |
 | `sync_15_http_policy_context.cpp` | Bearer-token, remote-address, and `Retry-After` HTTP policy context. | Advanced |
 | `sync_16_worker_http_transport.cpp` | `SyncWorker` running through `HttpSyncPeer` and HTTP request-context policy. | Advanced |
-| `sync_17_websocket_simple_web_server.cpp` | Optional real WebSocket binding over Simple-WebSocket-Server and standalone Asio. | Advanced |
+| `sync_17_websocket_simple_web_server.cpp` | Ready-made Simple-WebSocket binding over standalone Asio. | Advanced |
+| `sync_18_http_node_fleet.cpp` | Multi-process node fleet using the ready-made Simple-Web HTTP binding. | Advanced |
 
 ## Common Rules
 
@@ -115,6 +144,16 @@ cmake -S . -B tmp/build-ws-example `
 - Before local writes, attach `ThreadLocalChangeAccumulator` with
   `attach_sync_capture()`. After the local write phase, call
   `detach_sync_capture()`.
+- Supported table methods keep their normal API. You do not wrap each
+  `insert`, `insert_or_assign`, `erase`, `reconcile`, or range erase in a sync
+  call. The capture sink records supported write operations when their MDBX
+  transaction commits. If you pass an explicit transaction through several
+  supported table calls, those writes commit and replicate as one local batch.
+  Independent calls without an explicit transaction remain independent local
+  transactions and independent sync batches.
+- Sync is not triggered by reads, searches, or range scans. It also does not
+  contact another node during the local commit; a `SyncWorker` or explicit
+  pull/push code sends already committed batches later through an `ISyncPeer`.
 - `PullRequest`, `PullResponse`, `PushRequest`, and `PushResponse` are
   transport payload structs. Serialize and deliver these values through the
   transport used by your application.
@@ -161,8 +200,8 @@ notifies foreground code when pages are applied or rounds finish.
 adapter over `ISyncPeer` must respect. It implements a tiny in-memory
 adapter that owns no MDBX handles and demonstrates where the
 `CancellationToken` from `PullRequest` is observed and where
-`ISyncPeer::request_cancel()` closes the in-flight call. Real HTTP and
-WebSocket adapters will use the same pattern, swapping the in-memory
+`ISyncPeer::request_cancel()` closes the in-flight call. The ready-made
+Simple-Web HTTP/WebSocket bindings use the same pattern, swapping the in-memory
 queues for sockets.
 
 `sync_09_transport_codec.cpp` shows the next layer down: `PullRequest`,
@@ -180,14 +219,18 @@ channel's own interruption primitive.
 implements `ISyncPeer` over an abstract `IHttpSyncClient`, and
 `HttpSyncServer` dispatches already-parsed HTTP method/target/content-type/body
 values to `SyncEngine`. A real HTTP library supplies the socket layer around
-that seam.
+that seam; `mdbxc::sync::simple_web::HttpSyncClient` and
+`mdbxc::sync::simple_web::HttpSyncListener` are the optional Simple-Web
+implementation shipped with these examples.
 
 `sync_14_websocket_adapter.cpp` shows the WebSocket-shaped adapter seam.
 `WebSocketSyncPeer` implements `ISyncPeer` over an abstract
 `IWebSocketSyncChannel`, and `WebSocketSyncServer` dispatches complete binary
 messages to `SyncEngine`. A real WebSocket library supplies connection setup,
 fragment reassembly, ping/pong, backpressure, and close/error mapping around
-that seam.
+that seam; `mdbxc::sync::simple_web::WebSocketSyncChannel` and
+`mdbxc::sync::simple_web::WebSocketSyncListener` are the optional
+Simple-WebSocket implementation shipped with these examples.
 
 `sync_12_transport_middleware.cpp` shows adapter-local policy wrappers.
 `SyncPeerMiddleware` can inspect decoded `NodeId` / `DbId` values before a peer
@@ -212,12 +255,22 @@ the replica `NodeId` before `HttpSyncServer` dispatches the request.
 
 `sync_13_http_simple_web_server.cpp worker-demo` runs the same worker shape
 through real loopback HTTP sockets. It uses bearer identity, a message-size
-guard, paginated pulls, and worker observer callbacks over the Simple-Web-Server
-binding.
+guard, paginated pulls, and worker observer callbacks over
+`mdbxc::sync::simple_web::HttpSyncClient` and
+`mdbxc::sync::simple_web::HttpSyncListener`.
+
+`sync_18_http_node_fleet.cpp` runs several copies of the same executable through
+tiny-process-library. Each child process owns its own MDBX environment, ready
+Simple-Web HTTP listener/client, sync engine, capture sink, and application
+loop; the parent process only starts nodes and sends `pause` / `stop` commands
+through stdin. The `master-replica` mode shows one active writer and one passive
+receiver. The `mesh` mode lets both nodes write locally while each node pulls
+from the other over HTTP.
 
 `sync_17_websocket_simple_web_server.cpp` is the socket-backed WebSocket
-counterpart. It binds `WebSocketSyncPeer` / `WebSocketSyncServer` to
-Simple-WebSocket-Server, sends binary frames, checks the bearer token during
-the WebSocket handshake, passes the authenticated replica `NodeId` plus
-explicit `SyncDbAccess` to `WebSocketSyncServerMiddleware`, rejects oversized
-messages before decode, and classifies close codes for client diagnostics.
+counterpart. It uses `mdbxc::sync::simple_web::WebSocketSyncChannel` and
+`mdbxc::sync::simple_web::WebSocketSyncListener`, sends binary frames, checks
+the bearer token during the WebSocket handshake, passes the authenticated
+replica `NodeId` plus explicit `SyncDbAccess` to
+`WebSocketSyncServerMiddleware`, rejects oversized messages before decode, and
+classifies close codes for client diagnostics.

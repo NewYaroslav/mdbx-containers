@@ -44,14 +44,14 @@
  *   OK: sync_13_http_simple_web_server (worker-demo)
  */
 
-#include <atomic>
+#include <mdbx_containers/sync/transports/simple_web/HttpTransport.hpp>
+
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
-#include <future>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -60,349 +60,15 @@
 #include <thread>
 #include <vector>
 
-#ifndef ASIO_STANDALONE
-#define ASIO_STANDALONE 1
-#endif
-#ifndef USE_STANDALONE_ASIO
-#define USE_STANDALONE_ASIO 1
-#endif
-#include <client_http.hpp>
-#include <server_http.hpp>
-
 #include "sync_example_utils.hpp"
 
 namespace {
-
-using HttpClient = SimpleWeb::Client<SimpleWeb::HTTP>;
-using HttpServer = SimpleWeb::Server<SimpleWeb::HTTP>;
 
 // Demo-only seeds. They have no protocol meaning; they just make the two node
 // ids and one db id deterministic and visibly distinct.
 const std::uint8_t kServerNodeSeed = 0xA0;
 const std::uint8_t kClientNodeSeed = 0xB0;
 const std::uint8_t kDatabaseSeed = 0xA1;
-
-std::string endpoint(const std::string& host, std::uint16_t port) {
-    return host + ":" + std::to_string(static_cast<unsigned>(port));
-}
-
-std::string bytes_to_string(const std::vector<std::uint8_t>& bytes) {
-    if (bytes.empty()) {
-        return std::string();
-    }
-    return std::string(reinterpret_cast<const char*>(&bytes[0]),
-                       bytes.size());
-}
-
-std::vector<std::uint8_t> string_to_bytes(const std::string& text) {
-    return std::vector<std::uint8_t>(text.begin(), text.end());
-}
-
-std::string header_value(const SimpleWeb::CaseInsensitiveMultimap& headers,
-                         const std::string& name) {
-    const auto it = headers.find(name);
-    return it == headers.end() ? std::string() : it->second;
-}
-
-SimpleWeb::StatusCode to_simple_status(unsigned status) {
-    return SimpleWeb::status_code(std::to_string(status));
-}
-
-void write_http_response(
-        const std::shared_ptr<HttpServer::Response>& response,
-        const mdbxc::sync::HttpSyncResponse& out) {
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type",
-                    out.content_type.empty()
-                        ? "text/plain; charset=utf-8"
-                        : out.content_type);
-    for (std::size_t i = 0; i < out.headers.size(); ++i) {
-        headers.emplace(out.headers[i].name, out.headers[i].value);
-    }
-    response->write(to_simple_status(out.status_code),
-                    bytes_to_string(out.body),
-                    headers);
-}
-
-mdbxc::sync::HttpSyncResponse make_cancelled_response(
-        const std::string& diagnostic) {
-    mdbxc::sync::HttpSyncResponse out;
-    out.status_code = 503;
-    out.content_type = "text/plain; charset=utf-8";
-    out.error = diagnostic.empty() ? "cancelled" : diagnostic;
-    out.body = string_to_bytes(out.error);
-    return out;
-}
-
-class SimpleWebHttpSyncClient : public mdbxc::sync::IHttpSyncClient {
-public:
-    SimpleWebHttpSyncClient(const std::string& host,
-                            std::uint16_t port,
-                            std::chrono::seconds timeout,
-                            const std::string& bearer_token = std::string())
-        : m_endpoint(endpoint(host, port)),
-          m_timeout(timeout),
-          m_bearer_token(bearer_token),
-          m_cancel_generation(0),
-          m_active_client(nullptr),
-          m_cancel_count(0) {}
-
-    mdbxc::sync::HttpSyncResponse post(
-            const std::string& target,
-            const std::string& content_type,
-            const std::vector<std::uint8_t>& body,
-            const mdbxc::sync::CancellationToken& cancel_token) override {
-        if (cancel_token.is_cancellation_requested()) {
-            return make_cancelled_response("cancelled before HTTP request");
-        }
-
-        const std::uint64_t call_generation =
-            m_cancel_generation.load(std::memory_order_acquire);
-
-        HttpClient client(m_endpoint);
-        client.config.timeout = static_cast<long>(m_timeout.count());
-        client.config.timeout_connect = static_cast<long>(m_timeout.count());
-        ActiveClientGuard active(*this, client);
-
-        if (cancel_token.is_cancellation_requested() ||
-            m_cancel_generation.load(std::memory_order_acquire) !=
-                call_generation) {
-            return make_cancelled_response("cancelled before HTTP request");
-        }
-
-        try {
-            SimpleWeb::CaseInsensitiveMultimap headers;
-            headers.emplace("Content-Type", content_type);
-            if (!m_bearer_token.empty()) {
-                headers.emplace("Authorization",
-                                std::string("Bearer ") + m_bearer_token);
-            }
-
-            const std::shared_ptr<HttpClient::Response> received =
-                client.request("POST", target, bytes_to_string(body), headers);
-
-            mdbxc::sync::HttpSyncResponse out;
-            out.status_code =
-                static_cast<unsigned>(std::atoi(
-                    received->status_code.c_str()));
-            out.content_type = header_value(received->header, "Content-Type");
-            for (SimpleWeb::CaseInsensitiveMultimap::const_iterator it =
-                     received->header.begin();
-                 it != received->header.end();
-                 ++it) {
-                mdbxc::sync::http_add_header(
-                    out.headers, it->first, it->second);
-            }
-            out.body = string_to_bytes(received->content.string());
-            return out;
-        } catch (const SimpleWeb::system_error& e) {
-            if (m_cancel_generation.load(std::memory_order_acquire) !=
-                    call_generation ||
-                cancel_token.is_cancellation_requested()) {
-                return make_cancelled_response(e.what());
-            }
-            throw;
-        }
-    }
-
-    void request_cancel() override {
-        m_cancel_generation.fetch_add(1, std::memory_order_acq_rel);
-        m_cancel_count.fetch_add(1, std::memory_order_acq_rel);
-
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_active_client != nullptr) {
-            m_active_client->stop();
-        }
-    }
-
-    std::size_t cancel_count() const {
-        return m_cancel_count.load(std::memory_order_acquire);
-    }
-
-private:
-    class ActiveClientGuard {
-    public:
-        ActiveClientGuard(SimpleWebHttpSyncClient& owner,
-                          HttpClient& client)
-            : m_owner(owner), m_client(&client) {
-            m_owner.set_active_client(m_client);
-        }
-
-        ~ActiveClientGuard() {
-            m_owner.clear_active_client(m_client);
-        }
-
-        ActiveClientGuard(const ActiveClientGuard&) = delete;
-        ActiveClientGuard& operator=(const ActiveClientGuard&) = delete;
-
-    private:
-        SimpleWebHttpSyncClient& m_owner;
-        HttpClient* m_client;
-    };
-
-    void set_active_client(HttpClient* client) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_active_client = client;
-    }
-
-    void clear_active_client(HttpClient* client) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_active_client == client) {
-            m_active_client = nullptr;
-        }
-    }
-
-    std::string m_endpoint;
-    std::chrono::seconds m_timeout;
-    std::string m_bearer_token;
-    std::atomic<std::uint64_t> m_cancel_generation;
-    mutable std::mutex m_mutex;
-    HttpClient* m_active_client;
-    std::atomic<std::size_t> m_cancel_count;
-};
-
-class SimpleWebHttpSyncServer {
-public:
-    SimpleWebHttpSyncServer(mdbxc::sync::HttpSyncServer& handler,
-                            mdbxc::sync::ISyncTransportPolicy& policy,
-                            const std::string& host,
-                            std::uint16_t port)
-        : m_handler(handler),
-          m_policy(policy),
-          m_host(host),
-          m_port(port),
-          m_running(false) {
-        m_server.config.address = host;
-        m_server.config.port = port;
-        m_server.config.thread_pool_size = 1;
-
-        m_server.resource["^/mdbxc/sync/v1/(pull|push)$"]["POST"] =
-            [this](std::shared_ptr<HttpServer::Response> response,
-                   std::shared_ptr<HttpServer::Request> request) {
-                handle_post(response, request);
-            };
-
-        m_server.default_resource["POST"] =
-            [](std::shared_ptr<HttpServer::Response> response,
-               std::shared_ptr<HttpServer::Request> request) {
-                (void)request;
-                mdbxc::sync::HttpSyncResponse out;
-                out.status_code = 404;
-                out.content_type = "text/plain; charset=utf-8";
-                out.error = "unknown sync route";
-                out.body = string_to_bytes(out.error);
-                write_http_response(response, out);
-            };
-    }
-
-    ~SimpleWebHttpSyncServer() {
-        stop();
-    }
-
-    void start() {
-        if (m_running) {
-            return;
-        }
-
-        std::shared_ptr<std::promise<unsigned short> > started(
-            new std::promise<unsigned short>());
-        std::future<unsigned short> started_future = started->get_future();
-        m_thread = std::thread(
-            [this, started]() {
-                bool started_callback_called = false;
-                try {
-                    m_server.start(
-                        [started, &started_callback_called](
-                            unsigned short assigned_port) {
-                            started_callback_called = true;
-                            started->set_value(assigned_port);
-                        });
-                } catch (...) {
-                    if (!started_callback_called) {
-                        try {
-                            started->set_exception(std::current_exception());
-                        } catch (...) {}
-                    }
-                }
-            });
-        try {
-            m_port = started_future.get();
-        } catch (...) {
-            if (m_thread.joinable()) {
-                m_thread.join();
-            }
-            throw;
-        }
-        m_running = true;
-        std::printf("[server] listening on %s:%u\n",
-                    m_host.c_str(),
-                    static_cast<unsigned>(m_port));
-    }
-
-    void stop() {
-        if (!m_running) {
-            return;
-        }
-        m_server.stop();
-        if (m_thread.joinable()) {
-            m_thread.join();
-        }
-        m_running = false;
-    }
-
-private:
-    void handle_post(
-            const std::shared_ptr<HttpServer::Response>& response,
-            const std::shared_ptr<HttpServer::Request>& request) {
-        const std::string content_type =
-            header_value(request->header, "Content-Type");
-        const std::string content = request->content.string();
-
-        mdbxc::sync::HttpSyncRequest in;
-        in.method = request->method;
-        in.target = request->path;
-        in.content_type = content_type;
-        in.body = string_to_bytes(content);
-        for (SimpleWeb::CaseInsensitiveMultimap::const_iterator it =
-                 request->header.begin();
-             it != request->header.end();
-             ++it) {
-            mdbxc::sync::http_add_header(in.headers, it->first, it->second);
-        }
-        try {
-            in.remote_address =
-                request->remote_endpoint().address().to_string();
-        } catch (...) {
-            in.remote_address.clear();
-        }
-
-        const mdbxc::sync::SyncTransportDecision decision =
-            m_policy.check_http_request(in);
-        if (!decision.allowed) {
-            mdbxc::sync::HttpSyncResponse out;
-            out.status_code =
-                decision.status_code == 0 ? 403 : decision.status_code;
-            out.content_type = "text/plain; charset=utf-8";
-            out.headers = decision.response_headers;
-            mdbxc::sync::http_copy_sync_correlation_headers(
-                in.headers, out.headers);
-            out.error = decision.error.empty() ? "rejected" : decision.error;
-            out.body = string_to_bytes(out.error);
-            write_http_response(response, out);
-            return;
-        }
-
-        write_http_response(response, m_handler.handle(in));
-    }
-
-    mdbxc::sync::HttpSyncServer& m_handler;
-    mdbxc::sync::ISyncTransportPolicy& m_policy;
-    std::string m_host;
-    std::uint16_t m_port;
-    HttpServer m_server;
-    std::thread m_thread;
-    bool m_running;
-};
 
 void seed_server_rows(const std::shared_ptr<mdbxc::Connection>& db) {
     mdbxc::sync::ThreadLocalChangeAccumulator sink(db);
@@ -475,7 +141,7 @@ void run_client_session(const std::shared_ptr<mdbxc::Connection>& db,
                         mdbxc::sync::SyncEngine& engine,
                         const std::string& host,
                         std::uint16_t port) {
-    SimpleWebHttpSyncClient raw_client(
+    mdbxc::sync::simple_web::HttpSyncClient raw_client(
         host, port, std::chrono::seconds(2));
 
     mdbxc::sync::HttpRouteAllowListPolicy routes;
@@ -584,8 +250,15 @@ int run_demo(const std::string& host, std::uint16_t port) {
     route_policy.allow_target(mdbxc::sync::HttpSyncRoutes::pull_target());
     route_policy.allow_target(mdbxc::sync::HttpSyncRoutes::push_target());
 
-    SimpleWebHttpSyncServer listener(handler, route_policy, host, port);
+    mdbxc::sync::simple_web::HttpSyncListenerConfig listener_config;
+    listener_config.host = host;
+    listener_config.port = port;
+    mdbxc::sync::simple_web::HttpSyncListener listener(
+        handler, listener_config, &route_policy);
     listener.start();
+    std::printf("[server] listening on %s:%u\n",
+                host.c_str(),
+                static_cast<unsigned>(listener.port()));
 
     run_client_session(client_db, client_engine, host, port);
     require_quote(server_db, 3, "SOL/USD");
@@ -645,10 +318,14 @@ int run_worker_demo(const std::string& host, std::uint16_t port) {
     server_policy.add(size_policy);
     server_policy.add(identity_policy);
 
-    SimpleWebHttpSyncServer listener(handler, server_policy, host, port);
+    mdbxc::sync::simple_web::HttpSyncListenerConfig listener_config;
+    listener_config.host = host;
+    listener_config.port = port;
+    mdbxc::sync::simple_web::HttpSyncListener listener(
+        handler, listener_config, &server_policy);
     listener.start();
 
-    SimpleWebHttpSyncClient raw_client(
+    mdbxc::sync::simple_web::HttpSyncClient raw_client(
         host, port, std::chrono::seconds(2), "replica-token");
     mdbxc::sync::SyncTransportMetricsObserver metrics;
     mdbxc::sync::HttpSyncClientMiddleware http_client(
@@ -706,8 +383,15 @@ int run_server(const std::string& host, std::uint16_t port) {
     route_policy.allow_target(mdbxc::sync::HttpSyncRoutes::pull_target());
     route_policy.allow_target(mdbxc::sync::HttpSyncRoutes::push_target());
 
-    SimpleWebHttpSyncServer listener(handler, route_policy, host, port);
+    mdbxc::sync::simple_web::HttpSyncListenerConfig listener_config;
+    listener_config.host = host;
+    listener_config.port = port;
+    mdbxc::sync::simple_web::HttpSyncListener listener(
+        handler, listener_config, &route_policy);
     listener.start();
+    std::printf("[server] listening on %s:%u\n",
+                host.c_str(),
+                static_cast<unsigned>(listener.port()));
 
     std::printf("[server] press Enter to stop\n");
     std::string line;
