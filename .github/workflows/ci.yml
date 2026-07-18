@@ -118,6 +118,89 @@ jobs:
           rows="$(printf '%s\n' "$output" | wc -l | tr -d ' ')"
           test "$rows" = "4"
 
+  http-node-fleet-smoke:
+    name: HTTP node fleet smoke (Linux C++17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Ensure libmdbx tags
+        run: |
+          set -euo pipefail
+          git submodule update --init --recursive
+          git -C external/libmdbx rev-parse --is-inside-work-tree >/dev/null
+          git -C external/libmdbx config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git -C external/libmdbx fetch --prune --tags --force
+          if git -C external/libmdbx rev-parse --is-shallow-repository | grep -qi true; then
+            git -C external/libmdbx fetch --unshallow || git -C external/libmdbx fetch --deepen=1000
+          fi
+          git -C external/libmdbx describe --tags --abbrev=0 >/dev/null
+
+      - name: Configure HTTP node fleet
+        run: |
+          set -euo pipefail
+          mkdir -p build-http-fleet
+          cmake -S . -B build-http-fleet -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DMDBXC_DEPS_MODE=BUNDLED \
+            -DMDBXC_BUILD_TESTS=OFF \
+            -DMDBXC_BUILD_EXAMPLES=ON \
+            -DMDBXC_HTTP_SYNC_EXAMPLE=ON \
+            -Wno-dev \
+          2>&1 | tee build-http-fleet/configure.log
+
+      - name: Build Simple-Web HTTP sync examples
+        run: |
+          set -euo pipefail
+          cmake --build build-http-fleet \
+            --target sync_13_http_simple_web_server \
+                     sync_18_http_node_fleet --parallel \
+          2>&1 | tee build-http-fleet/build.log
+
+      - name: Run Simple-Web HTTP sync smoke
+        run: |
+          set -euo pipefail
+          build-http-fleet/bin/examples/sync_13_http_simple_web_server \
+            demo 127.0.0.1 18080 \
+          2>&1 | tee build-http-fleet/http-demo.log
+          grep -q "OK: sync_13_http_simple_web_server" \
+            build-http-fleet/http-demo.log
+          build-http-fleet/bin/examples/sync_13_http_simple_web_server \
+            worker-demo 127.0.0.1 18081 \
+          2>&1 | tee build-http-fleet/http-worker-demo.log
+          grep -q "OK: sync_13_http_simple_web_server (worker-demo)" \
+            build-http-fleet/http-worker-demo.log
+          build-http-fleet/bin/examples/sync_18_http_node_fleet \
+            master-replica 2 \
+          2>&1 | tee build-http-fleet/master-replica.log
+          grep -q "OK: sync_18_http_node_fleet (master-replica)" \
+            build-http-fleet/master-replica.log
+          build-http-fleet/bin/examples/sync_18_http_node_fleet \
+            mesh 2 \
+          2>&1 | tee build-http-fleet/mesh.log
+          grep -q "OK: sync_18_http_node_fleet (mesh)" \
+            build-http-fleet/mesh.log
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: http-node-fleet-smoke-logs
+          path: build-http-fleet/*.log
+          if-no-files-found: ignore
+
   windows:
     name: Windows MinGW64 (C++${{ matrix.std }})
     runs-on: windows-latest

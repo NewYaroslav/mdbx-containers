@@ -20,10 +20,11 @@ option(MDBXC_BUILD_BENCHMARKS   "Build benchmark executables"                   
 option(MDBXC_ENABLE_STRESS_TESTS "Register long stress tests with CTest"           OFF)
 option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmdbx)" ON)
 
-# Optional transport-binding example that pulls a third-party HTTP backend
-# (Simple-Web-Server). Off by default to keep the default build free of
-# network-stack dependencies. See examples/README-sync.md for usage.
-option(MDBXC_HTTP_SYNC_EXAMPLE "Build the Simple-Web-Server HTTP binding example" OFF)
+# Optional transport-binding examples that pull third-party HTTP/process
+# backends (Simple-Web-Server and tiny-process-library). Off by default to keep
+# the default build free of network-stack dependencies. See
+# examples/README-sync.md for usage.
+option(MDBXC_HTTP_SYNC_EXAMPLE "Build the Simple-Web-Server HTTP sync examples" OFF)
 option(MDBXC_WEBSOCKET_SYNC_EXAMPLE "Build the Simple-WebSocket-Server sync binding example" OFF)
 option(MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK
     "Fetch a ready-made Win64 OpenSSL Crypto package for the MinGW WebSocket example if system OpenSSL is unavailable" ON)
@@ -143,6 +144,8 @@ if(MDBXC_BUILD_EXAMPLES)
         "sync_13_http_simple_web_server\\.cpp$")
     list(FILTER EXAMPLES EXCLUDE REGEX
         "sync_17_websocket_simple_web_server\\.cpp$")
+    list(FILTER EXAMPLES EXCLUDE REGEX
+        "sync_18_http_node_fleet\\.cpp$")
     foreach(example_file IN LISTS EXAMPLES)
         get_filename_component(example_name ${example_file} NAME_WE)
         add_executable(${example_name} ${example_file})
@@ -165,15 +168,17 @@ endif()
 # ---------------------------------------
 # Optional HTTP transport binding example
 # ---------------------------------------
-# Pulls Simple-Web-Server through FetchContent and adds one example that
-# shows a real loopback HTTP server + client wiring around HttpSyncServer
-# and HttpSyncPeer. The default build does not touch this section; the
-# example is built only when MDBXC_HTTP_SYNC_EXAMPLE is ON.
+# Pulls Simple-Web-Server through FetchContent and adds examples that use the
+# ready Simple-Web HTTP binding around HttpSyncServer and HttpSyncPeer. The
+# default build does not touch this section; these examples are built only when
+# MDBXC_HTTP_SYNC_EXAMPLE is ON.
 if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/deps)
     include(cmake/deps/simple-web-server.cmake)
+    include(cmake/deps/tiny-process-library.cmake)
 
     simple_web_server_provide(OUT_TARGET _MDBXC_SWS_TARGET)
+    tiny_process_library_provide()
 
     add_executable(sync_13_http_simple_web_server
         examples/sync_13_http_simple_web_server.cpp)
@@ -190,6 +195,23 @@ if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
         ${_MDBXC_SWS_TARGET})
     message(STATUS "HTTP binding example sync_13_http_simple_web_server -> "
         "${_MDBXC_SWS_TARGET}")
+
+    add_executable(sync_18_http_node_fleet
+        examples/sync_18_http_node_fleet.cpp)
+    set_target_properties(sync_18_http_node_fleet PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
+    )
+    target_compile_features(sync_18_http_node_fleet PRIVATE cxx_std_11)
+    target_compile_definitions(sync_18_http_node_fleet PRIVATE
+        MDBXC_SYNC_ENABLED=1
+        ASIO_STANDALONE=1
+        USE_STANDALONE_ASIO=1)
+    target_link_libraries(sync_18_http_node_fleet PRIVATE
+        ${_PKG_TARGET}
+        ${_MDBXC_SWS_TARGET}
+        tiny-process-library::tiny-process-library)
+    message(STATUS "HTTP node fleet example sync_18_http_node_fleet -> "
+        "${_MDBXC_SWS_TARGET};tiny-process-library")
 endif()
 
 # ---------------------------------------

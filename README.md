@@ -55,13 +55,23 @@
 - `AnyValueTable`, `KeyMultiValueTable`, and `HashedKeyValueStore` are not
   replicated in v0.1. Their wire formats are deferred until type tags,
   DUPSORT duplicate framing, and hash-index identity semantics are specified.
+- Application CRUD code does not need per-method sync wrappers for supported
+  tables. Attach `ThreadLocalChangeAccumulator` to the writing `Connection`;
+  committed standalone writes become standalone sync batches, while an explicit
+  transaction spanning several supported tables becomes one atomic local batch.
+  Read/search calls are not captured. A separate `SyncWorker` plus an
+  `ISyncPeer` transport moves committed batches between nodes.
 - `SyncEngine` exposes pull/push/apply primitives, `DirectSyncPeer` provides
   in-process sync for tests and examples, `HttpSyncPeer` defines an HTTP-shaped
   adapter seam, `WebSocketSyncPeer` defines a binary message seam, and
-  `SyncWorker` is the background polling driver. Simple-Web-Server HTTP and
-  Simple-WebSocket-Server WebSocket examples are optional; specialized
-  table wire formats remain deferred. HTTP auth, remote-address checks, and
-  rate-limit headers live in adapter-local policy context, not inside sync DTOs.
+  `SyncWorker` is the background polling driver. `mdbx_containers/sync/transport.hpp`
+  is the transport-layer umbrella. Optional ready-made Simple-Web
+  HTTP/WebSocket binding headers live under
+  `mdbx_containers/sync/transports/simple_web/`, and the socket-backed
+  examples use those bindings instead of reimplementing the transport in each
+  file. Specialized table wire formats remain deferred.
+  HTTP auth, remote-address checks, and rate-limit headers live in
+  adapter-local policy context, not inside sync DTOs.
   See
   `include/mdbx_containers/sync/DESIGN.md`.
 
