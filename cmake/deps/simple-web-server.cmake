@@ -15,6 +15,8 @@
 include(CMakeParseArguments)
 include(FetchContent)
 
+set(_MDBXC_SIMPLE_WEB_SERVER_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}")
+
 set(MDBXC_ASIO_GIT_TAG
     "12e0ce9e0500bf0f247dbd1ae894272656456079" CACHE STRING
     "Asio commit used by the optional HTTP example; corresponds to asio-1-30-2.")
@@ -151,7 +153,22 @@ function(simple_websocket_server_provide)
     endif()
 
     if(NOT TARGET mdbxc_simple_websocket_server)
-        find_package(OpenSSL REQUIRED)
+        if(NOT TARGET OpenSSL::Crypto)
+            find_package(OpenSSL QUIET)
+        endif()
+        if(NOT TARGET OpenSSL::Crypto)
+            if(WIN32 AND MINGW AND
+                    MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK)
+                include("${_MDBXC_SIMPLE_WEB_SERVER_CMAKE_DIR}/openssl-mingw.cmake")
+                mdbxc_mingw_openssl_fallback_provide()
+            else()
+                message(FATAL_ERROR
+                    "OpenSSL Crypto was not found. Set OPENSSL_ROOT_DIR, "
+                    "install OpenSSL, or enable "
+                    "MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK for the "
+                    "MinGW WebSocket example.")
+            endif()
+        endif()
 
         add_library(mdbxc_simple_websocket_server INTERFACE)
         target_include_directories(mdbxc_simple_websocket_server INTERFACE

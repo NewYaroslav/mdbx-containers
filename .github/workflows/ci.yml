@@ -205,6 +205,99 @@ jobs:
           path: build/*.log
           if-no-files-found: ignore
 
+  websocket-mingw-openssl-fallback:
+    name: WebSocket MinGW OpenSSL Crypto fallback
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            base-devel
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkg-config
+
+      - name: Ensure libmdbx tags
+        env:
+          PATH: "/c/Program Files/Git/bin:$PATH"
+        run: |
+          set -euo pipefail
+          git submodule update --init --recursive
+          git -C external/libmdbx rev-parse --is-inside-work-tree >/dev/null
+          git -C external/libmdbx config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git -C external/libmdbx fetch --prune --tags --force
+          if git -C external/libmdbx rev-parse --is-shallow-repository | grep -qi true; then
+            git -C external/libmdbx fetch --unshallow || git -C external/libmdbx fetch --deepen=1000
+          fi
+          git -C external/libmdbx describe --tags --abbrev=0 >/dev/null
+
+      - name: Configure WebSocket fallback example
+        env:
+          CC: x86_64-w64-mingw32-gcc
+          CXX: x86_64-w64-mingw32-g++
+          PATH: "/c/Program Files/Git/bin:$PATH"
+        run: |
+          set -euo pipefail
+          mkdir -p build-ws-fallback
+          cmake -S . -B build-ws-fallback -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_POLICY_DEFAULT_CMP0152=NEW \
+            -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=TRUE \
+            -DMDBXC_DEPS_MODE=BUNDLED \
+            -DMDBXC_BUILD_TESTS=OFF \
+            -DMDBXC_BUILD_EXAMPLES=ON \
+            -DMDBXC_WEBSOCKET_SYNC_EXAMPLE=ON \
+            -DMDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK=ON \
+            -Wno-dev \
+          2>&1 | tee build-ws-fallback/configure.log
+          grep -q "OpenSSL Crypto: using MinGW fallback" \
+            build-ws-fallback/configure.log
+
+      - name: Build WebSocket fallback example
+        run: |
+          set -euo pipefail
+          cmake --build build-ws-fallback \
+            --target sync_17_websocket_simple_web_server --parallel \
+          2>&1 | tee build-ws-fallback/build.log
+
+      - name: Run WebSocket fallback example
+        run: |
+          set -euo pipefail
+          exe_dir="build-ws-fallback/bin/examples"
+          test -x "$exe_dir/sync_17_websocket_simple_web_server.exe"
+          test -f "$exe_dir/libcrypto-3-x64.dll"
+          test ! -f "$exe_dir/libssl-3-x64.dll"
+          "$exe_dir/sync_17_websocket_simple_web_server.exe" 127.0.0.1 18194 \
+          2>&1 | tee build-ws-fallback/example.log
+          grep -q "OK: sync_17_websocket_simple_web_server" \
+            build-ws-fallback/example.log
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: websocket-mingw-openssl-fallback-logs
+          path: build-ws-fallback/*.log
+          if-no-files-found: ignore
+
   linux:
     name: Linux (C++${{ matrix.std }})
     runs-on: ubuntu-latest

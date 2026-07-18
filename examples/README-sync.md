@@ -50,7 +50,14 @@ tmp/build-http-example/bin/examples/sync_13_http_simple_web_server \
 The real WebSocket binding example is also opt-in because it fetches standalone
 Asio and Simple-WebSocket-Server headers. Simple-WebSocket-Server uses OpenSSL
 Crypto for the WebSocket handshake, so set `OPENSSL_ROOT_DIR` if CMake cannot
-find OpenSSL automatically:
+find OpenSSL automatically. On Windows/MinGW, the example can fetch a pinned
+ready-made Win64 OpenSSL package when
+`MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK=ON` (the default):
+
+The pinned fallback package exposes `lib/VC/x64/MD/libcrypto.lib`; this import
+library layout has been validated with the MinGW-w64 toolchain used by the
+project CI. The example uses plain `ws://`, not WSS/TLS, so only
+`libcrypto-3-x64.dll` is copied next to the executable.
 
 ```bash
 cmake -S . -B tmp/build-ws-example \
@@ -64,7 +71,7 @@ cmake --build tmp/build-ws-example --target sync_17_websocket_simple_web_server
 tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server
 ```
 
-On Windows/MinGW with a ready-made OpenSSL package, point CMake at the package
+To use your own ready-made OpenSSL package instead, point CMake at the package
 root that contains `include`, `lib`, and `bin`, for example:
 
 ```powershell
