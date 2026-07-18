@@ -25,6 +25,8 @@ option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmd
 # network-stack dependencies. See examples/README-sync.md for usage.
 option(MDBXC_HTTP_SYNC_EXAMPLE "Build the Simple-Web-Server HTTP binding example" OFF)
 option(MDBXC_WEBSOCKET_SYNC_EXAMPLE "Build the Simple-WebSocket-Server sync binding example" OFF)
+option(MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK
+    "Fetch a ready-made Win64 OpenSSL Crypto package for the MinGW WebSocket example if system OpenSSL is unavailable" ON)
 
 # Three-mode dependency policy for MDBX: AUTO | SYSTEM | BUNDLED
 set(MDBXC_DEPS_MODE "AUTO" CACHE STRING "Dependency mode for MDBX: AUTO|SYSTEM|BUNDLED")
@@ -37,6 +39,7 @@ message(STATUS "MDBXC_BUILD_BENCHMARKS  = ${MDBXC_BUILD_BENCHMARKS}")
 message(STATUS "MDBXC_ENABLE_STRESS_TESTS = ${MDBXC_ENABLE_STRESS_TESTS}")
 message(STATUS "MDBXC_HTTP_SYNC_EXAMPLE = ${MDBXC_HTTP_SYNC_EXAMPLE}")
 message(STATUS "MDBXC_WEBSOCKET_SYNC_EXAMPLE = ${MDBXC_WEBSOCKET_SYNC_EXAMPLE}")
+message(STATUS "MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK = ${MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK}")
 message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
 
 set(MDBXC_HAS_ASAN OFF CACHE BOOL "Compiler+linker support -fsanitize=address")
@@ -214,6 +217,16 @@ if(MDBXC_WEBSOCKET_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
     target_link_libraries(sync_17_websocket_simple_web_server PRIVATE
         ${_PKG_TARGET}
         ${_MDBXC_SWS_WS_TARGET})
+    get_property(_MDBXC_OPENSSL_RUNTIME_DLLS GLOBAL PROPERTY
+        MDBXC_MINGW_OPENSSL_RUNTIME_DLLS)
+    foreach(_MDBXC_OPENSSL_RUNTIME_DLL IN LISTS _MDBXC_OPENSSL_RUNTIME_DLLS)
+        add_custom_command(TARGET sync_17_websocket_simple_web_server
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_MDBXC_OPENSSL_RUNTIME_DLL}"
+                "$<TARGET_FILE_DIR:sync_17_websocket_simple_web_server>"
+            VERBATIM)
+    endforeach()
     message(STATUS "WebSocket binding example "
         "sync_17_websocket_simple_web_server -> ${_MDBXC_SWS_WS_TARGET}")
 endif()
