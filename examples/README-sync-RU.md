@@ -66,7 +66,9 @@ tmp/build-http-example/bin/examples/sync_18_http_node_fleet \
 
 Kurlyk/libcurl HTTP client binding тоже включается отдельно. Он использует тот
 же framework-neutral `HttpSyncPeer` API и меняет только конкретную реализацию
-`IHttpSyncClient`:
+`IHttpSyncClient`. На Windows/MinGW пример может скачать зафиксированный
+готовый Win64 libcurl package, когда
+`MDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK=ON` (по умолчанию):
 
 ```bash
 cmake -S . -B tmp/build-kurlyk-http \
@@ -74,7 +76,7 @@ cmake -S . -B tmp/build-kurlyk-http \
     -DMDBXC_BUILD_TESTS=OFF \
     -DMDBXC_BUILD_EXAMPLES=ON \
     -DMDBXC_KURLYK_HTTP_SYNC_EXAMPLE=ON \
-    -DCMAKE_CXX_STANDARD=11
+    -DCMAKE_CXX_STANDARD=17
 
 cmake --build tmp/build-kurlyk-http --target sync_19_kurlyk_http_client
 tmp/build-kurlyk-http/bin/examples/sync_19_kurlyk_http_client

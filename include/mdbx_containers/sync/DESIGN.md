@@ -621,7 +621,9 @@ The Kurlyk HTTP client binding lives under `sync/transports/kurlyk/` and is
 also excluded from the main sync umbrella header. It exists to validate that
 HTTP client backends can be swapped at the `IHttpSyncClient` boundary without
 changing `SyncEngine`, `HttpSyncPeer`, transport DTOs, or auth/rate-limit
-middleware.
+middleware. On Windows/MinGW, its optional example can fetch a pinned
+ready-made libcurl package; that fallback is a build-time convenience for the
+example target, not a dependency of the sync core.
 
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
