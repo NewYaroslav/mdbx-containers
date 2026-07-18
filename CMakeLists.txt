@@ -251,6 +251,39 @@ if(MDBXC_WEBSOCKET_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
     endforeach()
     message(STATUS "WebSocket binding example "
         "sync_17_websocket_simple_web_server -> ${_MDBXC_SWS_WS_TARGET}")
+
+    if(MDBXC_BUILD_TESTS)
+        include(CTest)
+        enable_testing()
+        add_executable(test_simple_websocket_transport
+            tests/optional/test_simple_websocket_transport.cpp)
+        set_target_properties(test_simple_websocket_transport PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests
+        )
+        target_compile_features(test_simple_websocket_transport PRIVATE cxx_std_11)
+        target_compile_definitions(test_simple_websocket_transport PRIVATE
+            MDBXC_SYNC_ENABLED=1
+            ASIO_STANDALONE=1
+            USE_STANDALONE_ASIO=1)
+        mdbxc_enable_asan(test_simple_websocket_transport)
+        target_link_libraries(test_simple_websocket_transport PRIVATE
+            ${_PKG_TARGET}
+            ${_MDBXC_SWS_WS_TARGET})
+        foreach(_MDBXC_OPENSSL_RUNTIME_DLL IN LISTS _MDBXC_OPENSSL_RUNTIME_DLLS)
+            add_custom_command(TARGET test_simple_websocket_transport
+                POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_MDBXC_OPENSSL_RUNTIME_DLL}"
+                    "$<TARGET_FILE_DIR:test_simple_websocket_transport>"
+                VERBATIM)
+        endforeach()
+        add_test(NAME test_simple_websocket_transport
+            COMMAND test_simple_websocket_transport)
+        set_tests_properties(test_simple_websocket_transport PROPERTIES
+            TIMEOUT 30)
+        message(STATUS "WebSocket binding test "
+            "test_simple_websocket_transport -> ${_MDBXC_SWS_WS_TARGET}")
+    endif()
 endif()
 
 # ---------------------------------------

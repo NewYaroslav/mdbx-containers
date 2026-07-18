@@ -209,7 +209,10 @@ namespace simple_web {
                     int status,
                     const std::string& reason) {
                     (void)connection;
-                    if (status != 1000) {
+                    if (status == 1000) {
+                        state->set_exception(
+                            "WebSocket closed before sync response");
+                    } else {
                         state->set_exception(
                             "WebSocket closed with status " +
                             std::to_string(status) + " (" +
@@ -234,6 +237,11 @@ namespace simple_web {
             }
 
             client.start();
+            if (cancel_token.is_cancellation_requested() ||
+                m_cancel_generation.load(std::memory_order_acquire) !=
+                    call_generation) {
+                throw std::runtime_error("cancelled during WebSocket exchange");
+            }
             return result.get();
         }
 
