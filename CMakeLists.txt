@@ -279,6 +279,8 @@ if(MDBXC_WEBSOCKET_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
         endforeach()
         add_test(NAME test_simple_websocket_transport
             COMMAND test_simple_websocket_transport)
+        set_tests_properties(test_simple_websocket_transport PROPERTIES
+            TIMEOUT 30)
         message(STATUS "WebSocket binding test "
             "test_simple_websocket_transport -> ${_MDBXC_SWS_WS_TARGET}")
     endif()
