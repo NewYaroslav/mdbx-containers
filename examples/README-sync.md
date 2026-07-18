@@ -2,9 +2,9 @@
 
 These examples show the sync v0.1 API as transport-agnostic building blocks.
 Most use `DirectSyncPeer` or a small in-memory buffer so the protocol flow is
-visible without adding HTTP, WebSocket, or IPC code. The optional HTTP example
-binds the HTTP seam to Simple-Web-Server and standalone Asio, while the
-WebSocket example stays framework-neutral.
+visible without adding HTTP, WebSocket, or IPC code. The optional HTTP and
+WebSocket examples bind the transport seams to Simple-Web-Server,
+Simple-WebSocket-Server, and standalone Asio.
 
 Sync is opt-in. The examples are built with `MDBXC_SYNC_ENABLED=1`; applications
 must also compile sync users with that macro enabled.
@@ -62,6 +62,19 @@ cmake -S . -B tmp/build-ws-example \
 
 cmake --build tmp/build-ws-example --target sync_17_websocket_simple_web_server
 tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server
+```
+
+On Windows/MinGW with a ready-made OpenSSL package, point CMake at the package
+root that contains `include`, `lib`, and `bin`, for example:
+
+```powershell
+cmake -S . -B tmp/build-ws-example `
+    -DMDBXC_DEPS_MODE=BUNDLED `
+    -DMDBXC_BUILD_TESTS=OFF `
+    -DMDBXC_BUILD_EXAMPLES=ON `
+    -DMDBXC_WEBSOCKET_SYNC_EXAMPLE=ON `
+    -DOPENSSL_ROOT_DIR=C:/deps/openssl-win64-v3.4.0 `
+    -DCMAKE_CXX_STANDARD=11
 ```
 
 ## Reading Order
