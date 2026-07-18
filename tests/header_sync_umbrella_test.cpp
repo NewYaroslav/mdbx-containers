@@ -59,6 +59,7 @@ int main() {
     mdbxc::sync::WebSocketSyncRequestContext websocket_context;
     websocket_context.has_authenticated_node = true;
     websocket_context.authenticated_node = node;
+    websocket_context.db_access = mdbxc::sync::SyncDbAccess::only(node);
     websocket_context.binary_message = wire;
     mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy websocket_policy;
     MDBXC_TEST_ASSERT(

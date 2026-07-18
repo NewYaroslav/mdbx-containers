@@ -292,7 +292,7 @@ public:
                     mdbxc::sync::WebSocketSyncRequestContext context;
                     context.has_authenticated_node = true;
                     context.authenticated_node = m_authenticated_node;
-                    context.allowed_dbs.insert(m_allowed_db);
+                    context.db_access.allow_db_id(m_allowed_db);
                     context.binary_message =
                         string_to_bytes(in_message->string());
                     const std::vector<std::uint8_t> response =

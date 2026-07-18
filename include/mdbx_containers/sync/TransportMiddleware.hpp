@@ -97,15 +97,62 @@ namespace sync {
         }
     };
 
+    /// \brief Explicit DB access rule used by transport identity policies.
+    /// \details \c any() permits every \c db_id, \c none() permits none, and
+    /// \c only() starts a restricted allow-list. This avoids giving an empty
+    /// container a hidden meaning in session contexts.
+    struct SyncDbAccess {
+        bool allow_all_dbs = false;
+        std::set<DbId> db_ids;
+
+        static SyncDbAccess any() {
+            SyncDbAccess out;
+            out.allow_all_dbs = true;
+            return out;
+        }
+
+        static SyncDbAccess none() {
+            return SyncDbAccess();
+        }
+
+        static SyncDbAccess only(const DbId& db_id) {
+            SyncDbAccess out;
+            out.allow_db_id(db_id);
+            return out;
+        }
+
+        void set_allow_any() {
+            allow_all_dbs = true;
+            db_ids.clear();
+        }
+
+        void set_deny_all() {
+            allow_all_dbs = false;
+            db_ids.clear();
+        }
+
+        void allow_db_id(const DbId& db_id) {
+            allow_all_dbs = false;
+            db_ids.insert(db_id);
+        }
+
+        bool allows_db_id(const DbId& db_id) const {
+            return allow_all_dbs ||
+                   db_ids.find(db_id) != db_ids.end();
+        }
+    };
+
     /// \brief Adapter-local context for one WebSocket sync message.
     /// \details Concrete WebSocket bindings authenticate the session during
     /// handshake or with framework-specific metadata, then pass the resulting
     /// node identity here before dispatching the binary sync message. The
-    /// identity and DB allow-list are not serialized in the sync DTO.
+    /// identity and DB access rule are not serialized in the sync DTO. The
+    /// default \c db_access denies every DB until the binding explicitly fills
+    /// it with \c SyncDbAccess::any() or a restricted allow-list.
     struct WebSocketSyncRequestContext {
         bool has_authenticated_node = false;
         NodeId authenticated_node{};
-        std::set<DbId> allowed_dbs;
+        SyncDbAccess db_access;
         std::vector<std::uint8_t> binary_message;
     };
 
@@ -172,9 +219,13 @@ namespace sync {
     }
 
     /// \brief Allows only configured node ids and database ids.
-    /// \details Empty allow-list means "allow any" for that dimension.
+    /// \details Node allow-list defaults to "allow any". DB access defaults to
+    /// "allow any" for compatibility with simple peer-level policies.
     class NodeDbAllowListPolicy : public ISyncTransportPolicy {
     public:
+        NodeDbAllowListPolicy()
+            : m_db_access(SyncDbAccess::any()) {}
+
         void allow_node_id(const NodeId& node_id) {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_allowed_nodes.insert(node_id);
@@ -182,13 +233,23 @@ namespace sync {
 
         void allow_db_id(const DbId& db_id) {
             std::lock_guard<std::mutex> lock(m_mutex);
-            m_allowed_dbs.insert(db_id);
+            m_db_access.allow_db_id(db_id);
+        }
+
+        void allow_any_db_id() {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_db_access.set_allow_any();
+        }
+
+        void deny_all_db_ids() {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_db_access.set_deny_all();
         }
 
         void clear() {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_allowed_nodes.clear();
-            m_allowed_dbs.clear();
+            m_db_access = SyncDbAccess::any();
         }
 
         SyncTransportDecision check_pull(
@@ -211,8 +272,7 @@ namespace sync {
                 const DbId& db_id,
                 const char* node_error) const {
             std::lock_guard<std::mutex> lock(m_mutex);
-            if (!m_allowed_dbs.empty() &&
-                m_allowed_dbs.find(db_id) == m_allowed_dbs.end()) {
+            if (!m_db_access.allows_db_id(db_id)) {
                 return SyncTransportDecision::reject(
                     "sync db_id is not allowed", 403);
             }
@@ -225,7 +285,7 @@ namespace sync {
 
         mutable std::mutex m_mutex;
         std::set<NodeId> m_allowed_nodes;
-        std::set<DbId> m_allowed_dbs;
+        SyncDbAccess m_db_access;
     };
 
     /// \brief Allows only configured HTTP sync targets.
@@ -313,9 +373,10 @@ namespace sync {
     /// \details This policy enforces the production-facing identity contract:
     /// the authenticated bearer principal must match
     /// \c PullRequest::requester for pull and \c PushRequest::sender for push.
-    /// Optional per-token DB allow-lists validate \c db_id before dispatch.
-    /// Empty per-token DB allow-list means any \c db_id is allowed for that
-    /// token. The policy decodes request DTOs only after the bearer token is
+    /// Optional per-token DB access rules validate \c db_id before dispatch.
+    /// Token bindings default to \c SyncDbAccess::any(); calling
+    /// \c allow_db_id_for_token() switches that token to a restricted list.
+    /// The policy decodes request DTOs only after the bearer token is
     /// accepted; adapter-local headers and remote addresses are not serialized.
     class HttpBearerNodeIdentityPolicy : public ISyncTransportPolicy {
     public:
@@ -339,7 +400,29 @@ namespace sync {
                 throw std::invalid_argument(
                     "sync bearer token identity is not registered");
             }
-            it->second.allowed_dbs.insert(db_id);
+            it->second.db_access.allow_db_id(db_id);
+        }
+
+        void allow_any_db_id_for_token(const std::string& token) {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            std::map<std::string, Binding>::iterator it =
+                m_bindings.find(token);
+            if (it == m_bindings.end()) {
+                throw std::invalid_argument(
+                    "sync bearer token identity is not registered");
+            }
+            it->second.db_access.set_allow_any();
+        }
+
+        void deny_all_db_ids_for_token(const std::string& token) {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            std::map<std::string, Binding>::iterator it =
+                m_bindings.find(token);
+            if (it == m_bindings.end()) {
+                throw std::invalid_argument(
+                    "sync bearer token identity is not registered");
+            }
+            it->second.db_access.set_deny_all();
         }
 
         void clear() {
@@ -380,8 +463,11 @@ namespace sync {
 
     private:
         struct Binding {
+            Binding()
+                : db_access(SyncDbAccess::any()) {}
+
             NodeId node_id{};
-            std::set<DbId> allowed_dbs;
+            SyncDbAccess db_access;
         };
 
         static SyncTransportDecision unauthorized(
@@ -436,9 +522,7 @@ namespace sync {
 
         static SyncTransportDecision check_db(const Binding& binding,
                                               const DbId& db_id) {
-            if (!binding.allowed_dbs.empty() &&
-                binding.allowed_dbs.find(db_id) ==
-                    binding.allowed_dbs.end()) {
+            if (!binding.db_access.allows_db_id(db_id)) {
                 return SyncTransportDecision::reject(
                     "sync db_id is not allowed for authenticated node", 403);
             }
@@ -455,9 +539,10 @@ namespace sync {
     /// before constructing \c WebSocketSyncRequestContext. This policy then
     /// decodes the binary DTO and requires \c PullRequest::requester or
     /// \c PushRequest::sender to match the authenticated session node.
-    /// Optional per-session DB allow-lists validate \c db_id before dispatch.
-    /// Empty \c allowed_dbs means the authenticated session may access any
-    /// \c db_id. For WebSocket bindings, \c SyncTransportDecision::status_code
+    /// Optional per-session DB access rules validate \c db_id before dispatch.
+    /// \c WebSocketSyncRequestContext::db_access defaults to deny all, so
+    /// bindings must explicitly set \c SyncDbAccess::any() or allow specific
+    /// DB ids. For WebSocket bindings, \c SyncTransportDecision::status_code
     /// may be interpreted as a WebSocket close code by the concrete adapter.
     class WebSocketAuthenticatedNodeIdentityPolicy
         : public ISyncTransportPolicy {
@@ -508,7 +593,7 @@ namespace sync {
                     "sync requester does not match authenticated WebSocket node",
                     1008);
             }
-            return check_db(context.allowed_dbs, request.db_id);
+            return check_db(context.db_access, request.db_id);
         }
 
         SyncTransportDecision check_push_identity(
@@ -521,14 +606,13 @@ namespace sync {
                     "sync sender does not match authenticated WebSocket node",
                     1008);
             }
-            return check_db(context.allowed_dbs, request.db_id);
+            return check_db(context.db_access, request.db_id);
         }
 
         static SyncTransportDecision check_db(
-                const std::set<DbId>& allowed_dbs,
+                const SyncDbAccess& db_access,
                 const DbId& db_id) {
-            if (!allowed_dbs.empty() &&
-                allowed_dbs.find(db_id) == allowed_dbs.end()) {
+            if (!db_access.allows_db_id(db_id)) {
                 return SyncTransportDecision::reject(
                     "sync db_id is not allowed for authenticated WebSocket node",
                     1008);
