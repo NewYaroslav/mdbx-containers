@@ -356,7 +356,6 @@ void test_http_bearer_node_identity_policy() {
 
     mdbxc::sync::HttpBearerNodeIdentityPolicy policy;
     policy.allow_token_for_node("token-a", node_a);
-    policy.allow_db_id_for_token("token-a", db_a);
 
     mdbxc::sync::PullRequest pull;
     pull.requester = node_a;
@@ -375,6 +374,21 @@ void test_http_bearer_node_identity_policy() {
         policy.check_http_request(request);
     require_true(decision.allowed,
                  "matching bearer identity was rejected");
+
+    pull.db_id = db_b;
+    request.body = mdbxc::sync::TransportMessageCodec::encode_pull_request(
+        pull);
+    decision = policy.check_http_request(request);
+    require_true(decision.allowed,
+                 "default bearer DB access should allow any db_id");
+
+    policy.allow_db_id_for_token("token-a", db_a);
+    pull.db_id = db_a;
+    request.body = mdbxc::sync::TransportMessageCodec::encode_pull_request(
+        pull);
+    decision = policy.check_http_request(request);
+    require_true(decision.allowed,
+                 "restricted bearer DB access rejected allowed db_id");
 
     pull.requester = node_b;
     request.body = mdbxc::sync::TransportMessageCodec::encode_pull_request(

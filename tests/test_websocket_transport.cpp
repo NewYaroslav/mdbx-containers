@@ -255,7 +255,6 @@ void test_websocket_authenticated_node_policy() {
     mdbxc::sync::WebSocketSyncRequestContext context;
     context.has_authenticated_node = true;
     context.authenticated_node = node_a;
-    context.allowed_dbs.insert(db_a);
 
     mdbxc::sync::PullRequest pull;
     pull.requester = node_a;
@@ -265,6 +264,11 @@ void test_websocket_authenticated_node_policy() {
 
     mdbxc::sync::SyncTransportDecision decision =
         policy.check_websocket_message(context);
+    require_true(!decision.allowed && decision.status_code == 1008,
+                 "default WebSocket DB access should deny db_id");
+
+    context.db_access.allow_db_id(db_a);
+    decision = policy.check_websocket_message(context);
     require_true(decision.allowed,
                  "matching WebSocket node identity was rejected");
 
@@ -312,7 +316,7 @@ void test_websocket_authenticated_node_policy_rejects_invalid_body() {
     mdbxc::sync::WebSocketSyncRequestContext context;
     context.has_authenticated_node = true;
     context.authenticated_node = node;
-    context.allowed_dbs.insert(db_id);
+    context.db_access.allow_db_id(db_id);
 
     const std::uint8_t malformed_byte_1 = 0x01;
     const std::uint8_t malformed_byte_2 = 0x02;

@@ -487,10 +487,13 @@ they are not serialized by `TransportMessageCodec`. `HttpBearerTokenPolicy`,
 the bearer token maps to one `NodeId`; a pull request is allowed only when
 `PullRequest::requester` matches that authenticated node, and a push request is
 allowed only when `PushRequest::sender` matches that authenticated node.
-Optional per-token DB allow-lists validate `db_id` before dispatch. Empty
-per-token DB allow-list means the token may access any `db_id`. This keeps the
-sync DTOs self-describing while preventing a transport principal from claiming
-another node id inside the binary payload.
+Optional per-token DB access rules validate `db_id` before dispatch.
+`SyncDbAccess` makes the intent explicit: a token binding may allow any DB,
+deny every DB, or allow only listed DB ids. `HttpBearerNodeIdentityPolicy`
+keeps token bindings in `allow any DB` mode until
+`allow_db_id_for_token()` switches that token to a restricted list. This keeps
+the sync DTOs self-describing while preventing a transport principal from
+claiming another node id inside the binary payload.
 Rejections may carry response headers such as `WWW-Authenticate` or
 `Retry-After`; concrete HTTP bindings must write those headers to the real
 response.
@@ -511,8 +514,10 @@ For WebSocket, decoded DTO policy can wrap `WebSocketSyncPeer` through
 concrete WebSocket framework authenticates the session. The framework-specific
 token, cookie, mTLS principal, or remote address stays outside the sync DTO;
 `WebSocketAuthenticatedNodeIdentityPolicy` receives only the resulting
-authenticated `NodeId`, optional per-session DB allow-list, and one complete
-binary message. It then requires `PullRequest::requester` or
+authenticated `NodeId`, an explicit `SyncDbAccess` rule, and one complete
+binary message. WebSocket request contexts default to `deny every DB`, so a
+binding must opt into `SyncDbAccess::any()` or allow concrete DB ids for that
+session. The policy then requires `PullRequest::requester` or
 `PushRequest::sender` to match that authenticated node before dispatching to
 `WebSocketSyncServer`. `WebSocketSyncServerMiddleware` preserves policy close
 codes by throwing `WebSocketSyncRejected`; concrete bindings should catch it
