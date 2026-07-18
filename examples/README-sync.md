@@ -65,7 +65,9 @@ The reusable HTTP binding lives in:
 
 The Kurlyk/libcurl HTTP client binding is also opt-in. It reuses the
 framework-neutral `HttpSyncPeer` API and swaps only the concrete
-`IHttpSyncClient` implementation:
+`IHttpSyncClient` implementation. On Windows/MinGW, the example can fetch a
+pinned ready-made Win64 libcurl package when
+`MDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK=ON` (the default):
 
 ```bash
 cmake -S . -B tmp/build-kurlyk-http \
@@ -73,7 +75,7 @@ cmake -S . -B tmp/build-kurlyk-http \
     -DMDBXC_BUILD_TESTS=OFF \
     -DMDBXC_BUILD_EXAMPLES=ON \
     -DMDBXC_KURLYK_HTTP_SYNC_EXAMPLE=ON \
-    -DCMAKE_CXX_STANDARD=11
+    -DCMAKE_CXX_STANDARD=17
 
 cmake --build tmp/build-kurlyk-http --target sync_19_kurlyk_http_client
 tmp/build-kurlyk-http/bin/examples/sync_19_kurlyk_http_client

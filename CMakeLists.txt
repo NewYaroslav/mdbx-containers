@@ -27,6 +27,8 @@ option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmd
 option(MDBXC_HTTP_SYNC_EXAMPLE "Build the Simple-Web-Server HTTP sync examples" OFF)
 option(MDBXC_WEBSOCKET_SYNC_EXAMPLE "Build the Simple-WebSocket-Server sync binding example" OFF)
 option(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE "Build the Kurlyk/libcurl HTTP sync client example" OFF)
+option(MDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK
+    "Fetch a ready-made Win64 libcurl package for the MinGW Kurlyk HTTP example if system libcurl is unavailable" ON)
 option(MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK
     "Fetch a ready-made Win64 OpenSSL Crypto package for the MinGW WebSocket example if system OpenSSL is unavailable" ON)
 
@@ -42,6 +44,7 @@ message(STATUS "MDBXC_ENABLE_STRESS_TESTS = ${MDBXC_ENABLE_STRESS_TESTS}")
 message(STATUS "MDBXC_HTTP_SYNC_EXAMPLE = ${MDBXC_HTTP_SYNC_EXAMPLE}")
 message(STATUS "MDBXC_WEBSOCKET_SYNC_EXAMPLE = ${MDBXC_WEBSOCKET_SYNC_EXAMPLE}")
 message(STATUS "MDBXC_KURLYK_HTTP_SYNC_EXAMPLE = ${MDBXC_KURLYK_HTTP_SYNC_EXAMPLE}")
+message(STATUS "MDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK = ${MDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK}")
 message(STATUS "MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK = ${MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK}")
 message(STATUS "MDBXC_USE_ASAN          = ${MDBXC_USE_ASAN}")
 
@@ -238,7 +241,7 @@ if(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
     set_target_properties(sync_19_kurlyk_http_client PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
     )
-    target_compile_features(sync_19_kurlyk_http_client PRIVATE cxx_std_11)
+    target_compile_features(sync_19_kurlyk_http_client PRIVATE cxx_std_17)
     target_compile_definitions(sync_19_kurlyk_http_client PRIVATE
         MDBXC_SYNC_ENABLED=1
         ASIO_STANDALONE=1
@@ -247,6 +250,16 @@ if(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
         ${_PKG_TARGET}
         ${_MDBXC_SWS_TARGET}
         ${_MDBXC_KURLYK_HTTP_TARGET})
+    get_property(_MDBXC_CURL_RUNTIME_DLLS GLOBAL PROPERTY
+        MDBXC_MINGW_CURL_RUNTIME_DLLS)
+    foreach(_MDBXC_CURL_RUNTIME_DLL IN LISTS _MDBXC_CURL_RUNTIME_DLLS)
+        add_custom_command(TARGET sync_19_kurlyk_http_client
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_MDBXC_CURL_RUNTIME_DLL}"
+                "$<TARGET_FILE_DIR:sync_19_kurlyk_http_client>"
+            VERBATIM)
+    endforeach()
     message(STATUS "Kurlyk HTTP client example sync_19_kurlyk_http_client -> "
         "${_MDBXC_SWS_TARGET};${_MDBXC_KURLYK_HTTP_TARGET}")
 endif()
