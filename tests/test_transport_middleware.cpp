@@ -348,6 +348,54 @@ void test_http_context_policies() {
                  "denied remote address was not rejected");
 }
 
+void test_http_correlation_copy_is_idempotent() {
+    std::vector<mdbxc::sync::HttpSyncHeader> source;
+    std::vector<mdbxc::sync::HttpSyncHeader> destination;
+
+    mdbxc::sync::http_add_header(
+        source, mdbxc::sync::HttpSyncHeaders::request_id(),
+        "source-request");
+    mdbxc::sync::http_add_header(
+        source, mdbxc::sync::HttpSyncHeaders::trace_id(),
+        "source-trace");
+    mdbxc::sync::http_add_header(
+        destination, "x-mdbxc-sync-request-id",
+        "existing-request");
+
+    mdbxc::sync::http_copy_sync_correlation_headers(source, destination);
+    mdbxc::sync::http_copy_sync_correlation_headers(source, destination);
+
+    std::size_t request_id_count = 0;
+    std::size_t trace_id_count = 0;
+    for (std::size_t i = 0; i < destination.size(); ++i) {
+        if (mdbxc::sync::http_header_name_equals(
+                destination[i].name,
+                mdbxc::sync::HttpSyncHeaders::request_id())) {
+            ++request_id_count;
+        }
+        if (mdbxc::sync::http_header_name_equals(
+                destination[i].name,
+                mdbxc::sync::HttpSyncHeaders::trace_id())) {
+            ++trace_id_count;
+        }
+    }
+
+    require_true(request_id_count == 1u,
+                 "correlation copy duplicated request id");
+    require_true(trace_id_count == 1u,
+                 "correlation copy duplicated trace id");
+    require_true(mdbxc::sync::http_header_value(
+                     destination,
+                     mdbxc::sync::HttpSyncHeaders::request_id()) ==
+                     "existing-request",
+                 "correlation copy replaced existing request id");
+    require_true(mdbxc::sync::http_header_value(
+                     destination,
+                     mdbxc::sync::HttpSyncHeaders::trace_id()) ==
+                     "source-trace",
+                 "correlation copy did not add trace id");
+}
+
 void test_http_bearer_node_identity_policy() {
     const mdbxc::sync::NodeId node_a = make_node(0x11);
     const mdbxc::sync::NodeId node_b = make_node(0x22);
@@ -487,6 +535,10 @@ void test_websocket_close_code_classification() {
                  "WebSocket 1000 must be success");
     require_true(mdbxc::sync::websocket_sync_close_code_is_retryable(1006),
                  "WebSocket 1006 must be retryable");
+    require_true(mdbxc::sync::websocket_sync_close_code_is_retryable(1011),
+                 "WebSocket 1011 must be retryable");
+    require_true(mdbxc::sync::websocket_sync_close_code_is_retryable(1012),
+                 "WebSocket 1012 must be retryable");
     require_true(mdbxc::sync::websocket_sync_close_code_is_retryable(1013),
                  "WebSocket 1013 must be retryable");
     require_true(!mdbxc::sync::websocket_sync_close_code_is_retryable(1008),
@@ -593,6 +645,7 @@ int main() {
     test_http_client_middleware_route_policy();
     test_http_client_middleware_budget_policy();
     test_http_context_policies();
+    test_http_correlation_copy_is_idempotent();
     test_http_bearer_node_identity_policy();
     test_http_bearer_node_identity_policy_rejects_invalid_body();
     test_http_retry_status_classification();
