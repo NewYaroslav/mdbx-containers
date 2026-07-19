@@ -6,7 +6,7 @@
 
 #if !defined(MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT) || \
         !MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT
-#error "transport usage target must expose MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT"
+#error "Simple-Web HTTP target must expose MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT"
 #endif
 
 int main() {
