@@ -711,6 +711,19 @@ void test_http_retry_hint() {
     hint = mdbxc::sync::http_sync_retry_hint(response);
     require_true(!hint.retryable,
                  "HTTP 401 hint must not be retryable");
+
+    std::uint64_t seconds = 0;
+    require_true(mdbxc::sync::parse_http_retry_after_delta_seconds(
+                     "0", seconds),
+                 "Retry-After zero seconds must parse");
+    require_true(seconds == 0u,
+                 "Retry-After zero seconds parsed incorrectly");
+    require_true(!mdbxc::sync::parse_http_retry_after_delta_seconds(
+                     "", seconds),
+                 "empty Retry-After must not parse");
+    require_true(!mdbxc::sync::parse_http_retry_after_delta_seconds(
+                     "18446744073709551616", seconds),
+                 "overflowing Retry-After must not parse");
 }
 
 void test_websocket_close_code_classification() {
@@ -745,6 +758,14 @@ void test_websocket_retry_hint() {
 }
 
 void test_transport_message_size_policy() {
+    bool threw = false;
+    try {
+        (void)mdbxc::sync::TransportMessageSizePolicy(0u);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    require_true(threw, "zero message size limit must be rejected");
+
     mdbxc::sync::TransportMessageSizePolicy policy(3u);
 
     mdbxc::sync::SyncTransportDecision decision =
@@ -765,6 +786,48 @@ void test_transport_message_size_policy() {
     decision = policy.check_websocket_message(context);
     require_true(decision.allowed,
                  "size policy rejected message at the configured limit");
+}
+
+void test_transport_zero_limit_policies() {
+    bool threw = false;
+    try {
+        (void)mdbxc::sync::FixedWindowHttpRateLimitPolicy(
+            1u, std::chrono::seconds(0));
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    require_true(threw, "zero HTTP rate-limit window must be rejected");
+
+    mdbxc::sync::FixedWindowHttpRateLimitPolicy rate(
+        0u, std::chrono::seconds(5));
+    mdbxc::sync::HttpSyncRequest request;
+    request.remote_address = "127.0.0.1";
+    mdbxc::sync::SyncTransportDecision decision =
+        rate.check_http_request(request);
+    require_true(!decision.allowed && decision.status_code == 429,
+                 "zero HTTP request limit must reject immediately");
+    require_true(mdbxc::sync::http_header_value(
+                     decision.response_headers, "Retry-After") !=
+                     std::string(),
+                 "zero HTTP request limit must include Retry-After");
+
+    mdbxc::sync::FixedBudgetSyncTransportPolicy budget(0u, 0u, 0u);
+    mdbxc::sync::PullRequest pull;
+    decision = budget.check_pull(pull);
+    require_true(!decision.allowed && decision.status_code == 429,
+                 "zero pull budget must reject");
+
+    mdbxc::sync::PushRequest push;
+    decision = budget.check_push(push);
+    require_true(!decision.allowed && decision.status_code == 429,
+                 "zero push budget must reject");
+
+    decision = budget.check_http_post(
+        mdbxc::sync::HttpSyncRoutes::pull_target(),
+        mdbxc::sync::HttpSyncRoutes::content_type(),
+        std::vector<std::uint8_t>());
+    require_true(!decision.allowed && decision.status_code == 429,
+                 "zero HTTP post budget must reject");
 }
 
 void test_http_client_middleware_copies_rejection_headers() {
@@ -852,6 +915,7 @@ int main() {
     test_websocket_close_code_classification();
     test_websocket_retry_hint();
     test_transport_message_size_policy();
+    test_transport_zero_limit_policies();
     test_http_client_middleware_copies_rejection_headers();
     test_http_server_middleware_copies_rejection_headers();
     return 0;
