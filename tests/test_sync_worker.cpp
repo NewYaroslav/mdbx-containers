@@ -883,6 +883,32 @@ void test_worker_run_once_drains_paginated_pull() {
         rounds[0].progress.batches_total != 5u) {
         throw std::runtime_error("worker observer round progress mismatch");
     }
+    const sync::SyncWorkerStatus status = worker.status();
+    if (status.state != sync::SyncWorkerState::Stopped ||
+        !status.last_stage_known || !status.last_round_known ||
+        status.round_active || status.backoff_active) {
+        throw std::runtime_error("worker status lifecycle mismatch");
+    }
+    if (status.rounds_started != 1u ||
+        status.rounds_completed != 1u ||
+        status.rounds_succeeded != 1u ||
+        status.rounds_failed != 0u) {
+        throw std::runtime_error("worker status counters mismatch");
+    }
+    if (status.current_stage != sync::SyncWorkerStage::RoundCompleted ||
+        status.last_stage.stage != sync::SyncWorkerStage::RoundCompleted ||
+        !status.last_round.ok ||
+        status.last_round.pages_pulled != 3u ||
+        status.last_round.batches_applied != 5u) {
+        throw std::runtime_error("worker status round snapshot mismatch");
+    }
+    if (!status.last_progress.remote_tail_known ||
+        status.last_progress.batches_applied != 5u ||
+        status.last_progress.batches_remaining != 0u ||
+        status.last_backoff_delay != std::chrono::milliseconds::zero() ||
+        status.last_round_finished_at < status.last_round_started_at) {
+        throw std::runtime_error("worker status progress snapshot mismatch");
+    }
 
     KeyValueTable<int, int> replica_kv(replica_conn, "kv");
     for (int i = 1; i <= 5; ++i) {
@@ -1069,6 +1095,16 @@ void test_worker_backoff_on_pull_error() {
     }
     if (!observer.wait_for_backoffs(1u, std::chrono::milliseconds(2000))) {
         throw std::runtime_error("worker observer did not see backoff");
+    }
+    const sync::SyncWorkerStatus status = worker.status();
+    if (status.state != sync::SyncWorkerState::Backoff ||
+        !status.backoff_active ||
+        status.last_backoff_delay != std::chrono::milliseconds(10000) ||
+        status.current_stage != sync::SyncWorkerStage::BackoffStarted ||
+        !status.last_round_known ||
+        status.last_round.ok ||
+        status.rounds_failed != 1u) {
+        throw std::runtime_error("worker backoff status snapshot mismatch");
     }
     const std::vector<sync::SyncWorkerRoundResult> rounds = observer.rounds();
     if (rounds.empty() || rounds[0].ok ||

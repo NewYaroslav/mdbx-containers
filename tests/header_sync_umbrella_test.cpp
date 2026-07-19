@@ -78,6 +78,10 @@ int main() {
     MDBXC_TEST_ASSERT(!default_retry_hint.available);
     MDBXC_TEST_ASSERT(!default_retry_hint.retryable);
     MDBXC_TEST_ASSERT(!default_retry_hint.has_retry_after);
+    mdbxc::sync::SyncWorkerStatus worker_status;
+    MDBXC_TEST_ASSERT(worker_status.state ==
+                      mdbxc::sync::SyncWorkerState::Stopped);
+    MDBXC_TEST_ASSERT(!worker_status.last_round_known);
     mdbxc::sync::TransportMessageSizePolicy size_policy(1024u);
     (void)size_policy;
     mdbxc::sync::IWebSocketSyncChannel* websocket_channel = nullptr;
