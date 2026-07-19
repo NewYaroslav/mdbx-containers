@@ -257,7 +257,45 @@ namespace sync {
         NodeId authenticated_node{};
         SyncDbAccess db_access;
         std::vector<std::uint8_t> binary_message;
+        std::string request_id;
+        std::string trace_id;
     };
+
+    /// \brief Adapter-local trace identifiers for logging and metrics.
+    /// \details These fields are never serialized into sync DTOs. HTTP
+    /// adapters usually get them from headers, while WebSocket bindings may
+    /// copy them from handshake metadata or framework session context.
+    struct SyncTransportTraceContext {
+        std::string request_id;
+        std::string trace_id;
+
+        bool empty() const {
+            return request_id.empty() && trace_id.empty();
+        }
+    };
+
+    inline SyncTransportTraceContext http_sync_trace_context(
+            const std::vector<HttpSyncHeader>& headers) {
+        SyncTransportTraceContext out;
+        out.request_id =
+            http_header_value(headers, HttpSyncHeaders::request_id());
+        out.trace_id =
+            http_header_value(headers, HttpSyncHeaders::trace_id());
+        return out;
+    }
+
+    inline SyncTransportTraceContext http_sync_trace_context(
+            const HttpSyncRequest& request) {
+        return http_sync_trace_context(request.headers);
+    }
+
+    inline SyncTransportTraceContext websocket_sync_trace_context(
+            const WebSocketSyncRequestContext& request) {
+        SyncTransportTraceContext out;
+        out.request_id = request.request_id;
+        out.trace_id = request.trace_id;
+        return out;
+    }
 
     /// \brief Policy hook for sync transport requests.
     /// \details Default methods allow every request. Implementations may
@@ -1063,6 +1101,8 @@ namespace sync {
         std::uint64_t rejected_calls = 0;
         std::uint64_t failed_calls = 0;
         std::uint64_t request_cancel_calls = 0;
+        std::uint64_t http_request_calls = 0;
+        std::uint64_t websocket_message_calls = 0;
         std::uint64_t pulled_batches = 0;
         std::uint64_t pushed_batches = 0;
     };
@@ -1095,11 +1135,21 @@ namespace sync {
             (void)response;
         }
 
+        virtual void on_sync_transport_http_request(
+                const HttpSyncRequest& request) {
+            (void)request;
+        }
+
         virtual void on_sync_transport_http_post_result(
                 const std::string& target,
                 const HttpSyncResponse& response) {
             (void)target;
             (void)response;
+        }
+
+        virtual void on_sync_transport_websocket_message(
+                const WebSocketSyncRequestContext& request) {
+            (void)request;
         }
 
         virtual void on_sync_transport_exception(
@@ -1160,6 +1210,13 @@ namespace sync {
             m_snapshot.pushed_batches += request.batches.size();
         }
 
+        void on_sync_transport_http_request(
+                const HttpSyncRequest& request) override {
+            (void)request;
+            std::lock_guard<std::mutex> lock(m_mutex);
+            ++m_snapshot.http_request_calls;
+        }
+
         void on_sync_transport_http_post_result(
                 const std::string& target,
                 const HttpSyncResponse& response) override {
@@ -1169,6 +1226,13 @@ namespace sync {
             if (response.status_code < 200 || response.status_code >= 300) {
                 ++m_snapshot.failed_calls;
             }
+        }
+
+        void on_sync_transport_websocket_message(
+                const WebSocketSyncRequestContext& request) override {
+            (void)request;
+            std::lock_guard<std::mutex> lock(m_mutex);
+            ++m_snapshot.websocket_message_calls;
         }
 
         void on_sync_transport_exception(
@@ -1223,6 +1287,28 @@ namespace sync {
             }
             try {
                 observer->on_sync_transport_cancel_requested();
+            } catch (...) {}
+        }
+
+        inline void notify_transport_http_request(
+                ISyncTransportObserver* observer,
+                const HttpSyncRequest& request) {
+            if (observer == nullptr) {
+                return;
+            }
+            try {
+                observer->on_sync_transport_http_request(request);
+            } catch (...) {}
+        }
+
+        inline void notify_transport_websocket_message(
+                ISyncTransportObserver* observer,
+                const WebSocketSyncRequestContext& request) {
+            if (observer == nullptr) {
+                return;
+            }
+            try {
+                observer->on_sync_transport_websocket_message(request);
             } catch (...) {}
         }
 
@@ -1372,6 +1458,7 @@ namespace sync {
               m_observer(observer) {}
 
         HttpSyncResponse handle(const HttpSyncRequest& request) {
+            detail::notify_transport_http_request(m_observer, request);
             if (m_policy != nullptr) {
                 const SyncTransportDecision decision =
                     m_policy->check_http_request(request);
@@ -1436,6 +1523,7 @@ namespace sync {
 
         std::vector<std::uint8_t> handle_binary_message(
                 const WebSocketSyncRequestContext& request) {
+            detail::notify_transport_websocket_message(m_observer, request);
             if (m_policy != nullptr) {
                 const SyncTransportDecision decision =
                     m_policy->check_websocket_message(request);

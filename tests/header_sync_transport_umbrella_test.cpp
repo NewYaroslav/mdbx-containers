@@ -54,6 +54,18 @@ int main() {
     websocket_context.db_access = mdbxc::sync::SyncDbAccess::only(node);
     websocket_context.binary_message = encoded;
 
+#if __cplusplus >= 201402L
+    const mdbxc::sync::WebSocketSyncRequestContext legacy_context = {
+        true,
+        node,
+        mdbxc::sync::SyncDbAccess::only(node),
+        encoded
+    };
+    MDBXC_TEST_ASSERT(legacy_context.binary_message == encoded);
+    MDBXC_TEST_ASSERT(legacy_context.request_id.empty());
+    MDBXC_TEST_ASSERT(legacy_context.trace_id.empty());
+#endif
+
     mdbxc::sync::WebSocketAuthenticatedNodeIdentityPolicy websocket_policy;
     MDBXC_TEST_ASSERT(
         websocket_policy.check_websocket_message(websocket_context).allowed);
