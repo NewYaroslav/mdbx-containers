@@ -102,7 +102,9 @@
   готовых transport targets.
   См. [sync transport production notes](guides/sync-transport-production.md)
   про TLS/WSS, ротацию токенов, graceful shutdown, structured logging и
-  offline dependency builds.
+  offline dependency builds. См.
+  [sync v0.1 readiness checklist](guides/sync-v0.1-readiness.md) про текущую
+  матрицу поддержки и отложенные задачи.
   Socket-backed примеры используют эти bindings вместо повторной реализации
   транспорта в каждом файле. Wire-format для специализированных таблиц отложен.
   HTTP auth,
