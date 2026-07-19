@@ -117,6 +117,42 @@ jobs:
           set -euo pipefail
           cmake --build build-installed-transport-backend --parallel
 
+      - name: Check provider argument validation
+        run: |
+          set -euo pipefail
+          for provider in \
+              simple_web_http \
+              simple_web_websocket \
+              kurlyk_http; do
+            case "$provider" in
+              simple_web_http)
+                function_name="mdbx_containers_simple_web_http_transport_provide"
+                ;;
+              simple_web_websocket)
+                function_name="mdbx_containers_simple_web_websocket_transport_provide"
+                ;;
+              kurlyk_http)
+                function_name="mdbx_containers_kurlyk_http_transport_provide"
+                ;;
+            esac
+            build_dir="build-installed-transport-backend-negative-$provider"
+            if cmake -S tests/cmake/installed_transport_backend_negative \
+                -B "$build_dir" -G "Ninja" \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_CXX_STANDARD=17 \
+                -DCMAKE_PREFIX_PATH="$PWD/build-install-prefix;$PWD/build-fake-mdbx" \
+                -DMDBXC_NEGATIVE_PROVIDER="$provider" \
+                -Wno-dev \
+                >"$build_dir.log" 2>&1; then
+              cat "$build_dir.log"
+              echo "$provider accepted unexpected provider arguments" >&2
+              exit 1
+            fi
+            cat "$build_dir.log"
+            grep -q "$function_name received unexpected" "$build_dir.log"
+            grep -q "arguments: UNEXPECTED_ARGUMENT" "$build_dir.log"
+          done
+
   benchmark-smoke:
     name: Benchmark smoke (Linux C++17)
     runs-on: ubuntu-latest
