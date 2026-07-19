@@ -18,6 +18,9 @@ promise: sync remains experimental and opt-in through `MDBXC_SYNC_ENABLED=1`.
   local transaction.
 - `SyncWorker` owns the background pull loop, pagination, cancellation tokens,
   observer callbacks, retry backoff, and optional `Retry-After` backoff hints.
+- `SyncWorker::status()` exposes a thread-safe snapshot for polling UIs,
+  health endpoints, and structured logging code that do not subscribe to
+  observer callbacks.
 - HTTP and WebSocket framework-neutral seams use `TransportMessageCodec`; DTOs
   do not carry bearer tokens, cookies, remote addresses, request ids, or trace
   ids.
@@ -67,8 +70,6 @@ it can make replication appear successful while logical state diverges.
 
 ## Suggested Next PRs
 
-- Add a thread-safe `SyncWorker` status snapshot for UI/logging code that does
-  not want to reconstruct state from observer callbacks.
 - Add explicit worker retry policy options for callers that want permanent
   transport hints to stop the background loop instead of remaining advisory.
 - Add small ergonomics helpers around capture attachment and common worker

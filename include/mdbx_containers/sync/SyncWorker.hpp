@@ -120,6 +120,37 @@ namespace sync {
         SyncTransportRetryHint retry_hint; ///< Transport retry advice.
     };
 
+    /// \brief Thread-safe snapshot of the current \c SyncWorker status.
+    /// \details The snapshot is intended for polling UIs, health endpoints,
+    /// and structured logging code that does not want to reconstruct state
+    /// from observer callbacks. Time points use the process-local steady
+    /// clock and are meaningful only for elapsed-time calculations inside the
+    /// current process.
+    struct SyncWorkerStatus {
+        SyncWorkerState state =
+            SyncWorkerState::Stopped; ///< Current lifecycle state.
+        SyncWorkerStage current_stage =
+            SyncWorkerStage::RoundCompleted; ///< Last observed stage.
+        bool last_stage_known = false; ///< Whether \c last_stage is valid.
+        bool last_round_known = false; ///< Whether \c last_round is valid.
+        bool round_active = false; ///< A round has started and not completed.
+        bool backoff_active = false; ///< Worker is currently in backoff wait.
+        std::uint64_t rounds_started = 0; ///< Rounds started in this session.
+        std::uint64_t rounds_completed = 0; ///< Rounds completed in this session.
+        std::uint64_t rounds_succeeded = 0; ///< Successful completed rounds.
+        std::uint64_t rounds_failed = 0; ///< Failed completed rounds.
+        SyncWorkerStageEvent last_stage; ///< Last reported stage event.
+        SyncWorkerRoundResult last_round; ///< Last completed round result.
+        SyncWorkerProgressEstimate last_progress; ///< Last known progress.
+        SyncTransportRetryHint last_retry_hint; ///< Last known retry hint.
+        std::chrono::milliseconds last_backoff_delay =
+            std::chrono::milliseconds::zero(); ///< Last scheduled backoff.
+        std::chrono::steady_clock::time_point last_round_started_at;
+        std::chrono::steady_clock::time_point last_round_finished_at;
+        std::string last_error; ///< Most recent worker failure message.
+        std::string last_observer_error; ///< Most recent observer failure.
+    };
+
     /// \brief Details for a successfully applied page.
     struct SyncWorkerPageEvent {
         std::size_t pages_pulled = 0; ///< 1-based page count in the round.
@@ -239,6 +270,7 @@ namespace sync {
                 m_last_error.clear();
                 m_last_observer_error.clear();
                 m_state = SyncWorkerState::Starting;
+                reset_status_locked();
             }
             m_state_changed.notify_all();
             try {
@@ -319,6 +351,7 @@ namespace sync {
                 m_peer_cancel_requested = false;
                 m_last_error.clear();
                 m_last_observer_error.clear();
+                reset_status_locked();
             }
             const SyncWorkerRoundResult result = run_once_impl();
             notify_round_completed(result);
@@ -359,6 +392,16 @@ namespace sync {
         std::string last_observer_error() const {
             std::lock_guard<std::mutex> lock(m_mutex);
             return m_last_observer_error;
+        }
+
+        /// \brief Returns a thread-safe snapshot of worker status.
+        SyncWorkerStatus status() const {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            SyncWorkerStatus snapshot = m_status;
+            snapshot.state = m_state;
+            snapshot.last_error = m_last_error;
+            snapshot.last_observer_error = m_last_observer_error;
+            return snapshot;
         }
 
         /// \brief Waits until \p desired is observed or \p timeout expires.
@@ -684,6 +727,7 @@ namespace sync {
         }
 
         void notify_stage_changed(const SyncWorkerStageEvent& event) const {
+            record_stage_status(event);
             if (m_options.observer == nullptr) {
                 return;
             }
@@ -711,6 +755,7 @@ namespace sync {
 
         void notify_round_completed(
                 const SyncWorkerRoundResult& result) const {
+            record_round_status(result);
             notify_stage_changed(make_stage_event(
                 SyncWorkerStage::RoundCompleted, result));
             if (m_options.observer == nullptr) {
@@ -727,6 +772,7 @@ namespace sync {
 
         void notify_backoff(const SyncWorkerRoundResult& result,
                             std::chrono::milliseconds delay) const {
+            record_backoff_status(delay);
             SyncWorkerStageEvent event = make_stage_event(
                 SyncWorkerStage::BackoffStarted, result);
             event.state = SyncWorkerState::Backoff;
@@ -753,6 +799,56 @@ namespace sync {
                 error += detail;
             }
             set_last_observer_error(error);
+        }
+
+        void reset_status_locked() const {
+            m_status = SyncWorkerStatus();
+            m_status.state = m_state;
+        }
+
+        void record_stage_status(
+                const SyncWorkerStageEvent& event) const {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_status.state = m_state;
+            m_status.current_stage = event.stage;
+            m_status.last_stage_known = true;
+            m_status.last_stage = event;
+            m_status.last_progress = event.progress;
+            m_status.last_retry_hint = event.retry_hint;
+            if (event.stage == SyncWorkerStage::RoundStarted) {
+                m_status.round_active = true;
+                m_status.backoff_active = false;
+                m_status.last_backoff_delay =
+                    std::chrono::milliseconds::zero();
+                m_status.last_round_started_at =
+                    std::chrono::steady_clock::now();
+                ++m_status.rounds_started;
+            }
+        }
+
+        void record_round_status(
+                const SyncWorkerRoundResult& result) const {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_status.last_round_known = true;
+            m_status.last_round = result;
+            m_status.last_progress = result.progress;
+            m_status.last_retry_hint = result.retry_hint;
+            m_status.round_active = false;
+            m_status.last_round_finished_at =
+                std::chrono::steady_clock::now();
+            ++m_status.rounds_completed;
+            if (result.ok) {
+                ++m_status.rounds_succeeded;
+            } else {
+                ++m_status.rounds_failed;
+            }
+        }
+
+        void record_backoff_status(
+                std::chrono::milliseconds delay) const {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_status.backoff_active = true;
+            m_status.last_backoff_delay = delay;
         }
 
         bool begin_peer_call(CancellationToken& token) const {
@@ -856,6 +952,10 @@ namespace sync {
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 m_state = state;
+                m_status.state = state;
+                if (state != SyncWorkerState::Backoff) {
+                    m_status.backoff_active = false;
+                }
             }
             m_state_changed.notify_all();
         }
@@ -883,6 +983,7 @@ namespace sync {
         mutable CancellationSource  m_peer_cancel_source;
         mutable std::string         m_last_error;
         mutable std::string         m_last_observer_error;
+        mutable SyncWorkerStatus    m_status;
     };
 
 } // namespace sync
