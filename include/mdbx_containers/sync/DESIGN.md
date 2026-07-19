@@ -660,6 +660,10 @@ and propagate the matching `MDBXC_HAS_*_TRANSPORT` macro. This keeps installed
 packages relocatable while preserving the same target-based usage model as the
 source-tree examples and tests.
 
+Production deployment details for TLS/WSS, token rotation, graceful shutdown,
+structured logging, and offline dependency management are kept in
+`guides/sync-transport-production.md`.
+
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
 MDBX has no batch "delete by key range" primitive. The supported pattern
