@@ -57,10 +57,15 @@
   DUPSORT duplicate framing, and hash-index identity semantics are specified.
 - Application CRUD code does not need per-method sync wrappers for supported
   tables. Attach `ThreadLocalChangeAccumulator` to the writing `Connection`;
-  committed standalone writes become standalone sync batches, while an explicit
-  transaction spanning several supported tables becomes one atomic local batch.
-  Read/search calls are not captured. A separate `SyncWorker` plus an
-  `ISyncPeer` transport moves committed batches between nodes.
+  use `SyncCaptureScope` for bounded write phases, or the lower-level
+  `attach_sync_capture()` / `detach_sync_capture()` pair for a deliberately
+  long-lived application capture lifecycle. Nested capture scopes must end in
+  strict LIFO order; do not change the connection capture sink directly while a
+  scope is active. Committed standalone writes become standalone sync batches,
+  while an explicit transaction spanning several supported tables becomes one
+  atomic local batch. Read/search calls are not captured. A separate
+  `SyncWorker` plus an `ISyncPeer` transport moves committed batches between
+  nodes.
 - `SyncEngine` exposes pull/push/apply primitives, `DirectSyncPeer` provides
   in-process sync for tests and examples, `HttpSyncPeer` defines an HTTP-shaped
   adapter seam, `WebSocketSyncPeer` defines a binary message seam, and

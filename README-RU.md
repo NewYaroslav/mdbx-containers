@@ -79,11 +79,16 @@
   DUPSORT duplicate framing и hash-index identity semantics.
 - Для поддерживаемых таблиц прикладной CRUD-код не нужно оборачивать
   отдельными sync-вызовами на каждый метод. Прикрепите
-  `ThreadLocalChangeAccumulator` к пишущему `Connection`; закоммиченные
-  одиночные записи становятся одиночными sync batches, а явная транзакция,
-  объединяющая несколько поддерживаемых таблиц, становится одним атомарным
-  локальным batch. Read/search-вызовы не захватываются. Отдельный `SyncWorker`
-  плюс транспорт `ISyncPeer` переносят закоммиченные batches между узлами.
+  `ThreadLocalChangeAccumulator` к пишущему `Connection`; используйте
+  `SyncCaptureScope` для ограниченных фаз записи или более низкоуровневую пару
+  `attach_sync_capture()` / `detach_sync_capture()` для намеренно долгоживущего
+  lifecycle захвата на уровне приложения. Вложенные capture scopes должны
+  завершаться строго в обратном порядке; не меняйте capture sink соединения
+  напрямую, пока scope активен. Закоммиченные одиночные записи становятся
+  одиночными sync batches, а явная транзакция, объединяющая несколько
+  поддерживаемых таблиц, становится одним атомарным локальным batch.
+  Read/search-вызовы не захватываются. Отдельный `SyncWorker` плюс транспорт
+  `ISyncPeer` переносят закоммиченные batches между узлами.
 - `SyncEngine` предоставляет pull/push/apply primitives, `DirectSyncPeer`
   используется для in-process синхронизации в тестах и примерах,
   `HttpSyncPeer` задаёт HTTP-shaped adapter seam, `WebSocketSyncPeer` задаёт
