@@ -62,6 +62,17 @@ namespace sync {
         return std::string();
     }
 
+    /// \brief Returns true when a matching HTTP header name is present.
+    inline bool http_has_header(const std::vector<HttpSyncHeader>& headers,
+                                const std::string& name) {
+        for (std::size_t i = 0; i < headers.size(); ++i) {
+            if (http_header_name_equals(headers[i].name, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// \brief Appends one response/request header.
     inline void http_add_header(std::vector<HttpSyncHeader>& headers,
                                 const std::string& name,
@@ -89,7 +100,7 @@ namespace sync {
             std::vector<HttpSyncHeader>& destination,
             const std::string& name) {
         const std::string value = http_header_value(source, name);
-        if (!value.empty()) {
+        if (!value.empty() && !http_has_header(destination, name)) {
             http_add_header(destination, name, value);
         }
     }
