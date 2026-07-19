@@ -77,6 +77,15 @@ public:
         ++m_cancel_count;
     }
 
+    mdbxc::sync::SyncTransportRetryHint last_retry_hint() const override {
+        return m_last_retry_hint;
+    }
+
+    void set_last_retry_hint(
+            const mdbxc::sync::SyncTransportRetryHint& hint) {
+        m_last_retry_hint = hint;
+    }
+
     std::size_t exchange_count() const { return m_exchange_count; }
     std::size_t cancel_count() const { return m_cancel_count; }
     bool last_token_cancellable() const { return m_last_token_cancellable; }
@@ -90,6 +99,7 @@ private:
     std::size_t m_cancel_count;
     bool m_last_token_cancellable;
     mdbxc::sync::TransportMessageType m_last_type;
+    mdbxc::sync::SyncTransportRetryHint m_last_retry_hint;
 };
 
 void test_websocket_peer_pull_and_push_roundtrip() {
@@ -174,6 +184,15 @@ void test_websocket_peer_pull_and_push_roundtrip() {
     replica_peer.request_cancel();
     require_true(replica_channel.cancel_count() == 1u,
                  "WebSocket peer did not forward request_cancel()");
+    mdbxc::sync::SyncTransportRetryHint retry_hint;
+    retry_hint.available = true;
+    retry_hint.retryable = true;
+    retry_hint.has_retry_after = false;
+    primary_channel.set_last_retry_hint(retry_hint);
+    require_true(primary_peer.last_retry_hint().available,
+                 "WebSocket peer did not expose available channel retry hint");
+    require_true(primary_peer.last_retry_hint().retryable,
+                 "WebSocket peer did not expose channel retry hint");
 
     mdbxc::KeyValueTable<int, std::string> replica_ticks(replica, "ticks");
     require_true(get_value(replica, replica_ticks, 1) == "BTC/USD",

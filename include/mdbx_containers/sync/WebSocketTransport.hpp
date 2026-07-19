@@ -22,6 +22,56 @@
 namespace mdbxc {
 namespace sync {
 
+    /// \brief Retry classification for adapter-level WebSocket close codes.
+    enum class WebSocketSyncCloseRetryClass : std::uint8_t {
+        Success,
+        Retryable,
+        Permanent
+    };
+
+    /// \brief Classifies WebSocket close codes for sync retry policy.
+    /// \details Codes 1005 and 1006 are local observations rather than close
+    /// frame status values, but adapters commonly surface them to callers.
+    inline WebSocketSyncCloseRetryClass
+    classify_websocket_sync_close_code(unsigned close_code) {
+        switch (close_code) {
+            case 1000:
+                return WebSocketSyncCloseRetryClass::Success;
+            case 1001:
+            case 1005:
+            case 1006:
+            case 1011:
+            case 1012:
+            case 1013:
+            case 1014:
+                return WebSocketSyncCloseRetryClass::Retryable;
+            default:
+                return WebSocketSyncCloseRetryClass::Permanent;
+        }
+    }
+
+    /// \brief Returns true when a WebSocket close code is retryable.
+    inline bool websocket_sync_close_code_is_retryable(
+            unsigned close_code) {
+        return classify_websocket_sync_close_code(close_code) ==
+               WebSocketSyncCloseRetryClass::Retryable;
+    }
+
+    /// \brief Builds retry advice from a WebSocket close code.
+    inline SyncTransportRetryHint websocket_sync_retry_hint(
+            unsigned close_code) {
+        SyncTransportRetryHint hint;
+        const WebSocketSyncCloseRetryClass classification =
+            classify_websocket_sync_close_code(close_code);
+        if (classification == WebSocketSyncCloseRetryClass::Success) {
+            return hint;
+        }
+        hint.available = true;
+        hint.retryable =
+            classification == WebSocketSyncCloseRetryClass::Retryable;
+        return hint;
+    }
+
     /// \brief Client-side bridge implemented by a concrete WebSocket library.
     /// \details \p binary_message must contain exactly one
     /// \c TransportMessageCodec request. Implementations return exactly one
@@ -43,6 +93,15 @@ namespace sync {
 
         /// \brief Best-effort cancellation hook for an in-flight exchange.
         virtual void request_cancel() {}
+
+        /// \brief Returns retry advice for the most recent exchange failure.
+        /// \details Channels that surface WebSocket close codes or
+        /// framework-specific retry metadata may override this method. The
+        /// default returns an unavailable hint.
+        /// \return Retry hint for the last observed exchange failure.
+        virtual SyncTransportRetryHint last_retry_hint() const {
+            return SyncTransportRetryHint();
+        }
     };
 
     /// \brief Server-side dispatcher from binary WebSocket messages to
@@ -133,6 +192,10 @@ namespace sync {
 
         void request_cancel() override {
             m_channel.request_cancel();
+        }
+
+        SyncTransportRetryHint last_retry_hint() const override {
+            return m_channel.last_retry_hint();
         }
 
     private:

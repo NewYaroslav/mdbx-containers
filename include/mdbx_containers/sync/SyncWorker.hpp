@@ -101,6 +101,7 @@ namespace sync {
         bool        has_more = false; ///< Whether the peer reported more pages.
         SyncWorkerProgressEstimate progress; ///< Last known progress.
         std::string error; ///< Failure detail when \c ok is false.
+        SyncTransportRetryHint retry_hint; ///< Transport retry advice.
     };
 
     /// \brief Fine-grained observer event for sync round stages.
@@ -116,6 +117,7 @@ namespace sync {
         bool        ok = true; ///< Whether the current stage succeeded.
         SyncWorkerProgressEstimate progress; ///< Last known progress.
         std::string error; ///< Failure detail when \c ok is false.
+        SyncTransportRetryHint retry_hint; ///< Transport retry advice.
     };
 
     /// \brief Details for a successfully applied page.
@@ -477,6 +479,8 @@ namespace sync {
                             }
                             result.progress = progress;
                             event.progress = progress;
+                        } else {
+                            event.retry_hint = m_peer.last_retry_hint();
                         }
                         notify_stage_changed(event);
                     }
@@ -485,6 +489,7 @@ namespace sync {
                         result.error = response.error.empty()
                             ? "pull failed"
                             : response.error;
+                        result.retry_hint = m_peer.last_retry_hint();
                         return result;
                     }
                     ++result.pages_pulled;
@@ -572,9 +577,11 @@ namespace sync {
             } catch (const std::exception& e) {
                 result.ok = false;
                 result.error = e.what();
+                result.retry_hint = m_peer.last_retry_hint();
             } catch (...) {
                 result.ok = false;
                 result.error = "unknown sync worker error";
+                result.retry_hint = m_peer.last_retry_hint();
             }
             return result;
         }
@@ -591,6 +598,7 @@ namespace sync {
             event.ok = result.ok;
             event.progress = result.progress;
             event.error = result.error;
+            event.retry_hint = result.retry_hint;
             return event;
         }
 
@@ -643,6 +651,36 @@ namespace sync {
                 : static_cast<double>(estimate.batches_applied) /
                     static_cast<double>(estimate.batches_total);
             return estimate;
+        }
+
+        std::chrono::milliseconds retry_delay(
+                const SyncWorkerRoundResult& result,
+                std::chrono::milliseconds fallback) const {
+            if (!result.retry_hint.available ||
+                !result.retry_hint.retryable ||
+                !result.retry_hint.has_retry_after) {
+                return fallback;
+            }
+            const std::chrono::milliseconds hinted =
+                retry_after_to_milliseconds(
+                    result.retry_hint.retry_after_seconds);
+            return hinted > m_options.max_backoff
+                ? m_options.max_backoff
+                : hinted;
+        }
+
+        static std::chrono::milliseconds retry_after_to_milliseconds(
+                std::uint64_t seconds) {
+            const std::chrono::milliseconds max_delay =
+                (std::chrono::milliseconds::max)();
+            const std::uint64_t max_count =
+                static_cast<std::uint64_t>(max_delay.count());
+            if (seconds > max_count / 1000u) {
+                return max_delay;
+            }
+            return std::chrono::milliseconds(
+                static_cast<std::chrono::milliseconds::rep>(
+                    seconds * 1000u));
         }
 
         void notify_stage_changed(const SyncWorkerStageEvent& event) const {
@@ -772,8 +810,10 @@ namespace sync {
                     } else {
                         set_last_error(result.error);
                         set_state(SyncWorkerState::Backoff);
-                        notify_backoff(result, backoff);
-                        if (wait_for_stop(backoff)) {
+                        const std::chrono::milliseconds delay =
+                            retry_delay(result, backoff);
+                        notify_backoff(result, delay);
+                        if (wait_for_stop(delay)) {
                             break;
                         }
                         backoff = next_backoff(backoff);

@@ -103,7 +103,10 @@ advice for the current failure. When a peer returns `available=true` and
 Successful transport responses should clear back to an unavailable hint because
 there is no failure to classify.
 The hint is intentionally advisory: applications may cap, ignore, or combine it
-with their own retry and circuit-breaker policy.
+with their own retry and circuit-breaker policy. `SyncWorker` copies the hint
+into failed round and stage events. In background mode, an available retryable
+relative `Retry-After` value replaces the current exponential backoff delay for
+one wait and is capped by `SyncWorkerOptions::max_backoff`.
 
 ## Structured Logging
 
