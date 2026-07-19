@@ -77,6 +77,9 @@
   `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` for conditional backend includes.
   Installed packages also export CMake provider functions for these ready-made
   transport targets.
+  See [sync transport production notes](guides/sync-transport-production.md)
+  for TLS/WSS, token rotation, graceful shutdown, structured logging, and
+  offline dependency guidance.
   Socket-backed examples use those bindings instead of reimplementing the
   transport in each file. Specialized table wire formats remain deferred.
   HTTP auth, remote-address checks, and rate-limit headers live in

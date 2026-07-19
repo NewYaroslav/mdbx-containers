@@ -100,6 +100,9 @@
   `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` для условного подключения backend headers.
   Установленный package также экспортирует CMake provider functions для этих
   готовых transport targets.
+  См. [sync transport production notes](guides/sync-transport-production.md)
+  про TLS/WSS, ротацию токенов, graceful shutdown, structured logging и
+  offline dependency builds.
   Socket-backed примеры используют эти bindings вместо повторной реализации
   транспорта в каждом файле. Wire-format для специализированных таблиц отложен.
   HTTP auth,
