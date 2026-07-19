@@ -39,6 +39,21 @@ includes around optional sync transport backends. Consumers that wire the same
 third-party dependencies manually may define the corresponding `MDBXC_HAS_*`
 macro themselves.
 
+After `find_package(mdbx_containers CONFIG REQUIRED)`, installed-package
+consumers can create the same ready-made transport usage targets with:
+
+```cmake
+mdbx_containers_simple_web_http_transport_provide(OUT_TARGET http_target)
+mdbx_containers_simple_web_websocket_transport_provide(OUT_TARGET ws_target)
+mdbx_containers_kurlyk_http_transport_provide(OUT_TARGET kurlyk_target)
+```
+
+The returned targets are `mdbx_containers::simple_web_http_transport`,
+`mdbx_containers::simple_web_websocket_transport`, and
+`mdbx_containers::kurlyk_http_transport`. They enable `MDBXC_SYNC_ENABLED`,
+link `mdbx_containers::mdbx_containers`, fetch or find the optional backend
+dependencies, and propagate the matching `MDBXC_HAS_*_TRANSPORT` macro.
+
 When `mdbx-containers` is added as a subproject, existing parent-provided
 `mdbx::mdbx`, `mdbx::mdbx-static`, `libmdbx::mdbx`, and
 `libmdbx::mdbx-static` targets are reused before package, submodule, or

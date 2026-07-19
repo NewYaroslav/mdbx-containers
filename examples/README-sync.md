@@ -115,6 +115,25 @@ matching backend for compatibility with older commands. Consumer targets get
 `MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, or
 `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` from the concrete dependency target they link.
 
+With an installed package, use the exported provider functions to create those
+targets:
+
+```cmake
+find_package(mdbx_containers CONFIG REQUIRED)
+
+mdbx_containers_simple_web_http_transport_provide(OUT_TARGET http_target)
+target_link_libraries(my_http_node PRIVATE ${http_target})
+
+mdbx_containers_simple_web_websocket_transport_provide(OUT_TARGET ws_target)
+target_link_libraries(my_ws_node PRIVATE ${ws_target})
+
+mdbx_containers_kurlyk_http_transport_provide(OUT_TARGET kurlyk_target)
+target_link_libraries(my_kurlyk_client PRIVATE ${kurlyk_target})
+```
+
+The returned targets enable `MDBXC_SYNC_ENABLED`, link the core package target,
+and propagate the matching `MDBXC_HAS_*_TRANSPORT` macro.
+
 The real WebSocket binding example is also opt-in because it fetches standalone
 Asio and Simple-WebSocket-Server headers. Simple-WebSocket-Server uses OpenSSL
 Crypto for the WebSocket handshake, so set `OPENSSL_ROOT_DIR` if CMake cannot

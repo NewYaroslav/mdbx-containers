@@ -117,6 +117,25 @@ Consumer targets получают `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
 `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` от concrete dependency target, к которому
 они линкуются.
 
+При использовании установленного package эти targets можно создать через
+экспортированные provider functions:
+
+```cmake
+find_package(mdbx_containers CONFIG REQUIRED)
+
+mdbx_containers_simple_web_http_transport_provide(OUT_TARGET http_target)
+target_link_libraries(my_http_node PRIVATE ${http_target})
+
+mdbx_containers_simple_web_websocket_transport_provide(OUT_TARGET ws_target)
+target_link_libraries(my_ws_node PRIVATE ${ws_target})
+
+mdbx_containers_kurlyk_http_transport_provide(OUT_TARGET kurlyk_target)
+target_link_libraries(my_kurlyk_client PRIVATE ${kurlyk_target})
+```
+
+Возвращаемые targets включают `MDBXC_SYNC_ENABLED`, линкуют core package target
+и распространяют соответствующий `MDBXC_HAS_*_TRANSPORT` macro.
+
 Реальный WebSocket binding example тоже включается отдельно, потому что он
 скачивает headers standalone Asio и Simple-WebSocket-Server.
 Simple-WebSocket-Server использует OpenSSL Crypto для WebSocket handshake,

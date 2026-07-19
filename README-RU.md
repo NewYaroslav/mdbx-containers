@@ -98,6 +98,8 @@
   `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
   `MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT` или
   `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` для условного подключения backend headers.
+  Установленный package также экспортирует CMake provider functions для этих
+  готовых transport targets.
   Socket-backed примеры используют эти bindings вместо повторной реализации
   транспорта в каждом файле. Wire-format для специализированных таблиц отложен.
   HTTP auth,
