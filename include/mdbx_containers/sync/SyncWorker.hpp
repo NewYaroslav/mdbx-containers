@@ -50,6 +50,12 @@ namespace sync {
         BackoffStarted, ///< Background worker entered retry backoff.
     };
 
+    /// \brief Policy for classified permanent transport failures.
+    enum class SyncWorkerPermanentFailurePolicy {
+        KeepRetrying, ///< Keep using normal background retry/backoff.
+        StopWorker    ///< Stop the background loop in \c Failed state.
+    };
+
     /// \brief Timing and pagination settings for \c SyncWorker.
     struct SyncWorkerOptions {
         /// \brief Max batches requested from the peer per pull page.
@@ -72,6 +78,14 @@ namespace sync {
 
         /// \brief Whether one round drains all \c has_more pages immediately.
         bool drain_pages = true;
+
+        /// \brief How the background worker handles permanent transport hints.
+        /// \details The default keeps v0.1 retry hints advisory. Set to
+        /// \c StopWorker when a classified permanent transport failure should
+        /// leave the worker in \c SyncWorkerState::Failed instead of entering
+        /// retry backoff.
+        SyncWorkerPermanentFailurePolicy permanent_failure_policy =
+            SyncWorkerPermanentFailurePolicy::KeepRetrying;
 
         /// \brief Optional observer for stage, page, round, and backoff events.
         /// \details The worker does not own the observer. When set, the
@@ -889,6 +903,7 @@ namespace sync {
 
         void thread_main() {
             std::chrono::milliseconds backoff = m_options.initial_backoff;
+            bool failed = false;
             try {
                 set_state(SyncWorkerState::Idle);
                 while (!stop_requested()) {
@@ -905,6 +920,11 @@ namespace sync {
                         }
                     } else {
                         set_last_error(result.error);
+                        if (should_stop_on_permanent_failure(result)) {
+                            failed = true;
+                            set_state(SyncWorkerState::Failed);
+                            break;
+                        }
                         set_state(SyncWorkerState::Backoff);
                         const std::chrono::milliseconds delay =
                             retry_delay(result, backoff);
@@ -915,7 +935,9 @@ namespace sync {
                         backoff = next_backoff(backoff);
                     }
                 }
-                set_state(SyncWorkerState::Stopped);
+                if (!failed) {
+                    set_state(SyncWorkerState::Stopped);
+                }
             } catch (const std::exception& e) {
                 set_last_error(e.what());
                 set_state(SyncWorkerState::Failed);
@@ -941,6 +963,14 @@ namespace sync {
                 return m_options.max_backoff;
             }
             return current + current;
+        }
+
+        bool should_stop_on_permanent_failure(
+                const SyncWorkerRoundResult& result) const {
+            return m_options.permanent_failure_policy ==
+                SyncWorkerPermanentFailurePolicy::StopWorker &&
+                result.retry_hint.available &&
+                !result.retry_hint.retryable;
         }
 
         bool stop_requested() const {

@@ -335,6 +335,36 @@ private:
     int m_cancel_count;
 };
 
+class PermanentHintPeer : public mdbxc::sync::ISyncPeer {
+public:
+    PermanentHintPeer() {
+        m_hint.available = true;
+        m_hint.retryable = false;
+    }
+
+    mdbxc::sync::PullResponse pull(
+            const mdbxc::sync::PullRequest& request) override {
+        (void)request;
+        mdbxc::sync::PullResponse response;
+        response.ok = false;
+        response.error = "permanent transport failure";
+        return response;
+    }
+
+    mdbxc::sync::PushResponse push(
+            const mdbxc::sync::PushRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PushResponse();
+    }
+
+    mdbxc::sync::SyncTransportRetryHint last_retry_hint() const override {
+        return m_hint;
+    }
+
+private:
+    mdbxc::sync::SyncTransportRetryHint m_hint;
+};
+
 class SelfStoppingPeer : public mdbxc::sync::ISyncPeer {
 public:
     SelfStoppingPeer()
@@ -1176,6 +1206,98 @@ void test_worker_backoff_uses_retry_after_hint() {
     cleanup(path);
 }
 
+void test_worker_permanent_hint_keeps_retrying_by_default() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_permanent_default.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    PermanentHintPeer peer;
+    RecordingWorkerObserver observer;
+    sync::SyncWorkerOptions options;
+    options.initial_backoff = std::chrono::milliseconds(10000);
+    options.max_backoff = std::chrono::milliseconds(10000);
+    options.observer = &observer;
+    sync::SyncWorker worker(engine, peer, options);
+
+    worker.start();
+    if (!observer.wait_for_backoffs(1u, std::chrono::milliseconds(2000))) {
+        throw std::runtime_error(
+            "permanent hint default worker did not enter backoff");
+    }
+    const sync::SyncWorkerStatus status = worker.status();
+    if (status.state != sync::SyncWorkerState::Backoff ||
+        !status.backoff_active ||
+        status.last_backoff_delay != std::chrono::milliseconds(10000) ||
+        !status.last_round_known ||
+        status.last_round.ok ||
+        !status.last_round.retry_hint.available ||
+        status.last_round.retry_hint.retryable ||
+        status.rounds_failed != 1u) {
+        throw std::runtime_error(
+            "permanent hint default status snapshot mismatch");
+    }
+    worker.stop();
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("permanent hint default worker did not stop");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_worker_permanent_hint_can_stop_worker() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_permanent_stop.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xB0), make_node(0xD0));
+
+    PermanentHintPeer peer;
+    RecordingWorkerObserver observer;
+    sync::SyncWorkerOptions options;
+    options.initial_backoff = std::chrono::milliseconds(10000);
+    options.max_backoff = std::chrono::milliseconds(10000);
+    options.observer = &observer;
+    options.permanent_failure_policy =
+        sync::SyncWorkerPermanentFailurePolicy::StopWorker;
+    sync::SyncWorker worker(engine, peer, options);
+
+    worker.start();
+    if (!worker.wait_until_state(sync::SyncWorkerState::Failed,
+                                 std::chrono::milliseconds(2000))) {
+        throw std::runtime_error(
+            "permanent hint worker did not enter Failed state");
+    }
+    worker.join();
+
+    const sync::SyncWorkerStatus status = worker.status();
+    if (status.state != sync::SyncWorkerState::Failed ||
+        status.backoff_active ||
+        status.last_backoff_delay != std::chrono::milliseconds(0) ||
+        !status.last_round_known ||
+        status.last_round.ok ||
+        !status.last_round.retry_hint.available ||
+        status.last_round.retry_hint.retryable ||
+        status.rounds_failed != 1u ||
+        status.last_error.find("permanent transport failure") ==
+            std::string::npos) {
+        throw std::runtime_error("permanent hint stop status mismatch");
+    }
+    if (!observer.backoffs().empty()) {
+        throw std::runtime_error(
+            "permanent hint stop worker should not enter backoff");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
 void test_worker_observer_exception_does_not_fail_round() {
     using namespace mdbxc;
     const std::string path = "test_worker_observer_exception.mdbx";
@@ -1664,6 +1786,10 @@ int main() {
         { "test_worker_backoff_on_pull_error", &test_worker_backoff_on_pull_error },
         { "test_worker_backoff_uses_retry_after_hint",
           &test_worker_backoff_uses_retry_after_hint },
+        { "test_worker_permanent_hint_keeps_retrying_by_default",
+          &test_worker_permanent_hint_keeps_retrying_by_default },
+        { "test_worker_permanent_hint_can_stop_worker",
+          &test_worker_permanent_hint_can_stop_worker },
         { "test_worker_observer_exception_does_not_fail_round",
           &test_worker_observer_exception_does_not_fail_round },
         { "test_worker_stage_observer_exception_does_not_fail_round",

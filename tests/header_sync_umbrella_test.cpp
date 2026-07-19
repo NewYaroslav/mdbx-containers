@@ -82,6 +82,12 @@ int main() {
     MDBXC_TEST_ASSERT(worker_status.state ==
                       mdbxc::sync::SyncWorkerState::Stopped);
     MDBXC_TEST_ASSERT(!worker_status.last_round_known);
+    mdbxc::sync::SyncWorkerOptions worker_options;
+    worker_options.permanent_failure_policy =
+        mdbxc::sync::SyncWorkerPermanentFailurePolicy::StopWorker;
+    MDBXC_TEST_ASSERT(
+        worker_options.permanent_failure_policy ==
+        mdbxc::sync::SyncWorkerPermanentFailurePolicy::StopWorker);
     mdbxc::sync::TransportMessageSizePolicy size_policy(1024u);
     (void)size_policy;
     mdbxc::sync::IWebSocketSyncChannel* websocket_channel = nullptr;
