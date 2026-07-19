@@ -204,6 +204,7 @@ cmake -S . -B tmp/build-ws-example `
 | `sync_17_websocket_simple_web_server.cpp` | Ready-made Simple-WebSocket binding over standalone Asio. | Advanced |
 | `sync_18_http_node_fleet.cpp` | Multi-process node fleet using the ready-made Simple-Web HTTP binding. | Advanced |
 | `sync_19_kurlyk_http_client.cpp` | Ready-made Kurlyk/libcurl HTTP client binding against the Simple-Web sync listener. | Advanced |
+| `sync_20_observability.cpp` | Worker and transport observer logs with trace IDs, progress, and retry hints. | Advanced |
 
 ## Common Rules
 
@@ -345,6 +346,13 @@ Simple-Web HTTP listener and swaps the client-side backend to
 adapter shape for additional HTTP clients: implement `IHttpSyncClient`, pass it
 to `HttpSyncPeer`, and leave `SyncEngine`, DTO encoding, auth policy, and local
 apply unchanged.
+
+`sync_20_observability.cpp` demonstrates production-style logging hooks without
+opening sockets. It runs `SyncWorker` over `HttpSyncPeer`, adds request and
+trace IDs in the HTTP-shaped client, logs incoming request context through
+`ISyncTransportObserver`, logs worker progress through `ISyncWorkerObserver`,
+and shows a one-time `429 Retry-After` rejection turning into a worker backoff
+hint.
 
 `sync_17_websocket_simple_web_server.cpp` is the socket-backed WebSocket
 counterpart. It uses `mdbxc::sync::simple_web::WebSocketSyncChannel` and
