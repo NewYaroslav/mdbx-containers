@@ -5,10 +5,26 @@
 /// \file ISyncPeer.hpp
 /// \brief Abstract transport-level peer used by \c SyncEngine.
 
+#include <cstdint>
+
 #include "protocol.hpp"
 
 namespace mdbxc {
 namespace sync {
+
+    /// \brief Adapter-level retry hint for transport failures.
+    /// \details \c available distinguishes a peer that did not classify the
+    /// last failure from a peer that explicitly classified it as permanent.
+    /// \c retry_after_seconds is present only when a transport supplied a
+    /// supported relative retry delay such as HTTP
+    /// \c Retry-After: <delta-seconds>. Absolute HTTP-date values are
+    /// intentionally left to concrete bindings that own clock policy.
+    struct SyncTransportRetryHint {
+        bool available = false;
+        bool retryable = false;
+        bool has_retry_after = false;
+        std::uint64_t retry_after_seconds = 0;
+    };
 
     /// \brief Abstract peer that exchanges pull and push requests.
     /// \details Concrete implementations (in-process, HTTP, WebSocket) live
@@ -36,6 +52,16 @@ namespace sync {
         /// peers remain valid. Overrides should return quickly and should not
         /// throw.
         virtual void request_cancel() {}
+
+        /// \brief Returns retry advice for the most recent transport failure.
+        /// \details Peers that can classify adapter failures may override this
+        /// method after a failed \c pull() or \c push(). The default returns an
+        /// unavailable hint. Successful operations should normally clear any
+        /// previous retry advice.
+        /// \return Retry hint for the last observed transport failure.
+        virtual SyncTransportRetryHint last_retry_hint() const {
+            return SyncTransportRetryHint();
+        }
     };
 
 } // namespace sync

@@ -71,17 +71,6 @@ namespace sync {
                HttpSyncRetryClass::Retryable;
     }
 
-    /// \brief Adapter-level retry hint for transport failures.
-    /// \details \c retry_after_seconds is present only when a transport
-    /// supplied a supported relative retry delay such as HTTP
-    /// \c Retry-After: <delta-seconds>. Absolute HTTP-date values are
-    /// intentionally left to concrete HTTP bindings that own clock policy.
-    struct SyncTransportRetryHint {
-        bool retryable = false;
-        bool has_retry_after = false;
-        std::uint64_t retry_after_seconds = 0;
-    };
-
     inline bool parse_http_retry_after_delta_seconds(
             const std::string& value,
             std::uint64_t& seconds) {
@@ -110,12 +99,20 @@ namespace sync {
     }
 
     /// \brief Builds retry advice from an HTTP sync response.
-    /// \details Successful and permanent statuses are never marked retryable.
-    /// Retryable statuses preserve an optional relative \c Retry-After value.
+    /// \details Successful statuses return an unavailable hint because they
+    /// are not transport failures. Permanent and retryable failures return an
+    /// available hint. Retryable statuses preserve an optional relative
+    /// \c Retry-After value.
     inline SyncTransportRetryHint http_sync_retry_hint(
             const HttpSyncResponse& response) {
         SyncTransportRetryHint hint;
-        hint.retryable = http_sync_status_is_retryable(response.status_code);
+        const HttpSyncRetryClass classification =
+            classify_http_sync_status(response.status_code);
+        if (classification == HttpSyncRetryClass::Success) {
+            return hint;
+        }
+        hint.available = true;
+        hint.retryable = classification == HttpSyncRetryClass::Retryable;
         if (!hint.retryable) {
             return hint;
         }
@@ -169,8 +166,14 @@ namespace sync {
     inline SyncTransportRetryHint websocket_sync_retry_hint(
             unsigned close_code) {
         SyncTransportRetryHint hint;
+        const WebSocketSyncCloseRetryClass classification =
+            classify_websocket_sync_close_code(close_code);
+        if (classification == WebSocketSyncCloseRetryClass::Success) {
+            return hint;
+        }
+        hint.available = true;
         hint.retryable =
-            websocket_sync_close_code_is_retryable(close_code);
+            classification == WebSocketSyncCloseRetryClass::Retryable;
         return hint;
     }
 
