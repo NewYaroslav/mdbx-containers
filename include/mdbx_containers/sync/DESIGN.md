@@ -667,6 +667,13 @@ Production deployment details for TLS/WSS, token rotation, graceful shutdown,
 structured logging, and offline dependency management are kept in
 `guides/sync-transport-production.md`.
 
+Request and trace ids are adapter-local metadata. HTTP bindings carry them in
+`X-MDBXC-Sync-Request-Id` and `X-MDBXC-Sync-Trace-Id`; WebSocket bindings may
+copy equivalent handshake or session metadata into
+`WebSocketSyncRequestContext`. `SyncTransportTraceContext` and the
+`*_sync_trace_context()` helpers expose those fields to observers without
+adding them to `TransportMessageCodec` DTOs.
+
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
 MDBX has no batch "delete by key range" primitive. The supported pattern

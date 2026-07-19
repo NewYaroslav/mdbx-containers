@@ -101,10 +101,15 @@ messages. Useful fields are:
 - local node and remote authenticated node;
 - `db_id`;
 - direction: pull or push;
-- request ID or trace ID;
+- request ID or trace ID from `SyncTransportTraceContext`;
 - HTTP status or WebSocket close code;
 - pulled, applied, skipped, and rejected batch counts;
 - worker stage and catch-up progress when available.
+
+HTTP middleware reports incoming request context to observers before policy
+dispatch, so logging can include request/trace ids for accepted and rejected
+requests. WebSocket middleware does the same with `WebSocketSyncRequestContext`
+when the concrete binding fills its adapter-local trace fields.
 
 Avoid logging raw keys, values, bearer tokens, or full serialized sync bodies in
 normal production logs.

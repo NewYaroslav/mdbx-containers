@@ -123,6 +123,12 @@ private:
 
 class ThrowingObserver : public mdbxc::sync::ISyncTransportObserver {
 public:
+    void on_sync_transport_http_request(
+            const mdbxc::sync::HttpSyncRequest& request) override {
+        (void)request;
+        throw std::runtime_error("observer request failure");
+    }
+
     void on_sync_transport_pull_result(
             const mdbxc::sync::PullRequest& request,
             const mdbxc::sync::PullResponse& response) override {
@@ -138,6 +144,42 @@ public:
         (void)error;
         throw std::runtime_error("observer rejection failure");
     }
+};
+
+class RequestContextObserver : public mdbxc::sync::ISyncTransportObserver {
+public:
+    RequestContextObserver()
+        : m_http_requests(0), m_websocket_messages(0) {}
+
+    void on_sync_transport_http_request(
+            const mdbxc::sync::HttpSyncRequest& request) override {
+        ++m_http_requests;
+        m_http_trace = mdbxc::sync::http_sync_trace_context(request);
+    }
+
+    void on_sync_transport_websocket_message(
+            const mdbxc::sync::WebSocketSyncRequestContext& request) override {
+        ++m_websocket_messages;
+        m_websocket_trace =
+            mdbxc::sync::websocket_sync_trace_context(request);
+    }
+
+    std::size_t http_requests() const { return m_http_requests; }
+    std::size_t websocket_messages() const {
+        return m_websocket_messages;
+    }
+    const mdbxc::sync::SyncTransportTraceContext& http_trace() const {
+        return m_http_trace;
+    }
+    const mdbxc::sync::SyncTransportTraceContext& websocket_trace() const {
+        return m_websocket_trace;
+    }
+
+private:
+    std::size_t m_http_requests;
+    std::size_t m_websocket_messages;
+    mdbxc::sync::SyncTransportTraceContext m_http_trace;
+    mdbxc::sync::SyncTransportTraceContext m_websocket_trace;
 };
 
 void test_peer_middleware_allows_limits_and_observes() {
@@ -198,6 +240,109 @@ void test_peer_middleware_allows_limits_and_observes() {
                  "pulled batch metric mismatch");
     require_true(snapshot.pushed_batches == 1u,
                  "pushed batch metric mismatch");
+}
+
+void test_transport_trace_context_helpers() {
+    mdbxc::sync::HttpSyncRequest request;
+    mdbxc::sync::http_add_header(
+        request.headers, mdbxc::sync::HttpSyncHeaders::request_id(),
+        "http-request");
+    mdbxc::sync::http_add_header(
+        request.headers, mdbxc::sync::HttpSyncHeaders::trace_id(),
+        "http-trace");
+
+    mdbxc::sync::SyncTransportTraceContext trace =
+        mdbxc::sync::http_sync_trace_context(request);
+    require_true(!trace.empty(), "HTTP trace context must not be empty");
+    require_true(trace.request_id == "http-request",
+                 "HTTP request id was not extracted");
+    require_true(trace.trace_id == "http-trace",
+                 "HTTP trace id was not extracted");
+
+    mdbxc::sync::WebSocketSyncRequestContext websocket;
+    websocket.request_id = "ws-request";
+    websocket.trace_id = "ws-trace";
+    trace = mdbxc::sync::websocket_sync_trace_context(websocket);
+    require_true(trace.request_id == "ws-request",
+                 "WebSocket request id was not extracted");
+    require_true(trace.trace_id == "ws-trace",
+                 "WebSocket trace id was not extracted");
+}
+
+void test_transport_observer_receives_request_context() {
+    const std::string http_path =
+        "test_transport_middleware_http_trace.mdbx";
+    cleanup(http_path);
+
+    std::shared_ptr<mdbxc::Connection> http_db = open_db(http_path);
+    mdbxc::sync::SyncEngine http_engine(http_db);
+    mdbxc::sync::HttpSyncServer http_server(http_engine);
+    RequestContextObserver observer;
+    mdbxc::sync::HttpSyncServerMiddleware http_middleware(
+        http_server, nullptr, &observer);
+
+    mdbxc::sync::HttpSyncRequest http_request;
+    http_request.method = "GET";
+    http_request.target = mdbxc::sync::HttpSyncRoutes::pull_target();
+    mdbxc::sync::http_add_header(
+        http_request.headers, mdbxc::sync::HttpSyncHeaders::request_id(),
+        "middleware-http-request");
+    mdbxc::sync::http_add_header(
+        http_request.headers, mdbxc::sync::HttpSyncHeaders::trace_id(),
+        "middleware-http-trace");
+
+    const mdbxc::sync::HttpSyncResponse http_response =
+        http_middleware.handle(http_request);
+    require_true(http_response.status_code == 405,
+                 "HTTP middleware trace test expected method rejection");
+    require_true(observer.http_requests() == 1u,
+                 "observer did not see HTTP request context");
+    require_true(observer.http_trace().request_id ==
+                     "middleware-http-request",
+                 "observer did not receive HTTP request id");
+    require_true(observer.http_trace().trace_id ==
+                     "middleware-http-trace",
+                 "observer did not receive HTTP trace id");
+
+    http_db->disconnect();
+    cleanup(http_path);
+
+    const std::string ws_path =
+        "test_transport_middleware_ws_trace.mdbx";
+    cleanup(ws_path);
+
+    std::shared_ptr<mdbxc::Connection> ws_db = open_db(ws_path);
+    mdbxc::sync::SyncEngine ws_engine(ws_db);
+    mdbxc::sync::WebSocketSyncServer ws_server(ws_engine);
+    mdbxc::sync::TransportMessageSizePolicy reject_oversized(1u);
+    mdbxc::sync::WebSocketSyncServerMiddleware ws_middleware(
+        ws_server, &reject_oversized, &observer);
+
+    mdbxc::sync::WebSocketSyncRequestContext ws_request;
+    ws_request.request_id = "middleware-ws-request";
+    ws_request.trace_id = "middleware-ws-trace";
+    ws_request.binary_message.push_back(0x42u);
+    ws_request.binary_message.push_back(0x43u);
+
+    bool rejected = false;
+    try {
+        (void)ws_middleware.handle_binary_message(ws_request);
+    } catch (const mdbxc::sync::WebSocketSyncRejected&) {
+        rejected = true;
+    }
+    require_true(rejected,
+                 "WebSocket middleware trace test expected rejection");
+    require_true(observer.websocket_messages() == 1u,
+                 "observer did not see WebSocket message context");
+    require_true(observer.websocket_trace().request_id ==
+                     "middleware-ws-request",
+                 "observer did not receive WebSocket request id");
+    require_true(observer.websocket_trace().trace_id ==
+                     "middleware-ws-trace",
+                 "observer did not receive WebSocket trace id");
+
+    ws_db->disconnect();
+    cleanup(ws_path);
 }
 
 void test_observer_exceptions_are_swallowed() {
@@ -693,6 +838,8 @@ void test_http_server_middleware_copies_rejection_headers() {
 
 int main() {
     test_peer_middleware_allows_limits_and_observes();
+    test_transport_trace_context_helpers();
+    test_transport_observer_receives_request_context();
     test_observer_exceptions_are_swallowed();
     test_http_client_middleware_route_policy();
     test_http_client_middleware_budget_policy();
