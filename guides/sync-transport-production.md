@@ -93,6 +93,18 @@ For WebSocket, close codes `1001`, `1005`, `1006`, `1011`, `1012`, `1013`, and
 payload, and size limits, such as `1007`, `1008`, and `1009`, are permanent
 until the request or session changes.
 
+Concrete `ISyncPeer` implementations that can classify transport failures
+should publish the most recent hint through `ISyncPeer::last_retry_hint()`.
+The default hint is unavailable, which means the peer did not provide advice
+and callers should keep using their fallback retry policy. Successful
+operations should clear older hints so a later caller does not mistake stale
+advice for the current failure. When a peer returns `available=true` and
+`retryable=false`, it classified the current transport failure as permanent.
+Successful transport responses should clear back to an unavailable hint because
+there is no failure to classify.
+The hint is intentionally advisory: applications may cap, ignore, or combine it
+with their own retry and circuit-breaker policy.
+
 ## Structured Logging
 
 Log transport and worker events with stable fields instead of parsing free-form

@@ -682,6 +682,7 @@ void test_http_retry_hint() {
 
     mdbxc::sync::SyncTransportRetryHint hint =
         mdbxc::sync::http_sync_retry_hint(response);
+    require_true(hint.available, "HTTP 429 hint must be available");
     require_true(hint.retryable, "HTTP 429 hint must be retryable");
     require_true(hint.has_retry_after,
                  "HTTP 429 hint must preserve Retry-After");
@@ -692,6 +693,8 @@ void test_http_retry_hint() {
     mdbxc::sync::http_add_header(
         response.headers, "Retry-After", "soon");
     hint = mdbxc::sync::http_sync_retry_hint(response);
+    require_true(hint.available,
+                 "invalid Retry-After hint must stay available");
     require_true(hint.retryable,
                  "invalid Retry-After must not change retryable status");
     require_true(!hint.has_retry_after,
@@ -702,6 +705,7 @@ void test_http_retry_hint() {
     mdbxc::sync::http_add_header(
         response.headers, "Retry-After", "5");
     hint = mdbxc::sync::http_sync_retry_hint(response);
+    require_true(!hint.available, "HTTP 200 hint must be unavailable");
     require_true(!hint.retryable,
                  "HTTP 200 hint must not be retryable");
     require_true(!hint.has_retry_after,
@@ -709,6 +713,7 @@ void test_http_retry_hint() {
 
     response.status_code = 401;
     hint = mdbxc::sync::http_sync_retry_hint(response);
+    require_true(hint.available, "HTTP 401 hint must be available");
     require_true(!hint.retryable,
                  "HTTP 401 hint must not be retryable");
 
@@ -747,14 +752,24 @@ void test_websocket_close_code_classification() {
 void test_websocket_retry_hint() {
     mdbxc::sync::SyncTransportRetryHint hint =
         mdbxc::sync::websocket_sync_retry_hint(1011);
+    require_true(hint.available,
+                 "WebSocket 1011 hint must be available");
     require_true(hint.retryable,
                  "WebSocket 1011 hint must be retryable");
     require_true(!hint.has_retry_after,
                  "WebSocket hint must not invent Retry-After");
 
     hint = mdbxc::sync::websocket_sync_retry_hint(1008);
+    require_true(hint.available,
+                 "WebSocket 1008 hint must be available");
     require_true(!hint.retryable,
                  "WebSocket 1008 hint must be permanent");
+
+    hint = mdbxc::sync::websocket_sync_retry_hint(1000);
+    require_true(!hint.available,
+                 "WebSocket 1000 hint must be unavailable");
+    require_true(!hint.retryable,
+                 "WebSocket 1000 hint must not be retryable");
 }
 
 void test_transport_message_size_policy() {

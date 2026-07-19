@@ -586,6 +586,19 @@ message codes such as `1007`, `1008`, and `1009` are permanent for the current
 request. `websocket_sync_retry_hint()` exposes the same retryable flag for
 concrete bindings that report close codes.
 
+Peers that can classify adapter failures expose the last observed advice
+through `ISyncPeer::last_retry_hint()`. The default implementation returns an
+unavailable hint, so existing peers are source-compatible and callers can keep
+using their fallback retry policy. Concrete peers should set
+`SyncTransportRetryHint::available` when a transport failure was actually
+classified, clear stale retry advice after successful operations, and update it
+after transport-level failures. With `available=true`, `retryable=false` means
+the transport classified the failure as permanent for the current request.
+Successful transport responses are not failures and should clear back to an
+unavailable hint. The hint is advisory: callers may still use their own retry
+scheduler, but `SyncWorker` and examples can consume the same transport-neutral
+shape without depending on HTTP or WebSocket headers.
+
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec
 change and belongs in a separate design pass; it is not part of the

@@ -14,6 +14,21 @@
 #error "header_sync_umbrella_test must be compiled with sync enabled"
 #endif
 
+class HeaderSyncPeer : public mdbxc::sync::ISyncPeer {
+public:
+    mdbxc::sync::PullResponse pull(
+            const mdbxc::sync::PullRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PullResponse();
+    }
+
+    mdbxc::sync::PushResponse push(
+            const mdbxc::sync::PushRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PushResponse();
+    }
+};
+
 int main() {
     mdbxc::sync::NodeId node = mdbxc::sync::make_zero_node();
     MDBXC_TEST_ASSERT(node.size() == 16u);
@@ -57,6 +72,12 @@ int main() {
     MDBXC_TEST_ASSERT(mdbxc::sync::http_sync_status_is_retryable(503));
     MDBXC_TEST_ASSERT(
         mdbxc::sync::websocket_sync_close_code_is_retryable(1013u));
+    HeaderSyncPeer header_peer;
+    const mdbxc::sync::SyncTransportRetryHint default_retry_hint =
+        header_peer.last_retry_hint();
+    MDBXC_TEST_ASSERT(!default_retry_hint.available);
+    MDBXC_TEST_ASSERT(!default_retry_hint.retryable);
+    MDBXC_TEST_ASSERT(!default_retry_hint.has_retry_after);
     mdbxc::sync::TransportMessageSizePolicy size_policy(1024u);
     (void)size_policy;
     mdbxc::sync::IWebSocketSyncChannel* websocket_channel = nullptr;
