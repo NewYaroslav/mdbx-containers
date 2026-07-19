@@ -8,7 +8,8 @@ promise: sync remains experimental and opt-in through `MDBXC_SYNC_ENABLED=1`.
 
 - Supported table capture paths are explicit: `KeyValueTable`, `KeyTable`,
   `ValueTable`, and `SequenceTable` writes are captured when a
-  `ThreadLocalChangeAccumulator` is attached to the writing `Connection`.
+  `ThreadLocalChangeAccumulator` is attached to the writing `Connection`;
+  `SyncCaptureScope` provides RAII attach/restore for write phases.
 - `VectorStore` is covered indirectly through its internal `SequenceTable` and
   `KeyValueTable` members.
 - Standalone writes become standalone sync batches; an explicit transaction
@@ -73,8 +74,8 @@ it can make replication appear successful while logical state diverges.
 
 ## Suggested Next PRs
 
-- Add small ergonomics helpers around capture attachment and common worker
-  setup if examples continue to repeat the same lifecycle boilerplate.
+- Add small ergonomics helpers around common worker setup if examples continue
+  to repeat the same lifecycle boilerplate.
 - Start specialized table sync design with `KeyMultiValueTable`, then evaluate
   whether the same framing ideas carry over to `AnyValueTable` and
   `HashedKeyValueStore`.

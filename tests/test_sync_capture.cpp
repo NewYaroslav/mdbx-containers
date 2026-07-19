@@ -119,6 +119,53 @@ void test_capture_writes_via_sink() {
     }
 }
 
+void test_capture_scope_restores_previous_sink() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_scope.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink outer_sink;
+    StubSink inner_sink;
+    conn->attach_sync_capture(&outer_sink);
+    if (conn->sync_capture() != &outer_sink) {
+        throw std::runtime_error("outer sink was not attached");
+    }
+
+    KeyValueTable<int, int> kv(conn, "t");
+    {
+        sync::SyncCaptureScope scope(conn, inner_sink);
+        if (!scope.active() || conn->sync_capture() != &inner_sink) {
+            throw std::runtime_error("capture scope did not attach inner sink");
+        }
+        kv.insert_or_assign(1, 100);
+    }
+
+    if (conn->sync_capture() != &outer_sink) {
+        throw std::runtime_error("capture scope did not restore outer sink");
+    }
+    kv.insert_or_assign(2, 200);
+
+    conn->detach_sync_capture();
+    kv.insert_or_assign(3, 300);
+    conn->disconnect();
+    cleanup(p);
+
+    if (inner_sink.m_recorded.size() != 1u ||
+        inner_sink.m_recorded[0].op_type != sync::ChangeOpType::Put) {
+        throw std::runtime_error("inner sink did not capture scoped write");
+    }
+    if (outer_sink.m_recorded.size() != 1u ||
+        outer_sink.m_recorded[0].op_type != sync::ChangeOpType::Put) {
+        throw std::runtime_error("outer sink did not capture restored write");
+    }
+}
+
 void test_sequence_set_writes_via_sink() {
     using namespace mdbxc;
     const std::string p = "test_capture_sequence_set.mdbx";
@@ -776,114 +823,126 @@ int main() {
         return 2;
     }
     try {
+        test_capture_scope_restores_previous_sink();
+        std::printf("PASS test_capture_scope_restores_previous_sink\n");
+    } catch (const std::exception& e) {
+        std::printf("FAIL test_capture_scope_restores_previous_sink: %s\n",
+                    e.what());
+        return 3;
+    } catch (...) {
+        std::printf(
+            "FAIL test_capture_scope_restores_previous_sink: non-std exception\n");
+        return 3;
+    }
+    try {
         test_sequence_set_writes_via_sink();
         std::printf("PASS test_sequence_set_writes_via_sink\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_sequence_set_writes_via_sink: %s\n", e.what());
-        return 3;
+        return 4;
     } catch (...) {
         std::printf("FAIL test_sequence_set_writes_via_sink: non-std exception\n");
-        return 3;
+        return 4;
     }
     try {
         test_value_table_writes_storage_key_via_sink();
         std::printf("PASS test_value_table_writes_storage_key_via_sink\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_value_table_writes_storage_key_via_sink: %s\n", e.what());
-        return 4;
+        return 5;
     } catch (...) {
         std::printf("FAIL test_value_table_writes_storage_key_via_sink: non-std exception\n");
-        return 4;
+        return 5;
     }
     try {
         test_key_value_bulk_writes_via_sink();
         std::printf("PASS test_key_value_bulk_writes_via_sink\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_key_value_bulk_writes_via_sink: %s\n", e.what());
-        return 5;
+        return 6;
     } catch (...) {
         std::printf("FAIL test_key_value_bulk_writes_via_sink: non-std exception\n");
-        return 5;
+        return 6;
     }
     try {
         test_range_erase_writes_via_sink();
         std::printf("PASS test_range_erase_writes_via_sink\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_range_erase_writes_via_sink: %s\n", e.what());
-        return 6;
+        return 7;
     } catch (...) {
         std::printf("FAIL test_range_erase_writes_via_sink: non-std exception\n");
-        return 6;
+        return 7;
     }
     try {
         test_vector_store_writes_via_sink();
         std::printf("PASS test_vector_store_writes_via_sink\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_vector_store_writes_via_sink: %s\n", e.what());
-        return 7;
+        return 8;
     } catch (...) {
         std::printf("FAIL test_vector_store_writes_via_sink: non-std exception\n");
-        return 7;
+        return 8;
     }
     try {
         test_capture_flush_on_commit();
         std::printf("PASS test_capture_flush_on_commit\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_capture_flush_on_commit: %s\n", e.what());
-        return 8;
+        return 9;
     } catch (...) {
         std::printf("FAIL test_capture_flush_on_commit: non-std exception\n");
-        return 8;
+        return 9;
     }
     try {
         test_specialized_tables_do_not_capture_in_v01();
         std::printf("PASS test_specialized_tables_do_not_capture_in_v01\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_specialized_tables_do_not_capture_in_v01: %s\n", e.what());
-        return 9;
+        return 10;
     } catch (...) {
         std::printf("FAIL test_specialized_tables_do_not_capture_in_v01: non-std exception\n");
-        return 9;
+        return 10;
     }
     try {
         test_changelog_capture_roundtrip();
         std::printf("PASS test_changelog_capture_roundtrip\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_changelog_capture_roundtrip: %s\n", e.what());
-        return 10;
+        return 11;
     } catch (...) {
         std::printf("FAIL test_changelog_capture_roundtrip: non-std exception\n");
-        return 10;
+        return 11;
     }
     try {
         test_zero_node_id_rejected();
         std::printf("PASS test_zero_node_id_rejected\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_zero_node_id_rejected: %s\n", e.what());
-        return 11;
+        return 12;
     } catch (...) {
         std::printf("FAIL test_zero_node_id_rejected: non-std exception\n");
-        return 11;
+        return 12;
     }
     try {
         test_aborted_transaction_does_not_flush();
         std::printf("PASS test_aborted_transaction_does_not_flush\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_aborted_transaction_does_not_flush: %s\n", e.what());
-        return 12;
+        return 13;
     } catch (...) {
         std::printf("FAIL test_aborted_transaction_does_not_flush: non-std exception\n");
-        return 12;
+        return 13;
     }
     try {
         test_explicit_rollback_does_not_flush();
         std::printf("PASS test_explicit_rollback_does_not_flush\n");
     } catch (const std::exception& e) {
         std::printf("FAIL test_explicit_rollback_does_not_flush: %s\n", e.what());
-        return 13;
+        return 14;
     } catch (...) {
         std::printf("FAIL test_explicit_rollback_does_not_flush: non-std exception\n");
-        return 13;
+        return 14;
     }
 
     return 0;

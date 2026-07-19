@@ -29,6 +29,27 @@ public:
     }
 };
 
+class HeaderSyncSink : public mdbxc::sync::ISyncCaptureSink {
+public:
+    void record_change(MDBX_txn* txn,
+                       const std::string& dbi_name,
+                       mdbxc::sync::ChangeOpType op_type,
+                       std::uint32_t dbi_flags,
+                       const std::vector<std::uint8_t>& storage_key,
+                       const std::vector<std::uint8_t>& value) override {
+        (void)txn;
+        (void)dbi_name;
+        (void)op_type;
+        (void)dbi_flags;
+        (void)storage_key;
+        (void)value;
+    }
+
+    void flush_in_txn(MDBX_txn* txn) override {
+        (void)txn;
+    }
+};
+
 int main() {
     mdbxc::sync::NodeId node = mdbxc::sync::make_zero_node();
     MDBXC_TEST_ASSERT(node.size() == 16u);
@@ -88,6 +109,10 @@ int main() {
     MDBXC_TEST_ASSERT(
         worker_options.permanent_failure_policy ==
         mdbxc::sync::SyncWorkerPermanentFailurePolicy::StopWorker);
+    mdbxc::sync::SyncCaptureScope* capture_scope = nullptr;
+    HeaderSyncSink header_sink;
+    (void)capture_scope;
+    (void)header_sink;
     mdbxc::sync::TransportMessageSizePolicy size_policy(1024u);
     (void)size_policy;
     mdbxc::sync::IWebSocketSyncChannel* websocket_channel = nullptr;

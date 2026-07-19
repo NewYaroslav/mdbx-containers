@@ -213,8 +213,9 @@ cmake -S . -B tmp/build-ws-example `
 - `DbId` identifies one logical replicated database. All nodes replicating the
   same logical database must use the same `DbId`.
 - Before local writes, attach `ThreadLocalChangeAccumulator` with
-  `attach_sync_capture()`. After the local write phase, call
-  `detach_sync_capture()`.
+  `SyncCaptureScope` or the lower-level `attach_sync_capture()` /
+  `detach_sync_capture()` pair. The scope form restores the previous capture
+  sink automatically when the local write phase ends.
 - Supported table methods keep their normal API. You do not wrap each
   `insert`, `insert_or_assign`, `erase`, `reconcile`, or range erase in a sync
   call. The capture sink records supported write operations when their MDBX

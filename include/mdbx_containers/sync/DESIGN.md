@@ -17,7 +17,7 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   `Common`, `ChangeAccumulator`, `ChangeBatch`, `ChangeOp`, `Cancellation`,
   `CodecBounds`, `CodecFlags`, `ConflictPolicy`, `DirectSyncPeer`,
   `IdentityProvider`, `ISyncCaptureSink`, `ISyncPeer`, `Protocol`,
-  `SyncCursor`, `SyncEngine`, `SyncWorker`.
+  `SyncCaptureScope`, `SyncCursor`, `SyncEngine`, `SyncWorker`.
 - Five system stores under `include/mdbx_containers/sync/stores/`:
   `MetaStore`, `ChangeLogStore`, `OriginIndexStore`, `AppliedStore`,
   `IdentityIndexStore`.
@@ -305,8 +305,10 @@ Application integration contract:
 - callers do not wrap each individual `insert`, `insert_or_assign`, `erase`,
   `reconcile`, or range erase in a sync-specific call;
 - `Connection::attach_sync_capture()` installs the capture sink for commits on
-  that connection; supported write operations are recorded by table code and
-  flushed by the transaction pre-commit hook;
+  that connection; `SyncCaptureScope` is the RAII helper for temporary
+  attachments and restores the previous sink when the scope ends; supported
+  write operations are recorded by table code and flushed by the transaction
+  pre-commit hook;
 - a standalone write method call that opens its own transaction commits as one
   local change batch;
 - an explicit transaction passed through several supported table calls commits

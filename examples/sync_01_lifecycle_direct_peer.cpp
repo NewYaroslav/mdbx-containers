@@ -56,12 +56,14 @@ int main() {
 
         mdbxc::sync::ThreadLocalChangeAccumulator capture(primary);
         // Capture is opt-in. While attached, committed writes on supported
-        // tables are appended to the primary's _mdbxc_changelog.
-        primary->attach_sync_capture(&capture);
+        // tables are appended to the primary's _mdbxc_changelog. The scope
+        // restores the previous capture sink when the write phase ends.
         mdbxc::KeyValueTable<int, std::string> prices(primary, "prices");
-        prices.insert_or_assign(1, "BTC/USD");
-        prices.insert_or_assign(2, "ETH/USD");
-        primary->detach_sync_capture();
+        {
+            mdbxc::sync::SyncCaptureScope capture_scope(primary, capture);
+            prices.insert_or_assign(1, "BTC/USD");
+            prices.insert_or_assign(2, "ETH/USD");
+        }
 
         // DirectSyncPeer is an in-process stand-in for a transport. It forwards
         // pull() directly to primary_engine.handle_pull(). A real peer would
