@@ -46,6 +46,9 @@ promise: sync remains experimental and opt-in through `MDBXC_SYNC_ENABLED=1`.
 - `SyncTransportRetryHint` is advisory. `available=false` means the peer did
   not classify the failure. `available=true, retryable=false` means the peer
   classified the current transport failure as permanent.
+- `SyncWorker` keeps retrying permanent transport hints by default for backward
+  compatibility. Set `SyncWorkerPermanentFailurePolicy::StopWorker` when a
+  permanent hint should stop the background loop in `Failed`.
 - Authentication, DB allow-list decisions, request ids, trace ids, rate-limit
   headers, HTTP status, and WebSocket close codes remain adapter-local
   metadata.
@@ -70,8 +73,6 @@ it can make replication appear successful while logical state diverges.
 
 ## Suggested Next PRs
 
-- Add explicit worker retry policy options for callers that want permanent
-  transport hints to stop the background loop instead of remaining advisory.
 - Add small ergonomics helpers around capture attachment and common worker
   setup if examples continue to repeat the same lifecycle boilerplate.
 - Start specialized table sync design with `KeyMultiValueTable`, then evaluate

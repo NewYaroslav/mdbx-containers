@@ -603,7 +603,12 @@ thread-safe snapshot for polling UIs, health endpoints, and structured logging
 code that does not want to reconstruct state from observer callbacks. In
 background mode, an available retryable hint with relative `Retry-After`
 overrides the current exponential delay for that backoff wait, capped by
-`SyncWorkerOptions::max_backoff`.
+`SyncWorkerOptions::max_backoff`. Permanent hints remain advisory by default:
+`SyncWorkerPermanentFailurePolicy::KeepRetrying` keeps using the normal
+backoff loop. Applications that want a classified permanent transport failure
+to stop the background loop can set
+`SyncWorkerPermanentFailurePolicy::StopWorker`, which leaves the worker in
+`SyncWorkerState::Failed` instead of entering backoff.
 
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec

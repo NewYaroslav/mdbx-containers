@@ -158,7 +158,12 @@ The hint is intentionally advisory: applications may cap, ignore, or combine it
 with their own retry and circuit-breaker policy. `SyncWorker` copies the hint
 into failed round and stage events. In background mode, an available retryable
 relative `Retry-After` value replaces the current exponential backoff delay for
-one wait and is capped by `SyncWorkerOptions::max_backoff`.
+one wait and is capped by `SyncWorkerOptions::max_backoff`. Permanent hints
+also stay advisory by default: `SyncWorkerPermanentFailurePolicy::KeepRetrying`
+preserves the normal retry loop. Use
+`SyncWorkerPermanentFailurePolicy::StopWorker` when a classified permanent
+transport failure should move the background worker to `Failed` instead of
+backoff.
 
 ## Structured Logging
 
