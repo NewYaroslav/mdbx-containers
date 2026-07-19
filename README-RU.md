@@ -92,6 +92,9 @@
   Опциональные готовые Simple-Web HTTP/WebSocket binding headers находятся в
   `mdbx_containers/sync/transports/simple_web/`, а опциональный Kurlyk/libcurl
   HTTP client binding находится в `mdbx_containers/sync/transports/kurlyk/`.
+  Concrete backend targets задают `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
+  `MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT` или
+  `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` для условного подключения backend headers.
   Socket-backed примеры используют эти bindings вместо повторной реализации
   транспорта в каждом файле. Wire-format для специализированных таблиц отложен.
   HTTP auth,

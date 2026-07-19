@@ -91,7 +91,8 @@ function(simple_web_server_provide)
             "${mdbxc_asio_SOURCE_DIR}/asio/include")
         target_compile_definitions(mdbxc_simple_web_server INTERFACE
             ASIO_STANDALONE=1
-            USE_STANDALONE_ASIO=1)
+            USE_STANDALONE_ASIO=1
+            MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT=1)
 
         find_package(Threads REQUIRED)
         target_link_libraries(mdbxc_simple_web_server INTERFACE
@@ -176,7 +177,8 @@ function(simple_websocket_server_provide)
             "${mdbxc_asio_SOURCE_DIR}/asio/include")
         target_compile_definitions(mdbxc_simple_websocket_server INTERFACE
             ASIO_STANDALONE=1
-            USE_STANDALONE_ASIO=1)
+            USE_STANDALONE_ASIO=1
+            MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT=1)
 
         find_package(Threads REQUIRED)
         target_link_libraries(mdbxc_simple_websocket_server INTERFACE

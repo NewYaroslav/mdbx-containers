@@ -24,6 +24,15 @@ All project options use the `MDBXC_` prefix.
 | `MDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK` | `ON` | Fetch a pinned ready-made Win64 libcurl package for the MinGW Kurlyk HTTP example when system libcurl is unavailable. |
 | `MDBXC_USE_ASAN` | `ON` | Enable AddressSanitizer for tests/examples when supported. |
 
+The optional transport example options are not public feature-detection macros.
+Concrete backend targets define `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
+`MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, or
+`MDBXC_HAS_KURLYK_HTTP_TRANSPORT` for consumers that link those dependency
+targets. Use those `MDBXC_HAS_*` macros when application code needs conditional
+includes around optional sync transport backends. Consumers that wire the same
+third-party dependencies manually may define the corresponding `MDBXC_HAS_*`
+macro themselves.
+
 When `mdbx-containers` is added as a subproject, existing parent-provided
 `mdbx::mdbx`, `mdbx::mdbx-static`, `libmdbx::mdbx`, and
 `libmdbx::mdbx-static` targets are reused before package, submodule, or

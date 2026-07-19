@@ -14,6 +14,18 @@
 #error "header_sync_transport_umbrella_test must be compiled with sync enabled"
 #endif
 
+#if defined(MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT)
+#error "framework-neutral sync/transport.hpp must not enable Simple-Web HTTP"
+#endif
+
+#if defined(MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT)
+#error "framework-neutral sync/transport.hpp must not enable Simple-WebSocket"
+#endif
+
+#if defined(MDBXC_HAS_KURLYK_HTTP_TRANSPORT)
+#error "framework-neutral sync/transport.hpp must not enable Kurlyk HTTP"
+#endif
+
 int main() {
     mdbxc::sync::NodeId node = mdbxc::sync::make_zero_node();
     mdbxc::sync::PullRequest pull;

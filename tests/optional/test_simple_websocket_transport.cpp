@@ -1,5 +1,13 @@
 #include <mdbx_containers/sync/transports/simple_web/WebSocketTransport.hpp>
 
+#if !defined(MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT)
+#error "Simple-WebSocket transport target must define its feature macro"
+#endif
+
+#if !MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT
+#error "Simple-WebSocket transport feature macro must be non-zero"
+#endif
+
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>

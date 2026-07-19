@@ -61,7 +61,10 @@ tmp/build-http-example/bin/examples/sync_18_http_node_fleet \
 Готовый HTTP binding подключается так:
 
 ```cpp
+#if defined(MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT) && \
+        MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT
 #include <mdbx_containers/sync/transports/simple_web/HttpTransport.hpp>
+#endif
 ```
 
 Kurlyk/libcurl HTTP client binding тоже включается отдельно. Он использует тот
@@ -85,15 +88,29 @@ tmp/build-kurlyk-http/bin/examples/sync_19_kurlyk_http_client
 Готовый Kurlyk HTTP client binding подключается так:
 
 ```cpp
+#if defined(MDBXC_HAS_KURLYK_HTTP_TRANSPORT) && \
+        MDBXC_HAS_KURLYK_HTTP_TRANSPORT
 #include <mdbx_containers/sync/transports/kurlyk/HttpTransport.hpp>
+#endif
 ```
 
 Targets, которым нужны и Simple-Web HTTP, и WebSocket bindings, могут
 подключать backend umbrella:
 
 ```cpp
+#if defined(MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT) && \
+        MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT && \
+        defined(MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT) && \
+        MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT
 #include <mdbx_containers/sync/transports/simple_web.hpp>
+#endif
 ```
+
+`MDBXC_*_SYNC_EXAMPLE` options только собирают examples из этого repository.
+Consumer targets получают `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
+`MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT` или
+`MDBXC_HAS_KURLYK_HTTP_TRANSPORT` от concrete dependency target, к которому
+они линкуются.
 
 Реальный WebSocket binding example тоже включается отдельно, потому что он
 скачивает headers standalone Asio и Simple-WebSocket-Server.
