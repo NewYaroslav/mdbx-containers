@@ -24,6 +24,10 @@
 #include "Transaction.hpp"
 
 namespace mdbxc {
+    namespace sync {
+        class ISyncCaptureSink;
+        class SyncCaptureScope;
+    }
 
     /// \class Connection
     /// \ingroup mdbxc_core
@@ -49,6 +53,9 @@ namespace mdbxc {
 #   endif
     private:
         friend class BaseTable;
+#   if MDBXC_SYNC_ENABLED
+        friend class sync::SyncCaptureScope;
+#   endif
     public:
 
         /// \brief Default constructor.
@@ -245,7 +252,15 @@ namespace mdbxc {
         void db_init();
 
 #       if MDBXC_SYNC_ENABLED
+        std::uint64_t sync_capture_token() const;
+        bool restore_sync_capture_if_current(sync::ISyncCaptureSink* expected_sink,
+                                             std::uint64_t expected_token,
+                                             sync::ISyncCaptureSink* restore_sink,
+                                             std::uint64_t restore_token);
+
         sync::ISyncCaptureSink* m_sync_capture = nullptr;
+        std::uint64_t m_sync_capture_token = 0;
+        std::uint64_t m_next_sync_capture_token = 0;
 #       endif
 
     }; // Connection

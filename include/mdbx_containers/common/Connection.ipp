@@ -173,15 +173,36 @@ namespace mdbxc {
     inline void Connection::attach_sync_capture(sync::ISyncCaptureSink* sink) {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         m_sync_capture = sink;
+        m_sync_capture_token = ++m_next_sync_capture_token;
     }
 
     inline void Connection::detach_sync_capture() {
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         m_sync_capture = nullptr;
+        m_sync_capture_token = ++m_next_sync_capture_token;
     }
 
     inline sync::ISyncCaptureSink* Connection::sync_capture() const {
         return m_sync_capture;
+    }
+
+    inline std::uint64_t Connection::sync_capture_token() const {
+        return m_sync_capture_token;
+    }
+
+    inline bool Connection::restore_sync_capture_if_current(
+        sync::ISyncCaptureSink* expected_sink,
+        std::uint64_t expected_token,
+        sync::ISyncCaptureSink* restore_sink,
+        std::uint64_t restore_token) {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        if (m_sync_capture != expected_sink ||
+            m_sync_capture_token != expected_token) {
+            return false;
+        }
+        m_sync_capture = restore_sink;
+        m_sync_capture_token = restore_token;
+        return true;
     }
 
     inline void Connection::on_pre_commit(MDBX_txn* txn) {
