@@ -75,8 +75,13 @@
   `ValueTable` и `SequenceTable`; `VectorStore` реплицируется косвенно через
   внутренние `SequenceTable` и `KeyValueTable`.
 - `AnyValueTable`, `KeyMultiValueTable` и `HashedKeyValueStore` не
-  реплицируются в v0.1. Их wire-format отложен до явного описания type tags,
-  DUPSORT duplicate framing и hash-index identity semantics.
+  реплицируются в v0.1. Для `KeyMultiValueTable` в `sync/DESIGN.md` описан
+  отложенный unordered multiset sync design для single-writer или causally
+  serialized updates; общие concurrent multi-writer conflict semantics и
+  сохраняющие порядок распределённые histories отложены в будущую работу,
+  например `KeyOrderedMultiValueTable<K, V>`. Реализация остаётся выключенной,
+  пока не появятся capture и round-trip tests. Для `AnyValueTable` и
+  `HashedKeyValueStore` ещё нужны дизайны type tags и hash-index identity.
 - Для поддерживаемых таблиц прикладной CRUD-код не нужно оборачивать
   отдельными sync-вызовами на каждый метод. Прикрепите
   `ThreadLocalChangeAccumulator` к пишущему `Connection`; используйте
