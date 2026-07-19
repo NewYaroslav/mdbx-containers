@@ -215,8 +215,9 @@ cmake -S . -B tmp/build-ws-example `
 - `DbId` идентифицирует одну логическую реплицируемую БД. Все узлы,
   реплицирующие эту логическую БД, должны использовать одинаковый `DbId`.
 - Перед локальными записями прикрепите `ThreadLocalChangeAccumulator` через
-  `attach_sync_capture()`. После завершения локальной фазы записи вызовите
-  `detach_sync_capture()`.
+  `SyncCaptureScope` или более низкоуровневую пару `attach_sync_capture()` /
+  `detach_sync_capture()`. Scope-вариант автоматически восстанавливает
+  предыдущий capture sink после завершения локальной фазы записи.
 - Методы поддерживаемых таблиц сохраняют обычный API. Не нужно оборачивать
   каждый `insert`, `insert_or_assign`, `erase`, `reconcile` или range erase в
   отдельный sync-вызов. Capture sink записывает поддерживаемые write operations
