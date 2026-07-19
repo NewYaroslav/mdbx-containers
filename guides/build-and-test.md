@@ -18,14 +18,20 @@ All project options use the `MDBXC_` prefix.
 | `MDBXC_BUILD_TESTS` | `ON` | Build tests from `tests/` and register them with CTest. |
 | `MDBXC_BUILD_BENCHMARKS` | `OFF` | Build manual benchmark executables from `benchmarks/`. |
 | `MDBXC_ENABLE_STRESS_TESTS` | `OFF` | Register long stress tests with CTest. Stress executables are still built when tests are enabled. |
-| `MDBXC_HTTP_SYNC_EXAMPLE` | `OFF` | Build the optional Simple-Web-Server HTTP sync example and fetch standalone Asio/Simple-Web-Server headers. |
-| `MDBXC_WEBSOCKET_SYNC_EXAMPLE` | `OFF` | Build the optional Simple-WebSocket-Server sync example and fetch standalone Asio/Simple-WebSocket-Server headers. Requires OpenSSL Crypto because Simple-WebSocket-Server uses it for the WebSocket handshake. |
-| `MDBXC_KURLYK_HTTP_SYNC_EXAMPLE` | `OFF` | Build the optional Kurlyk/libcurl HTTP sync client example and fetch Kurlyk headers. Requires C++17 and a discoverable libcurl package. |
-| `MDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK` | `ON` | Fetch a pinned ready-made Win64 libcurl package for the MinGW Kurlyk HTTP example when system libcurl is unavailable. |
+| `MDBXC_SIMPLE_WEB_HTTP_TRANSPORT` | `OFF` | Enable the optional Simple-Web-Server HTTP transport backend target and backend smoke test. |
+| `MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT` | `OFF` | Enable the optional Simple-WebSocket-Server transport backend target and backend smoke test. Requires OpenSSL Crypto because Simple-WebSocket-Server uses it for the WebSocket handshake. |
+| `MDBXC_KURLYK_HTTP_TRANSPORT` | `OFF` | Enable the optional Kurlyk/libcurl HTTP client transport backend target and backend smoke test. Requires C++17 and a discoverable libcurl package. |
+| `MDBXC_HTTP_SYNC_EXAMPLE` | `OFF` | Build the optional Simple-Web-Server HTTP sync examples. When examples are enabled, this also enables `MDBXC_SIMPLE_WEB_HTTP_TRANSPORT` for compatibility with older commands. |
+| `MDBXC_WEBSOCKET_SYNC_EXAMPLE` | `OFF` | Build the optional Simple-WebSocket-Server sync example. When examples are enabled, this also enables `MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT` for compatibility with older commands. |
+| `MDBXC_KURLYK_HTTP_SYNC_EXAMPLE` | `OFF` | Build the optional Kurlyk/libcurl HTTP sync client example. When examples are enabled, this also enables `MDBXC_KURLYK_HTTP_TRANSPORT` for compatibility with older commands. |
+| `MDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK` | `ON` | Fetch a pinned ready-made Win64 libcurl package for the MinGW Kurlyk HTTP transport when system libcurl is unavailable. |
+| `MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK` | `ON` | Fetch a pinned ready-made Win64 OpenSSL Crypto package for the MinGW WebSocket transport when system OpenSSL is unavailable. |
 | `MDBXC_USE_ASAN` | `ON` | Enable AddressSanitizer for tests/examples when supported. |
 
-The optional transport example options are not public feature-detection macros.
-Concrete backend targets define `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
+The optional transport backend options create concrete dependency targets and,
+when tests are enabled, backend smoke tests. The `*_SYNC_EXAMPLE` options only
+add repository example executables on top of those backends. Concrete backend
+targets define `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
 `MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, or
 `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` for consumers that link those dependency
 targets. Use those `MDBXC_HAS_*` macros when application code needs conditional

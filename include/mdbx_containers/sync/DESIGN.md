@@ -628,9 +628,14 @@ middleware. On Windows/MinGW, its optional example can fetch a pinned
 ready-made libcurl package; that fallback is a build-time convenience for the
 example target, not a dependency of the sync core.
 
-The `MDBXC_HTTP_SYNC_EXAMPLE`, `MDBXC_WEBSOCKET_SYNC_EXAMPLE`, and
-`MDBXC_KURLYK_HTTP_SYNC_EXAMPLE` CMake options only decide whether repository
-examples fetch and build optional backends. Application code should use
+The `MDBXC_SIMPLE_WEB_HTTP_TRANSPORT`,
+`MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, and `MDBXC_KURLYK_HTTP_TRANSPORT`
+CMake options enable the optional backend dependency targets and their backend
+smoke tests. The `MDBXC_HTTP_SYNC_EXAMPLE`,
+`MDBXC_WEBSOCKET_SYNC_EXAMPLE`, and `MDBXC_KURLYK_HTTP_SYNC_EXAMPLE` options
+only add repository examples on top of those backends; with
+`MDBXC_BUILD_EXAMPLES=ON`, they still enable the matching backend for
+compatibility with older example build commands. Application code should use
 `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
 `MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, and
 `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` when it needs conditional includes for

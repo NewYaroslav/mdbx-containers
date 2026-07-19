@@ -157,6 +157,7 @@ jobs:
             -DMDBXC_DEPS_MODE=BUNDLED \
             -DMDBXC_BUILD_TESTS=ON \
             -DMDBXC_BUILD_EXAMPLES=ON \
+            -DMDBXC_SIMPLE_WEB_HTTP_TRANSPORT=ON \
             -DMDBXC_HTTP_SYNC_EXAMPLE=ON \
             -Wno-dev \
           2>&1 | tee build-http-fleet/configure.log
@@ -350,6 +351,7 @@ jobs:
             -DMDBXC_DEPS_MODE=BUNDLED \
             -DMDBXC_BUILD_TESTS=ON \
             -DMDBXC_BUILD_EXAMPLES=ON \
+            -DMDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT=ON \
             -DMDBXC_WEBSOCKET_SYNC_EXAMPLE=ON \
             -DMDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK=ON \
             -Wno-dev \
@@ -449,6 +451,7 @@ jobs:
             -DMDBXC_DEPS_MODE=BUNDLED \
             -DMDBXC_BUILD_TESTS=ON \
             -DMDBXC_BUILD_EXAMPLES=ON \
+            -DMDBXC_KURLYK_HTTP_TRANSPORT=ON \
             -DMDBXC_KURLYK_HTTP_SYNC_EXAMPLE=ON \
             -DMDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK=ON \
             -Wno-dev \

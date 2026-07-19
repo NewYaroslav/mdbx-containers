@@ -47,6 +47,7 @@ function(kurlyk_http_client_provide)
         GIT_REPOSITORY https://github.com/NewYaroslav/kurlyk.git
         GIT_TAG        ${MDBXC_KURLYK_GIT_TAG}
         GIT_SHALLOW    TRUE
+        GIT_SUBMODULES  ""
     )
     FetchContent_GetProperties(mdbxc_kurlyk)
     if(NOT mdbxc_kurlyk_POPULATED)
