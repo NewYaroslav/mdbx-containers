@@ -13,6 +13,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -139,6 +141,97 @@ namespace sync {
         std::vector<std::uint8_t> body;
         std::string error;
     };
+
+    /// \brief Retry classification for adapter-level HTTP failures.
+    enum class HttpSyncRetryClass : std::uint8_t {
+        Success,
+        Retryable,
+        Permanent
+    };
+
+    /// \brief Classifies HTTP status codes for sync transport retry policy.
+    /// \details This helper classifies transport-level response status only.
+    /// Sync DTO responses with HTTP 200 still carry their own \c ok/error
+    /// fields and must be handled by the caller.
+    inline HttpSyncRetryClass classify_http_sync_status(unsigned status_code) {
+        if (status_code >= 200 && status_code < 300) {
+            return HttpSyncRetryClass::Success;
+        }
+        switch (status_code) {
+            case 408:
+            case 425:
+            case 429:
+            case 500:
+            case 502:
+            case 503:
+            case 504:
+                return HttpSyncRetryClass::Retryable;
+            default:
+                return HttpSyncRetryClass::Permanent;
+        }
+    }
+
+    /// \brief Returns true when an HTTP sync status is retryable.
+    inline bool http_sync_status_is_retryable(unsigned status_code) {
+        return classify_http_sync_status(status_code) ==
+               HttpSyncRetryClass::Retryable;
+    }
+
+    inline bool parse_http_retry_after_delta_seconds(
+            const std::string& value,
+            std::uint64_t& seconds) {
+        if (value.empty()) {
+            return false;
+        }
+
+        std::uint64_t out = 0;
+        for (std::size_t i = 0; i < value.size(); ++i) {
+            const char ch = value[i];
+            if (ch < '0' || ch > '9') {
+                return false;
+            }
+            const std::uint64_t digit =
+                static_cast<std::uint64_t>(ch - '0');
+            if (out >
+                    (std::numeric_limits<std::uint64_t>::max() - digit) /
+                        10u) {
+                return false;
+            }
+            out = out * 10u + digit;
+        }
+
+        seconds = out;
+        return true;
+    }
+
+    /// \brief Builds retry advice from an HTTP sync response.
+    /// \details Successful statuses return an unavailable hint because they
+    /// are not transport failures. Permanent and retryable failures return an
+    /// available hint. Retryable statuses preserve an optional relative
+    /// \c Retry-After value.
+    inline SyncTransportRetryHint http_sync_retry_hint(
+            const HttpSyncResponse& response) {
+        SyncTransportRetryHint hint;
+        const HttpSyncRetryClass classification =
+            classify_http_sync_status(response.status_code);
+        if (classification == HttpSyncRetryClass::Success) {
+            return hint;
+        }
+        hint.available = true;
+        hint.retryable = classification == HttpSyncRetryClass::Retryable;
+        if (!hint.retryable) {
+            return hint;
+        }
+
+        const std::string retry_after =
+            http_header_value(response.headers, "Retry-After");
+        std::uint64_t seconds = 0;
+        if (parse_http_retry_after_delta_seconds(retry_after, seconds)) {
+            hint.has_retry_after = true;
+            hint.retry_after_seconds = seconds;
+        }
+        return hint;
+    }
 
     /// \brief Client-side bridge implemented by a concrete HTTP library.
     class IHttpSyncClient {
@@ -283,6 +376,7 @@ namespace sync {
             : m_client(client), m_bounds(bounds) {}
 
         PullResponse pull(const PullRequest& request) override {
+            clear_last_retry_hint();
             const std::vector<std::uint8_t> body =
                 TransportMessageCodec::encode_pull_request(
                     request, &m_bounds);
@@ -297,6 +391,7 @@ namespace sync {
         }
 
         PushResponse push(const PushRequest& request) override {
+            clear_last_retry_hint();
             const std::vector<std::uint8_t> body =
                 TransportMessageCodec::encode_push_request(
                     request, &m_bounds);
@@ -314,10 +409,16 @@ namespace sync {
             m_client.request_cancel();
         }
 
+        SyncTransportRetryHint last_retry_hint() const override {
+            std::lock_guard<std::mutex> lock(m_retry_mutex);
+            return m_last_retry_hint;
+        }
+
     private:
-        static void require_ok_response(const HttpSyncResponse& response,
-                                        const char* operation) {
+        void require_ok_response(const HttpSyncResponse& response,
+                                 const char* operation) const {
             if (response.status_code != 200) {
+                set_last_retry_hint(http_sync_retry_hint(response));
                 const std::string diagnostic = response_diagnostic(response);
                 throw std::runtime_error(
                     std::string("HTTP sync ") + operation +
@@ -330,6 +431,16 @@ namespace sync {
                     std::string("HTTP sync ") + operation +
                     " returned unexpected content type");
             }
+        }
+
+        void clear_last_retry_hint() const {
+            set_last_retry_hint(SyncTransportRetryHint());
+        }
+
+        void set_last_retry_hint(
+                const SyncTransportRetryHint& hint) const {
+            std::lock_guard<std::mutex> lock(m_retry_mutex);
+            m_last_retry_hint = hint;
         }
 
         static std::string response_diagnostic(
@@ -347,6 +458,8 @@ namespace sync {
 
         IHttpSyncClient& m_client;
         CodecBounds m_bounds;
+        mutable std::mutex m_retry_mutex;
+        mutable SyncTransportRetryHint m_last_retry_hint;
     };
 
 } // namespace sync

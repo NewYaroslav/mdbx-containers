@@ -109,6 +109,7 @@ public:
         mdbxc::sync::HttpSyncResponse response;
         response.status_code = 503;
         response.content_type = "text/plain; charset=utf-8";
+        mdbxc::sync::http_add_header(response.headers, "Retry-After", "3");
         const std::string text = "upstream unavailable";
         response.body.assign(text.begin(), text.end());
         return response;
@@ -287,6 +288,14 @@ void test_http_peer_rejects_transport_error() {
                  message.find("upstream unavailable") != std::string::npos;
     }
     require_true(caught, "HTTP peer must surface non-200 status");
+    const mdbxc::sync::SyncTransportRetryHint hint =
+        peer.last_retry_hint();
+    require_true(hint.available, "HTTP peer must publish available retry hint");
+    require_true(hint.retryable, "HTTP peer must publish retryable hint");
+    require_true(hint.has_retry_after,
+                 "HTTP peer must preserve Retry-After hint");
+    require_true(hint.retry_after_seconds == 3u,
+                 "HTTP peer Retry-After hint mismatch");
 }
 
 } // namespace

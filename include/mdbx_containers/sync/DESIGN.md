@@ -596,8 +596,11 @@ after transport-level failures. With `available=true`, `retryable=false` means
 the transport classified the failure as permanent for the current request.
 Successful transport responses are not failures and should clear back to an
 unavailable hint. The hint is advisory: callers may still use their own retry
-scheduler, but `SyncWorker` and examples can consume the same transport-neutral
-shape without depending on HTTP or WebSocket headers.
+scheduler, but `SyncWorker` and examples consume the same transport-neutral
+shape without depending on HTTP or WebSocket headers. Worker round and stage
+events carry the latest hint for failed pulls. In background mode, an available
+retryable hint with relative `Retry-After` overrides the current exponential
+delay for that backoff wait, capped by `SyncWorkerOptions::max_backoff`.
 
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec
