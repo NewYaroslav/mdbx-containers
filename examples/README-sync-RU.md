@@ -218,6 +218,16 @@ cmake -S . -B tmp/build-ws-example `
   `SyncCaptureScope` или более низкоуровневую пару `attach_sync_capture()` /
   `detach_sync_capture()`. Scope-вариант автоматически восстанавливает
   предыдущий capture sink после завершения локальной фазы записи.
+- Предпочитайте `SyncCaptureScope`, когда функция владеет ограниченной фазой
+  записи: например, seed-данными, одной локальной бизнес-операцией или
+  временной подменой sink в тестах. Ручные `attach_sync_capture()` /
+  `detach_sync_capture()` лучше оставлять для более широкого lifecycle
+  компонента, например process-local writer service, который прикрепляет
+  capture один раз после старта и отсоединяет его при shutdown.
+- Вложенные `SyncCaptureScope` должны завершаться строго в обратном порядке.
+  Явный out-of-order `detach()` отклоняется, а raw-вызовы
+  `attach_sync_capture()` / `detach_sync_capture()` не должны подменять sink
+  соединения, пока им владеет активный scope.
 - Методы поддерживаемых таблиц сохраняют обычный API. Не нужно оборачивать
   каждый `insert`, `insert_or_assign`, `erase`, `reconcile` или range erase в
   отдельный sync-вызов. Capture sink записывает поддерживаемые write operations

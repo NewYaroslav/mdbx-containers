@@ -216,6 +216,16 @@ cmake -S . -B tmp/build-ws-example `
   `SyncCaptureScope` or the lower-level `attach_sync_capture()` /
   `detach_sync_capture()` pair. The scope form restores the previous capture
   sink automatically when the local write phase ends.
+- Prefer `SyncCaptureScope` when a function owns a bounded write phase:
+  examples include seeding rows, applying one local business operation, or
+  temporarily overriding an existing sink in tests. Prefer manual
+  `attach_sync_capture()` / `detach_sync_capture()` only when capture is part of
+  a wider component lifecycle, such as a process-local writer service that
+  attaches once after startup and detaches during shutdown.
+- Nested `SyncCaptureScope` objects must end in strict LIFO order. An explicit
+  out-of-order `detach()` is rejected, and raw `attach_sync_capture()` /
+  `detach_sync_capture()` calls must not replace the connection sink while a
+  scope still owns it.
 - Supported table methods keep their normal API. You do not wrap each
   `insert`, `insert_or_assign`, `erase`, `reconcile`, or range erase in a sync
   call. The capture sink records supported write operations when their MDBX
