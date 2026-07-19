@@ -81,6 +81,7 @@ function(kurlyk_http_client_provide)
         target_compile_features(mdbxc_kurlyk_http_client INTERFACE
             cxx_std_17)
         target_compile_definitions(mdbxc_kurlyk_http_client INTERFACE
+            MDBXC_HAS_KURLYK_HTTP_TRANSPORT=1
             KURLYK_HTTP_SUPPORT=1
             KURLYK_WEBSOCKET_SUPPORT=0
             KURLYK_AUTH_SUPPORT=0

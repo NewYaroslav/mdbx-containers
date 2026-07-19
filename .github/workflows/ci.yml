@@ -155,7 +155,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_STANDARD=17 \
             -DMDBXC_DEPS_MODE=BUNDLED \
-            -DMDBXC_BUILD_TESTS=OFF \
+            -DMDBXC_BUILD_TESTS=ON \
             -DMDBXC_BUILD_EXAMPLES=ON \
             -DMDBXC_HTTP_SYNC_EXAMPLE=ON \
             -Wno-dev \
@@ -166,12 +166,15 @@ jobs:
           set -euo pipefail
           cmake --build build-http-fleet \
             --target sync_13_http_simple_web_server \
-                     sync_18_http_node_fleet --parallel \
+                     sync_18_http_node_fleet \
+                     test_simple_web_http_transport --parallel \
           2>&1 | tee build-http-fleet/build.log
 
       - name: Run Simple-Web HTTP sync smoke
         run: |
           set -euo pipefail
+          build-http-fleet/bin/tests/test_simple_web_http_transport \
+          2>&1 | tee build-http-fleet/http-transport-test.log
           build-http-fleet/bin/examples/sync_13_http_simple_web_server \
             demo 127.0.0.1 18080 \
           2>&1 | tee build-http-fleet/http-demo.log
@@ -345,7 +348,7 @@ jobs:
             -DCMAKE_POLICY_DEFAULT_CMP0152=NEW \
             -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=TRUE \
             -DMDBXC_DEPS_MODE=BUNDLED \
-            -DMDBXC_BUILD_TESTS=OFF \
+            -DMDBXC_BUILD_TESTS=ON \
             -DMDBXC_BUILD_EXAMPLES=ON \
             -DMDBXC_WEBSOCKET_SYNC_EXAMPLE=ON \
             -DMDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK=ON \
@@ -358,12 +361,18 @@ jobs:
         run: |
           set -euo pipefail
           cmake --build build-ws-fallback \
-            --target sync_17_websocket_simple_web_server --parallel \
+            --target sync_17_websocket_simple_web_server \
+                     test_simple_websocket_transport --parallel \
           2>&1 | tee build-ws-fallback/build.log
 
       - name: Run WebSocket fallback example
         run: |
           set -euo pipefail
+          test_dir="build-ws-fallback/bin/tests"
+          test -x "$test_dir/test_simple_websocket_transport.exe"
+          test -f "$test_dir/libcrypto-3-x64.dll"
+          "$test_dir/test_simple_websocket_transport.exe" \
+          2>&1 | tee build-ws-fallback/transport-test.log
           exe_dir="build-ws-fallback/bin/examples"
           test -x "$exe_dir/sync_17_websocket_simple_web_server.exe"
           test -f "$exe_dir/libcrypto-3-x64.dll"
@@ -438,7 +447,7 @@ jobs:
             -DCMAKE_POLICY_DEFAULT_CMP0152=NEW \
             -DCMAKE_DISABLE_FIND_PACKAGE_CURL=TRUE \
             -DMDBXC_DEPS_MODE=BUNDLED \
-            -DMDBXC_BUILD_TESTS=OFF \
+            -DMDBXC_BUILD_TESTS=ON \
             -DMDBXC_BUILD_EXAMPLES=ON \
             -DMDBXC_KURLYK_HTTP_SYNC_EXAMPLE=ON \
             -DMDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK=ON \
@@ -451,12 +460,18 @@ jobs:
         run: |
           set -euo pipefail
           cmake --build build-kurlyk-fallback \
-            --target sync_19_kurlyk_http_client --parallel \
+            --target sync_19_kurlyk_http_client \
+                     test_kurlyk_http_transport --parallel \
           2>&1 | tee build-kurlyk-fallback/build.log
 
       - name: Run Kurlyk curl fallback example
         run: |
           set -euo pipefail
+          test_dir="build-kurlyk-fallback/bin/tests"
+          test -x "$test_dir/test_kurlyk_http_transport.exe"
+          test -f "$test_dir/libcurl-x64.dll"
+          "$test_dir/test_kurlyk_http_transport.exe" \
+          2>&1 | tee build-kurlyk-fallback/transport-test.log
           exe_dir="build-kurlyk-fallback/bin/examples"
           test -x "$exe_dir/sync_19_kurlyk_http_client.exe"
           test -f "$exe_dir/libcurl-x64.dll"

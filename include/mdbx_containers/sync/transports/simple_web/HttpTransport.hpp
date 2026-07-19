@@ -9,6 +9,11 @@
 /// translation units that intentionally use eidheim/Simple-Web-Server and
 /// standalone Asio.
 
+#if !defined(MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT) || \
+        !MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT
+#error "Simple-Web HTTP transport requires MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT=1"
+#endif
+
 #ifndef ASIO_STANDALONE
 #define ASIO_STANDALONE 1
 #endif

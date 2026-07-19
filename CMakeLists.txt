@@ -219,6 +219,30 @@ if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
         tiny-process-library::tiny-process-library)
     message(STATUS "HTTP node fleet example sync_18_http_node_fleet -> "
         "${_MDBXC_SWS_TARGET};tiny-process-library")
+
+    if(MDBXC_BUILD_TESTS)
+        include(CTest)
+        enable_testing()
+        add_executable(test_simple_web_http_transport
+            tests/optional/test_simple_web_http_transport.cpp)
+        set_target_properties(test_simple_web_http_transport PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests
+        )
+        target_compile_features(test_simple_web_http_transport PRIVATE
+            cxx_std_11)
+        target_compile_definitions(test_simple_web_http_transport PRIVATE
+            MDBXC_SYNC_ENABLED=1)
+        mdbxc_enable_asan(test_simple_web_http_transport)
+        target_link_libraries(test_simple_web_http_transport PRIVATE
+            ${_PKG_TARGET}
+            ${_MDBXC_SWS_TARGET})
+        add_test(NAME test_simple_web_http_transport
+            COMMAND test_simple_web_http_transport)
+        set_tests_properties(test_simple_web_http_transport PROPERTIES
+            TIMEOUT 30)
+        message(STATUS "HTTP binding test "
+            "test_simple_web_http_transport -> ${_MDBXC_SWS_TARGET}")
+    endif()
 endif()
 
 # ---------------------------------------
@@ -262,6 +286,39 @@ if(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
     endforeach()
     message(STATUS "Kurlyk HTTP client example sync_19_kurlyk_http_client -> "
         "${_MDBXC_SWS_TARGET};${_MDBXC_KURLYK_HTTP_TARGET}")
+
+    if(MDBXC_BUILD_TESTS)
+        include(CTest)
+        enable_testing()
+        add_executable(test_kurlyk_http_transport
+            tests/optional/test_kurlyk_http_transport.cpp)
+        set_target_properties(test_kurlyk_http_transport PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests
+        )
+        target_compile_features(test_kurlyk_http_transport PRIVATE cxx_std_17)
+        target_compile_definitions(test_kurlyk_http_transport PRIVATE
+            MDBXC_SYNC_ENABLED=1)
+        mdbxc_enable_asan(test_kurlyk_http_transport)
+        target_link_libraries(test_kurlyk_http_transport PRIVATE
+            ${_PKG_TARGET}
+            ${_MDBXC_KURLYK_HTTP_TARGET})
+        get_property(_MDBXC_CURL_RUNTIME_DLLS GLOBAL PROPERTY
+            MDBXC_MINGW_CURL_RUNTIME_DLLS)
+        foreach(_MDBXC_CURL_RUNTIME_DLL IN LISTS _MDBXC_CURL_RUNTIME_DLLS)
+            add_custom_command(TARGET test_kurlyk_http_transport
+                POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_MDBXC_CURL_RUNTIME_DLL}"
+                    "$<TARGET_FILE_DIR:test_kurlyk_http_transport>"
+                VERBATIM)
+        endforeach()
+        add_test(NAME test_kurlyk_http_transport
+            COMMAND test_kurlyk_http_transport)
+        set_tests_properties(test_kurlyk_http_transport PROPERTIES
+            TIMEOUT 30)
+        message(STATUS "Kurlyk HTTP client test "
+            "test_kurlyk_http_transport -> ${_MDBXC_KURLYK_HTTP_TARGET}")
+    endif()
 endif()
 
 # ---------------------------------------

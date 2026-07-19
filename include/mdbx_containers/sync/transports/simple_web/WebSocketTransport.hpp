@@ -9,6 +9,11 @@
 /// translation units that intentionally use eidheim/Simple-WebSocket-Server and
 /// standalone Asio.
 
+#if !defined(MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT) || \
+        !MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT
+#error "Simple-WebSocket transport requires MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT=1"
+#endif
+
 #ifndef ASIO_STANDALONE
 #define ASIO_STANDALONE 1
 #endif

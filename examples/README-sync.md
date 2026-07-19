@@ -60,7 +60,10 @@ tmp/build-http-example/bin/examples/sync_18_http_node_fleet \
 The reusable HTTP binding lives in:
 
 ```cpp
+#if defined(MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT) && \
+        MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT
 #include <mdbx_containers/sync/transports/simple_web/HttpTransport.hpp>
+#endif
 ```
 
 The Kurlyk/libcurl HTTP client binding is also opt-in. It reuses the
@@ -84,15 +87,28 @@ tmp/build-kurlyk-http/bin/examples/sync_19_kurlyk_http_client
 The reusable Kurlyk HTTP client binding lives in:
 
 ```cpp
+#if defined(MDBXC_HAS_KURLYK_HTTP_TRANSPORT) && \
+        MDBXC_HAS_KURLYK_HTTP_TRANSPORT
 #include <mdbx_containers/sync/transports/kurlyk/HttpTransport.hpp>
+#endif
 ```
 
 Targets that intentionally use both Simple-Web HTTP and WebSocket bindings can
 include the backend umbrella:
 
 ```cpp
+#if defined(MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT) && \
+        MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT && \
+        defined(MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT) && \
+        MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT
 #include <mdbx_containers/sync/transports/simple_web.hpp>
+#endif
 ```
+
+The `MDBXC_*_SYNC_EXAMPLE` options only build repository examples. Consumer
+targets get `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
+`MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, or
+`MDBXC_HAS_KURLYK_HTTP_TRANSPORT` from the concrete dependency target they link.
 
 The real WebSocket binding example is also opt-in because it fetches standalone
 Asio and Simple-WebSocket-Server headers. Simple-WebSocket-Server uses OpenSSL

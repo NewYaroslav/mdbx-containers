@@ -44,11 +44,14 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   node-fleet example over tiny-process-library. These integrations are behind
   explicit CMake options, not mandatory runtime dependencies. The backend
   umbrella is `sync/transports/simple_web.hpp`; HTTP-only or WebSocket-only
-  targets can include the narrower backend-specific header.
+  targets can include the narrower backend-specific header. Targets that link
+  these dependency backends receive `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT` and/or
+  `MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT`.
 - Optional ready-made Kurlyk/libcurl HTTP client binding under
   `sync/transports/kurlyk/`. It implements only the client-side
   `IHttpSyncClient` seam and can be paired with any server binding that exposes
-  the framework-neutral `HttpSyncServer` contract.
+  the framework-neutral `HttpSyncServer` contract. Targets that link the
+  backend receive `MDBXC_HAS_KURLYK_HTTP_TRANSPORT`.
 - Transport middleware helpers: `SyncPeerMiddleware`,
   `HttpSyncClientMiddleware`, allow-list policies, fixed-budget rate limiting,
   HTTP request-context bearer/remote-address/fixed-window policies,
@@ -624,6 +627,15 @@ changing `SyncEngine`, `HttpSyncPeer`, transport DTOs, or auth/rate-limit
 middleware. On Windows/MinGW, its optional example can fetch a pinned
 ready-made libcurl package; that fallback is a build-time convenience for the
 example target, not a dependency of the sync core.
+
+The `MDBXC_HTTP_SYNC_EXAMPLE`, `MDBXC_WEBSOCKET_SYNC_EXAMPLE`, and
+`MDBXC_KURLYK_HTTP_SYNC_EXAMPLE` CMake options only decide whether repository
+examples fetch and build optional backends. Application code should use
+`MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
+`MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, and
+`MDBXC_HAS_KURLYK_HTTP_TRANSPORT` when it needs conditional includes for
+concrete backend headers. Consumers that wire the same third-party dependencies
+manually may define the corresponding `MDBXC_HAS_*` macro themselves.
 
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 

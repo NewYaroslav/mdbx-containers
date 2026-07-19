@@ -9,6 +9,11 @@
 /// translation units that intentionally use NewYaroslav/kurlyk as the concrete
 /// HTTP client backend.
 
+#if !defined(MDBXC_HAS_KURLYK_HTTP_TRANSPORT) || \
+        !MDBXC_HAS_KURLYK_HTTP_TRANSPORT
+#error "Kurlyk HTTP transport requires MDBXC_HAS_KURLYK_HTTP_TRANSPORT=1"
+#endif
+
 #ifndef KURLYK_HTTP_SUPPORT
 #define KURLYK_HTTP_SUPPORT 1
 #endif
