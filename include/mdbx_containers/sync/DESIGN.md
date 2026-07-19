@@ -576,12 +576,15 @@ transport statuses by default. Auth, authorization, routing, content-type,
 payload-size, and malformed-body errors (`400`, `401`, `403`, `404`, `405`,
 `413`, `415`) are permanent for the current request unless a higher-level
 adapter refreshes credentials or changes the request. `Retry-After` is advisory
-transport metadata; `SyncWorker` backoff remains the core retry loop for failed
+transport metadata; `http_sync_retry_hint()` exposes relative
+`Retry-After: <delta-seconds>` values without parsing HTTP-date clock policy.
+`SyncWorker` backoff remains the core retry loop for failed
 sync rounds. For WebSocket, close code `1000` is success; `1001`, local
 observations `1005`/`1006`, and server/transient codes `1011`, `1012`, `1013`,
 and `1014` are retryable by default. Policy, malformed payload, and oversized
 message codes such as `1007`, `1008`, and `1009` are permanent for the current
-request.
+request. `websocket_sync_retry_hint()` exposes the same retryable flag for
+concrete bindings that report close codes.
 
 `ChangeBatchCodec` already rejects `BATCH_COMPRESSED_ZSTD` at both
 encode and decode paths. Adding a real `zstd` backend is a codec

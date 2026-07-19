@@ -71,6 +71,65 @@ namespace sync {
                HttpSyncRetryClass::Retryable;
     }
 
+    /// \brief Adapter-level retry hint for transport failures.
+    /// \details \c retry_after_seconds is present only when a transport
+    /// supplied a supported relative retry delay such as HTTP
+    /// \c Retry-After: <delta-seconds>. Absolute HTTP-date values are
+    /// intentionally left to concrete HTTP bindings that own clock policy.
+    struct SyncTransportRetryHint {
+        bool retryable = false;
+        bool has_retry_after = false;
+        std::uint64_t retry_after_seconds = 0;
+    };
+
+    inline bool parse_http_retry_after_delta_seconds(
+            const std::string& value,
+            std::uint64_t& seconds) {
+        if (value.empty()) {
+            return false;
+        }
+
+        std::uint64_t out = 0;
+        for (std::size_t i = 0; i < value.size(); ++i) {
+            const char ch = value[i];
+            if (ch < '0' || ch > '9') {
+                return false;
+            }
+            const std::uint64_t digit =
+                static_cast<std::uint64_t>(ch - '0');
+            if (out >
+                    (std::numeric_limits<std::uint64_t>::max() - digit) /
+                        10u) {
+                return false;
+            }
+            out = out * 10u + digit;
+        }
+
+        seconds = out;
+        return true;
+    }
+
+    /// \brief Builds retry advice from an HTTP sync response.
+    /// \details Successful and permanent statuses are never marked retryable.
+    /// Retryable statuses preserve an optional relative \c Retry-After value.
+    inline SyncTransportRetryHint http_sync_retry_hint(
+            const HttpSyncResponse& response) {
+        SyncTransportRetryHint hint;
+        hint.retryable = http_sync_status_is_retryable(response.status_code);
+        if (!hint.retryable) {
+            return hint;
+        }
+
+        const std::string retry_after =
+            http_header_value(response.headers, "Retry-After");
+        std::uint64_t seconds = 0;
+        if (parse_http_retry_after_delta_seconds(retry_after, seconds)) {
+            hint.has_retry_after = true;
+            hint.retry_after_seconds = seconds;
+        }
+        return hint;
+    }
+
     /// \brief Retry classification for adapter-level WebSocket close codes.
     enum class WebSocketSyncCloseRetryClass : std::uint8_t {
         Success,
@@ -104,6 +163,15 @@ namespace sync {
             unsigned close_code) {
         return classify_websocket_sync_close_code(close_code) ==
                WebSocketSyncCloseRetryClass::Retryable;
+    }
+
+    /// \brief Builds retry advice from a WebSocket close code.
+    inline SyncTransportRetryHint websocket_sync_retry_hint(
+            unsigned close_code) {
+        SyncTransportRetryHint hint;
+        hint.retryable =
+            websocket_sync_close_code_is_retryable(close_code);
+        return hint;
     }
 
     /// \brief Result returned by a transport policy.
