@@ -56,6 +56,63 @@ jobs:
           set -euo pipefail
           cmake --build "build-parent-${{ matrix.target_case }}" --parallel
 
+  installed-transport-backend:
+    name: Installed transport backend smoke (Linux C++11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Create fake MDBX package
+        run: |
+          set -euo pipefail
+          fake_dir="$PWD/build-fake-mdbx/lib/cmake/MDBX"
+          mkdir -p "$fake_dir"
+          cat >"$fake_dir/MDBXConfig.cmake" <<EOF
+          add_library(mdbx::mdbx INTERFACE IMPORTED)
+          set_target_properties(mdbx::mdbx PROPERTIES
+              INTERFACE_INCLUDE_DIRECTORIES "$PWD/external/libmdbx")
+          set(MDBX_FOUND TRUE)
+          EOF
+
+      - name: Install mdbx-containers package
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-install -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=11 \
+            -DMDBXC_DEPS_MODE=SYSTEM \
+            -DCMAKE_PREFIX_PATH="$PWD/build-fake-mdbx" \
+            -DMDBXC_BUILD_TESTS=OFF \
+            -DMDBXC_BUILD_EXAMPLES=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PWD/build-install-prefix" \
+            -Wno-dev
+          cmake --install build-install
+
+      - name: Configure installed transport consumer
+        run: |
+          set -euo pipefail
+          cmake -S tests/cmake/installed_transport_backend \
+            -B build-installed-transport-backend -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=11 \
+            -DCMAKE_PREFIX_PATH="$PWD/build-install-prefix;$PWD/build-fake-mdbx" \
+            -Wno-dev
+
+      - name: Build installed transport consumer
+        run: |
+          set -euo pipefail
+          cmake --build build-installed-transport-backend --parallel
+
   benchmark-smoke:
     name: Benchmark smoke (Linux C++17)
     runs-on: ubuntu-latest

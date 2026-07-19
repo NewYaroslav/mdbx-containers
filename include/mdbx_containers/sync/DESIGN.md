@@ -642,6 +642,24 @@ compatibility with older example build commands. Application code should use
 concrete backend headers. Consumers that wire the same third-party dependencies
 manually may define the corresponding `MDBXC_HAS_*` macro themselves.
 
+Installed packages export provider functions instead of exporting raw
+FetchContent build-tree targets:
+
+```cmake
+mdbx_containers_simple_web_http_transport_provide(OUT_TARGET http_target)
+mdbx_containers_simple_web_websocket_transport_provide(OUT_TARGET ws_target)
+mdbx_containers_kurlyk_http_transport_provide(OUT_TARGET kurlyk_target)
+```
+
+The returned targets are
+`mdbx_containers::simple_web_http_transport`,
+`mdbx_containers::simple_web_websocket_transport`, and
+`mdbx_containers::kurlyk_http_transport`. They link the core package target,
+enable `MDBXC_SYNC_ENABLED`, fetch or find the optional third-party backend,
+and propagate the matching `MDBXC_HAS_*_TRANSPORT` macro. This keeps installed
+packages relocatable while preserving the same target-based usage model as the
+source-tree examples and tests.
+
 ## Why `prune_up_to` uses cursor walk + `MDBX_NEXT`
 
 MDBX has no batch "delete by key range" primitive. The supported pattern

@@ -12,3 +12,4 @@ endif()
 
 # Pull in the exported targets (namespace mdbx_containers::)
 include("${CMAKE_CURRENT_LIST_DIR}/mdbx_containersTargets.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/mdbx_containersTransportBackends.cmake")
