@@ -33,6 +33,29 @@ When TLS termination happens outside the process, pass only trusted forwarded
 identity metadata into the adapter policy layer. Do not treat arbitrary
 `X-Forwarded-*` headers from the public network as authenticated facts.
 
+There are three common deployment shapes:
+
+- **Edge TLS termination**. A reverse proxy, ingress controller, or service
+  mesh terminates HTTPS/WSS and forwards only authenticated internal traffic to
+  the sync listener. In this model the sync process should bind credentials or
+  trusted proxy metadata to `NodeId` in the HTTP/WebSocket policy layer.
+- **Native TLS binding**. A concrete transport backend owns certificates,
+  cipher settings, and TLS session state. The sync DTO codec is unchanged; only
+  the binding that implements `IHttpSyncClient`, `IWebSocketSyncChannel`, or the
+  listener side changes.
+- **mTLS node identity**. The edge or native binding validates client
+  certificates and maps the certificate subject, SAN, SPIFFE id, or another
+  deployment-specific principal to the authenticated `NodeId`.
+
+Keep the mapping outside the serialized sync messages. `PullRequest::requester`
+and `PushRequest::sender` are still part of the sync protocol, but transport
+policy should verify that they match the authenticated session identity before
+dispatching to `SyncEngine`.
+
+The current ready-made examples intentionally use plain HTTP/WS. For WSS,
+either terminate TLS before the process or add a TLS-capable concrete binding
+that still feeds binary WebSocket messages through `TransportMessageCodec`.
+
 ## Token Rotation
 
 Bearer-token policies should support at least two active credentials during a
@@ -47,6 +70,18 @@ Long-lived WebSocket sessions should be closed gracefully when their credential
 is revoked. The current adapter contract supports this at the binding layer:
 the concrete server can reject new handshakes and close existing sessions using
 a policy close code such as `1008`.
+
+For WebSocket clients, rotation normally also needs a reconnect policy:
+
+- existing sessions may keep using the old credential until the rotation window
+  ends;
+- new sessions should prefer the new credential immediately;
+- once the old credential is revoked, the server should close matching sessions
+  with a policy close code and let clients reconnect with the new credential.
+
+For HTTP clients, retrying a rejected request with the same revoked token should
+be treated as permanent failure. A client-side credential provider can rotate
+the token and then issue a new request.
 
 ## Graceful Shutdown
 
@@ -65,6 +100,23 @@ in-flight peer call. Cancellation is best-effort: `stop()`, `join()`, and the
 destructor may still wait until a transport that ignores or cannot complete
 cancellation returns. Concrete transport clients should use finite timeouts or
 their own socket-level cancellation mechanism.
+
+Server bindings should also define what they return during each shutdown
+phase:
+
+- before the listener stops, reject new HTTP sync requests with a retryable
+  service status such as `503` and, when useful, a relative `Retry-After`;
+- for WebSocket, stop accepting new handshakes and close idle sessions with a
+  retryable close code such as `1001` (Going Away) or `1012` (Service
+  Restart), depending on the shutdown reason;
+- for active WebSocket exchanges, finish the current message when possible, or
+  use the backend's cancellation/close mechanism if the application requires a
+  bounded shutdown time.
+
+After shutdown begins, avoid destroying `SyncEngine`, `Connection`, or table
+objects while a transport callback can still reach them. The listener, active
+sessions, and workers should no longer be able to call into the sync engine
+before those objects are destroyed.
 
 ## Retry Policy
 
@@ -128,6 +180,24 @@ when the concrete binding fills its adapter-local trace fields.
 
 Avoid logging raw keys, values, bearer tokens, or full serialized sync bodies in
 normal production logs.
+
+Recommended event boundaries are:
+
+- transport request received;
+- policy accepted or rejected;
+- transport response sent or WebSocket close emitted;
+- worker round started and finished;
+- pull page received;
+- apply page finished;
+- retry/backoff scheduled;
+- cancellation requested;
+- worker stopped.
+
+If the application exposes catch-up progress, treat it as an estimate. The
+remote tail can move while the worker is syncing, different peers can expose
+different tails, and retry/backoff waits are transport policy rather than stored
+database state. Log the numbers that were observed instead of presenting them
+as a fixed ETA contract.
 
 ## Offline and Corporate Builds
 
