@@ -69,7 +69,10 @@
   HTTP/WebSocket binding headers live under
   `mdbx_containers/sync/transports/simple_web/`, and the optional Kurlyk/libcurl
   HTTP client binding lives under `mdbx_containers/sync/transports/kurlyk/`.
-  Concrete backend targets define `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
+  `MDBXC_SIMPLE_WEB_HTTP_TRANSPORT`,
+  `MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, and `MDBXC_KURLYK_HTTP_TRANSPORT`
+  enable those dependency targets. Concrete backend targets define
+  `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
   `MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, or
   `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` for conditional backend includes.
   Socket-backed examples use those bindings instead of reimplementing the

@@ -105,8 +105,13 @@ include the backend umbrella:
 #endif
 ```
 
-The `MDBXC_*_SYNC_EXAMPLE` options only build repository examples. Consumer
-targets get `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
+`MDBXC_SIMPLE_WEB_HTTP_TRANSPORT`,
+`MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, and `MDBXC_KURLYK_HTTP_TRANSPORT`
+enable the optional dependency targets and their backend smoke tests. The
+`MDBXC_*_SYNC_EXAMPLE` options only add repository examples on top of those
+backends; when examples are enabled, the old example options still enable the
+matching backend for compatibility with older commands. Consumer targets get
+`MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
 `MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT`, or
 `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` from the concrete dependency target they link.
 
@@ -138,7 +143,10 @@ tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server \
 The reusable WebSocket binding lives in:
 
 ```cpp
+#if defined(MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT) && \
+        MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT
 #include <mdbx_containers/sync/transports/simple_web/WebSocketTransport.hpp>
+#endif
 ```
 
 To use your own ready-made OpenSSL package instead, point CMake at the package

@@ -106,7 +106,12 @@ Targets, которым нужны и Simple-Web HTTP, и WebSocket bindings, м
 #endif
 ```
 
-`MDBXC_*_SYNC_EXAMPLE` options только собирают examples из этого repository.
+`MDBXC_SIMPLE_WEB_HTTP_TRANSPORT`,
+`MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT` и `MDBXC_KURLYK_HTTP_TRANSPORT`
+включают optional dependency targets и их backend smoke tests.
+`MDBXC_*_SYNC_EXAMPLE` options только добавляют examples из этого repository
+поверх этих backends; когда examples включены, старые example options всё ещё
+включают соответствующий backend для совместимости со старыми командами.
 Consumer targets получают `MDBXC_HAS_SIMPLE_WEB_HTTP_TRANSPORT`,
 `MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT` или
 `MDBXC_HAS_KURLYK_HTTP_TRANSPORT` от concrete dependency target, к которому
@@ -140,7 +145,10 @@ tmp/build-ws-example/bin/examples/sync_17_websocket_simple_web_server \
 Готовый WebSocket binding подключается так:
 
 ```cpp
+#if defined(MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT) && \
+        MDBXC_HAS_SIMPLE_WEB_WEBSOCKET_TRANSPORT
 #include <mdbx_containers/sync/transports/simple_web/WebSocketTransport.hpp>
+#endif
 ```
 
 Чтобы использовать свой готовый бинарный пакет OpenSSL, укажите CMake корень

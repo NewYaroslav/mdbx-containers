@@ -20,17 +20,52 @@ option(MDBXC_BUILD_BENCHMARKS   "Build benchmark executables"                   
 option(MDBXC_ENABLE_STRESS_TESTS "Register long stress tests with CTest"           OFF)
 option(MDBXC_USE_ASAN "Enable AddressSanitizer for tests/examples (not for libmdbx)" ON)
 
-# Optional transport-binding examples that pull third-party HTTP/process
-# backends (Simple-Web-Server and tiny-process-library). Off by default to keep
-# the default build free of network-stack dependencies. See
-# examples/README-sync.md for usage.
-option(MDBXC_HTTP_SYNC_EXAMPLE "Build the Simple-Web-Server HTTP sync examples" OFF)
-option(MDBXC_WEBSOCKET_SYNC_EXAMPLE "Build the Simple-WebSocket-Server sync binding example" OFF)
-option(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE "Build the Kurlyk/libcurl HTTP sync client example" OFF)
+# Optional transport backends. Off by default to keep the default build free of
+# network-stack dependencies. The *_SYNC_EXAMPLE options below preserve the
+# older example-oriented entry points and enable the matching backend when used.
+option(MDBXC_SIMPLE_WEB_HTTP_TRANSPORT
+    "Enable the optional Simple-Web-Server HTTP sync transport backend" OFF)
+option(MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT
+    "Enable the optional Simple-WebSocket-Server sync transport backend" OFF)
+option(MDBXC_KURLYK_HTTP_TRANSPORT
+    "Enable the optional Kurlyk/libcurl HTTP sync client transport backend" OFF)
+option(MDBXC_HTTP_SYNC_EXAMPLE
+    "Build the Simple-Web-Server HTTP sync examples" OFF)
+option(MDBXC_WEBSOCKET_SYNC_EXAMPLE
+    "Build the Simple-WebSocket-Server sync binding example" OFF)
+option(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE
+    "Build the Kurlyk/libcurl HTTP sync client example" OFF)
 option(MDBXC_KURLYK_HTTP_SYNC_MINGW_CURL_FALLBACK
-    "Fetch a ready-made Win64 libcurl package for the MinGW Kurlyk HTTP example if system libcurl is unavailable" ON)
+    "Fetch a ready-made Win64 libcurl package for the MinGW Kurlyk HTTP transport if system libcurl is unavailable"
+    ON)
 option(MDBXC_WEBSOCKET_SYNC_MINGW_OPENSSL_FALLBACK
-    "Fetch a ready-made Win64 OpenSSL Crypto package for the MinGW WebSocket example if system OpenSSL is unavailable" ON)
+    "Fetch a ready-made Win64 OpenSSL Crypto package for the MinGW WebSocket transport if system OpenSSL is unavailable"
+    ON)
+
+if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES AND
+        NOT MDBXC_SIMPLE_WEB_HTTP_TRANSPORT)
+    set(MDBXC_SIMPLE_WEB_HTTP_TRANSPORT ON CACHE BOOL
+        "Enable the optional Simple-Web-Server HTTP sync transport backend" FORCE)
+    message(STATUS
+        "MDBXC_HTTP_SYNC_EXAMPLE enables MDBXC_SIMPLE_WEB_HTTP_TRANSPORT")
+endif()
+if(MDBXC_WEBSOCKET_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES AND
+        NOT MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT)
+    set(MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT ON CACHE BOOL
+        "Enable the optional Simple-WebSocket-Server sync transport backend"
+        FORCE)
+    message(STATUS
+        "MDBXC_WEBSOCKET_SYNC_EXAMPLE enables "
+        "MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT")
+endif()
+if(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES AND
+        NOT MDBXC_KURLYK_HTTP_TRANSPORT)
+    set(MDBXC_KURLYK_HTTP_TRANSPORT ON CACHE BOOL
+        "Enable the optional Kurlyk/libcurl HTTP sync client transport backend"
+        FORCE)
+    message(STATUS
+        "MDBXC_KURLYK_HTTP_SYNC_EXAMPLE enables MDBXC_KURLYK_HTTP_TRANSPORT")
+endif()
 
 # Three-mode dependency policy for MDBX: AUTO | SYSTEM | BUNDLED
 set(MDBXC_DEPS_MODE "AUTO" CACHE STRING "Dependency mode for MDBX: AUTO|SYSTEM|BUNDLED")
@@ -41,6 +76,12 @@ message(STATUS "MDBXC_BUILD_EXAMPLES    = ${MDBXC_BUILD_EXAMPLES}")
 message(STATUS "MDBXC_BUILD_TESTS       = ${MDBXC_BUILD_TESTS}")
 message(STATUS "MDBXC_BUILD_BENCHMARKS  = ${MDBXC_BUILD_BENCHMARKS}")
 message(STATUS "MDBXC_ENABLE_STRESS_TESTS = ${MDBXC_ENABLE_STRESS_TESTS}")
+message(STATUS
+    "MDBXC_SIMPLE_WEB_HTTP_TRANSPORT = ${MDBXC_SIMPLE_WEB_HTTP_TRANSPORT}")
+message(STATUS
+    "MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT = "
+    "${MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT}")
+message(STATUS "MDBXC_KURLYK_HTTP_TRANSPORT = ${MDBXC_KURLYK_HTTP_TRANSPORT}")
 message(STATUS "MDBXC_HTTP_SYNC_EXAMPLE = ${MDBXC_HTTP_SYNC_EXAMPLE}")
 message(STATUS "MDBXC_WEBSOCKET_SYNC_EXAMPLE = ${MDBXC_WEBSOCKET_SYNC_EXAMPLE}")
 message(STATUS "MDBXC_KURLYK_HTTP_SYNC_EXAMPLE = ${MDBXC_KURLYK_HTTP_SYNC_EXAMPLE}")
@@ -173,52 +214,55 @@ if(MDBXC_BUILD_EXAMPLES)
 endif()
 
 # ---------------------------------------
-# Optional HTTP transport binding example
+# Optional Simple-Web HTTP transport binding
 # ---------------------------------------
-# Pulls Simple-Web-Server through FetchContent and adds examples that use the
-# ready Simple-Web HTTP binding around HttpSyncServer and HttpSyncPeer. The
-# default build does not touch this section; these examples are built only when
-# MDBXC_HTTP_SYNC_EXAMPLE is ON.
-if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
+# Pulls Simple-Web-Server through FetchContent and exposes the ready
+# Simple-Web HTTP binding around HttpSyncServer and HttpSyncPeer. Tests may use
+# the backend without building examples.
+if(MDBXC_SIMPLE_WEB_HTTP_TRANSPORT)
     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/deps)
     include(cmake/deps/simple-web-server.cmake)
-    include(cmake/deps/tiny-process-library.cmake)
 
     simple_web_server_provide(OUT_TARGET _MDBXC_SWS_TARGET)
-    tiny_process_library_provide()
 
-    add_executable(sync_13_http_simple_web_server
-        examples/sync_13_http_simple_web_server.cpp)
-    set_target_properties(sync_13_http_simple_web_server PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
-    )
-    target_compile_features(sync_13_http_simple_web_server PRIVATE cxx_std_11)
-    target_compile_definitions(sync_13_http_simple_web_server PRIVATE
-        MDBXC_SYNC_ENABLED=1
-        ASIO_STANDALONE=1
-        USE_STANDALONE_ASIO=1)
-    target_link_libraries(sync_13_http_simple_web_server PRIVATE
-        ${_PKG_TARGET}
-        ${_MDBXC_SWS_TARGET})
-    message(STATUS "HTTP binding example sync_13_http_simple_web_server -> "
-        "${_MDBXC_SWS_TARGET}")
+    if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
+        include(cmake/deps/tiny-process-library.cmake)
+        tiny_process_library_provide()
 
-    add_executable(sync_18_http_node_fleet
-        examples/sync_18_http_node_fleet.cpp)
-    set_target_properties(sync_18_http_node_fleet PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
-    )
-    target_compile_features(sync_18_http_node_fleet PRIVATE cxx_std_11)
-    target_compile_definitions(sync_18_http_node_fleet PRIVATE
-        MDBXC_SYNC_ENABLED=1
-        ASIO_STANDALONE=1
-        USE_STANDALONE_ASIO=1)
-    target_link_libraries(sync_18_http_node_fleet PRIVATE
-        ${_PKG_TARGET}
-        ${_MDBXC_SWS_TARGET}
-        tiny-process-library::tiny-process-library)
-    message(STATUS "HTTP node fleet example sync_18_http_node_fleet -> "
-        "${_MDBXC_SWS_TARGET};tiny-process-library")
+        add_executable(sync_13_http_simple_web_server
+            examples/sync_13_http_simple_web_server.cpp)
+        set_target_properties(sync_13_http_simple_web_server PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
+        )
+        target_compile_features(sync_13_http_simple_web_server PRIVATE cxx_std_11)
+        target_compile_definitions(sync_13_http_simple_web_server PRIVATE
+            MDBXC_SYNC_ENABLED=1
+            ASIO_STANDALONE=1
+            USE_STANDALONE_ASIO=1)
+        target_link_libraries(sync_13_http_simple_web_server PRIVATE
+            ${_PKG_TARGET}
+            ${_MDBXC_SWS_TARGET})
+        message(STATUS
+            "HTTP binding example sync_13_http_simple_web_server -> "
+            "${_MDBXC_SWS_TARGET}")
+
+        add_executable(sync_18_http_node_fleet
+            examples/sync_18_http_node_fleet.cpp)
+        set_target_properties(sync_18_http_node_fleet PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
+        )
+        target_compile_features(sync_18_http_node_fleet PRIVATE cxx_std_11)
+        target_compile_definitions(sync_18_http_node_fleet PRIVATE
+            MDBXC_SYNC_ENABLED=1
+            ASIO_STANDALONE=1
+            USE_STANDALONE_ASIO=1)
+        target_link_libraries(sync_18_http_node_fleet PRIVATE
+            ${_PKG_TARGET}
+            ${_MDBXC_SWS_TARGET}
+            tiny-process-library::tiny-process-library)
+        message(STATUS "HTTP node fleet example sync_18_http_node_fleet -> "
+            "${_MDBXC_SWS_TARGET};tiny-process-library")
+    endif()
 
     if(MDBXC_BUILD_TESTS)
         include(CTest)
@@ -246,46 +290,49 @@ if(MDBXC_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
 endif()
 
 # ---------------------------------------
-# Optional Kurlyk HTTP transport client example
+# Optional Kurlyk HTTP transport client binding
 # ---------------------------------------
 # Pulls Kurlyk through FetchContent and uses its libcurl-backed HTTP client
-# around HttpSyncPeer. The server side intentionally reuses the ready
-# Simple-Web listener so this example demonstrates backend interchange at the
-# framework-neutral IHttpSyncClient seam.
-if(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
+# around HttpSyncPeer. Tests may use the client backend without building the
+# example, whose server side intentionally reuses the Simple-Web listener.
+if(MDBXC_KURLYK_HTTP_TRANSPORT)
     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/deps)
-    include(cmake/deps/simple-web-server.cmake)
     include(cmake/deps/kurlyk.cmake)
 
-    simple_web_server_provide(OUT_TARGET _MDBXC_SWS_TARGET)
     kurlyk_http_client_provide(OUT_TARGET _MDBXC_KURLYK_HTTP_TARGET)
 
-    add_executable(sync_19_kurlyk_http_client
-        examples/sync_19_kurlyk_http_client.cpp)
-    set_target_properties(sync_19_kurlyk_http_client PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
-    )
-    target_compile_features(sync_19_kurlyk_http_client PRIVATE cxx_std_17)
-    target_compile_definitions(sync_19_kurlyk_http_client PRIVATE
-        MDBXC_SYNC_ENABLED=1
-        ASIO_STANDALONE=1
-        USE_STANDALONE_ASIO=1)
-    target_link_libraries(sync_19_kurlyk_http_client PRIVATE
-        ${_PKG_TARGET}
-        ${_MDBXC_SWS_TARGET}
-        ${_MDBXC_KURLYK_HTTP_TARGET})
-    get_property(_MDBXC_CURL_RUNTIME_DLLS GLOBAL PROPERTY
-        MDBXC_MINGW_CURL_RUNTIME_DLLS)
-    foreach(_MDBXC_CURL_RUNTIME_DLL IN LISTS _MDBXC_CURL_RUNTIME_DLLS)
-        add_custom_command(TARGET sync_19_kurlyk_http_client
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${_MDBXC_CURL_RUNTIME_DLL}"
-                "$<TARGET_FILE_DIR:sync_19_kurlyk_http_client>"
-            VERBATIM)
-    endforeach()
-    message(STATUS "Kurlyk HTTP client example sync_19_kurlyk_http_client -> "
-        "${_MDBXC_SWS_TARGET};${_MDBXC_KURLYK_HTTP_TARGET}")
+    if(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
+        include(cmake/deps/simple-web-server.cmake)
+        simple_web_server_provide(OUT_TARGET _MDBXC_SWS_TARGET)
+
+        add_executable(sync_19_kurlyk_http_client
+            examples/sync_19_kurlyk_http_client.cpp)
+        set_target_properties(sync_19_kurlyk_http_client PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
+        )
+        target_compile_features(sync_19_kurlyk_http_client PRIVATE cxx_std_17)
+        target_compile_definitions(sync_19_kurlyk_http_client PRIVATE
+            MDBXC_SYNC_ENABLED=1
+            ASIO_STANDALONE=1
+            USE_STANDALONE_ASIO=1)
+        target_link_libraries(sync_19_kurlyk_http_client PRIVATE
+            ${_PKG_TARGET}
+            ${_MDBXC_SWS_TARGET}
+            ${_MDBXC_KURLYK_HTTP_TARGET})
+        get_property(_MDBXC_CURL_RUNTIME_DLLS GLOBAL PROPERTY
+            MDBXC_MINGW_CURL_RUNTIME_DLLS)
+        foreach(_MDBXC_CURL_RUNTIME_DLL IN LISTS _MDBXC_CURL_RUNTIME_DLLS)
+            add_custom_command(TARGET sync_19_kurlyk_http_client
+                POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_MDBXC_CURL_RUNTIME_DLL}"
+                    "$<TARGET_FILE_DIR:sync_19_kurlyk_http_client>"
+                VERBATIM)
+        endforeach()
+        message(STATUS
+            "Kurlyk HTTP client example sync_19_kurlyk_http_client -> "
+            "${_MDBXC_SWS_TARGET};${_MDBXC_KURLYK_HTTP_TARGET}")
+    endif()
 
     if(MDBXC_BUILD_TESTS)
         include(CTest)
@@ -322,42 +369,44 @@ if(MDBXC_KURLYK_HTTP_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
 endif()
 
 # ---------------------------------------
-# Optional WebSocket transport binding example
+# Optional Simple-WebSocket transport binding
 # ---------------------------------------
-# Pulls Simple-WebSocket-Server through FetchContent and adds one example that
-# shows a real loopback WebSocket server + client wiring around
-# WebSocketSyncServer and WebSocketSyncPeer.
-if(MDBXC_WEBSOCKET_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
+# Pulls Simple-WebSocket-Server through FetchContent and exposes the concrete
+# WebSocket binding. Tests may use the backend without building examples.
+if(MDBXC_SIMPLE_WEB_WEBSOCKET_TRANSPORT)
     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/deps)
     include(cmake/deps/simple-web-server.cmake)
 
     simple_websocket_server_provide(OUT_TARGET _MDBXC_SWS_WS_TARGET)
-
-    add_executable(sync_17_websocket_simple_web_server
-        examples/sync_17_websocket_simple_web_server.cpp)
-    set_target_properties(sync_17_websocket_simple_web_server PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
-    )
-    target_compile_features(sync_17_websocket_simple_web_server PRIVATE cxx_std_11)
-    target_compile_definitions(sync_17_websocket_simple_web_server PRIVATE
-        MDBXC_SYNC_ENABLED=1
-        ASIO_STANDALONE=1
-        USE_STANDALONE_ASIO=1)
-    target_link_libraries(sync_17_websocket_simple_web_server PRIVATE
-        ${_PKG_TARGET}
-        ${_MDBXC_SWS_WS_TARGET})
     get_property(_MDBXC_OPENSSL_RUNTIME_DLLS GLOBAL PROPERTY
         MDBXC_MINGW_OPENSSL_RUNTIME_DLLS)
-    foreach(_MDBXC_OPENSSL_RUNTIME_DLL IN LISTS _MDBXC_OPENSSL_RUNTIME_DLLS)
-        add_custom_command(TARGET sync_17_websocket_simple_web_server
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${_MDBXC_OPENSSL_RUNTIME_DLL}"
-                "$<TARGET_FILE_DIR:sync_17_websocket_simple_web_server>"
-            VERBATIM)
-    endforeach()
-    message(STATUS "WebSocket binding example "
-        "sync_17_websocket_simple_web_server -> ${_MDBXC_SWS_WS_TARGET}")
+
+    if(MDBXC_WEBSOCKET_SYNC_EXAMPLE AND MDBXC_BUILD_EXAMPLES)
+        add_executable(sync_17_websocket_simple_web_server
+            examples/sync_17_websocket_simple_web_server.cpp)
+        set_target_properties(sync_17_websocket_simple_web_server PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples
+        )
+        target_compile_features(sync_17_websocket_simple_web_server PRIVATE
+            cxx_std_11)
+        target_compile_definitions(sync_17_websocket_simple_web_server PRIVATE
+            MDBXC_SYNC_ENABLED=1
+            ASIO_STANDALONE=1
+            USE_STANDALONE_ASIO=1)
+        target_link_libraries(sync_17_websocket_simple_web_server PRIVATE
+            ${_PKG_TARGET}
+            ${_MDBXC_SWS_WS_TARGET})
+        foreach(_MDBXC_OPENSSL_RUNTIME_DLL IN LISTS _MDBXC_OPENSSL_RUNTIME_DLLS)
+            add_custom_command(TARGET sync_17_websocket_simple_web_server
+                POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_MDBXC_OPENSSL_RUNTIME_DLL}"
+                    "$<TARGET_FILE_DIR:sync_17_websocket_simple_web_server>"
+                VERBATIM)
+        endforeach()
+        message(STATUS "WebSocket binding example "
+            "sync_17_websocket_simple_web_server -> ${_MDBXC_SWS_WS_TARGET}")
+    endif()
 
     if(MDBXC_BUILD_TESTS)
         include(CTest)
