@@ -59,9 +59,12 @@ For HTTP and WebSocket servers, shutdown should happen in this order:
 4. Join worker and listener threads.
 5. Destroy `SyncEngine`, tables, and `Connection` objects.
 
-`SyncWorker::request_stop()` does not interrupt a blocking transport by itself.
-Concrete transport clients should use finite timeouts or their own cancellation
-mechanism.
+`SyncWorker::request_stop()` requests cancellation through the active
+`CancellationToken` and calls `ISyncPeer::request_cancel()` for the observed
+in-flight peer call. Cancellation is best-effort: `stop()`, `join()`, and the
+destructor may still wait until a transport that ignores or cannot complete
+cancellation returns. Concrete transport clients should use finite timeouts or
+their own socket-level cancellation mechanism.
 
 ## Structured Logging
 
@@ -88,12 +91,18 @@ does not fetch transport dependencies; fetching starts only after calling a
 
 For offline or controlled builds, prefer one of these approaches:
 
-- provide dependency targets before calling the provider function;
 - set `FETCHCONTENT_SOURCE_DIR_<NAME>` cache variables to audited source trees;
-- mirror the dependency repositories and override `GIT_REPOSITORY` variables in
-  the corresponding dependency helper;
-- vendor the dependency in the parent project and expose compatible CMake
-  targets.
+- mirror dependencies through Git URL rewriting configured outside this
+  package;
+- vendor the dependency in the parent project and point the corresponding
+  `FETCHCONTENT_SOURCE_DIR_<NAME>` variable at that source tree;
+- patch or fork the dependency helper when a build system needs different
+  repository URLs.
+
+The current dependency helpers expose cache variables for pinned tags, but not
+for repository URLs. Creating compatible dependency targets ahead of time is
+not sufficient by itself to skip `FetchContent`, because the helpers still
+populate the expected source trees before wiring the final usage targets.
 
 The provider target should remain the only target linked by application code.
 This keeps `MDBXC_SYNC_ENABLED`, backend feature macros, include directories,
