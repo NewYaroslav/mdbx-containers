@@ -529,6 +529,45 @@ void test_http_retry_status_classification() {
                  "HTTP 413 must be permanent");
 }
 
+void test_http_retry_hint() {
+    mdbxc::sync::HttpSyncResponse response;
+    response.status_code = 429;
+    mdbxc::sync::http_add_header(
+        response.headers, "Retry-After", "17");
+
+    mdbxc::sync::SyncTransportRetryHint hint =
+        mdbxc::sync::http_sync_retry_hint(response);
+    require_true(hint.retryable, "HTTP 429 hint must be retryable");
+    require_true(hint.has_retry_after,
+                 "HTTP 429 hint must preserve Retry-After");
+    require_true(hint.retry_after_seconds == 17u,
+                 "HTTP Retry-After seconds parsed incorrectly");
+
+    response.headers.clear();
+    mdbxc::sync::http_add_header(
+        response.headers, "Retry-After", "soon");
+    hint = mdbxc::sync::http_sync_retry_hint(response);
+    require_true(hint.retryable,
+                 "invalid Retry-After must not change retryable status");
+    require_true(!hint.has_retry_after,
+                 "invalid Retry-After must be ignored");
+
+    response.status_code = 200;
+    response.headers.clear();
+    mdbxc::sync::http_add_header(
+        response.headers, "Retry-After", "5");
+    hint = mdbxc::sync::http_sync_retry_hint(response);
+    require_true(!hint.retryable,
+                 "HTTP 200 hint must not be retryable");
+    require_true(!hint.has_retry_after,
+                 "HTTP 200 hint must ignore Retry-After");
+
+    response.status_code = 401;
+    hint = mdbxc::sync::http_sync_retry_hint(response);
+    require_true(!hint.retryable,
+                 "HTTP 401 hint must not be retryable");
+}
+
 void test_websocket_close_code_classification() {
     require_true(mdbxc::sync::classify_websocket_sync_close_code(1000) ==
                      mdbxc::sync::WebSocketSyncCloseRetryClass::Success,
@@ -545,6 +584,19 @@ void test_websocket_close_code_classification() {
                  "WebSocket 1008 must be permanent");
     require_true(!mdbxc::sync::websocket_sync_close_code_is_retryable(1009),
                  "WebSocket 1009 must be permanent");
+}
+
+void test_websocket_retry_hint() {
+    mdbxc::sync::SyncTransportRetryHint hint =
+        mdbxc::sync::websocket_sync_retry_hint(1011);
+    require_true(hint.retryable,
+                 "WebSocket 1011 hint must be retryable");
+    require_true(!hint.has_retry_after,
+                 "WebSocket hint must not invent Retry-After");
+
+    hint = mdbxc::sync::websocket_sync_retry_hint(1008);
+    require_true(!hint.retryable,
+                 "WebSocket 1008 hint must be permanent");
 }
 
 void test_transport_message_size_policy() {
@@ -649,7 +701,9 @@ int main() {
     test_http_bearer_node_identity_policy();
     test_http_bearer_node_identity_policy_rejects_invalid_body();
     test_http_retry_status_classification();
+    test_http_retry_hint();
     test_websocket_close_code_classification();
+    test_websocket_retry_hint();
     test_transport_message_size_policy();
     test_http_client_middleware_copies_rejection_headers();
     test_http_server_middleware_copies_rejection_headers();
