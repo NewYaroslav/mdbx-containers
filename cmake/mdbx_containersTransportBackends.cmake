@@ -12,6 +12,11 @@ function(_mdbxc_transport_backend_parse_out function_name out_var)
     if(NOT MDBXC_TRANSPORT_OUT_TARGET)
         message(FATAL_ERROR "${function_name} requires OUT_TARGET <var>")
     endif()
+    if(MDBXC_TRANSPORT_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR
+            "${function_name} received unexpected arguments: "
+            "${MDBXC_TRANSPORT_UNPARSED_ARGUMENTS}")
+    endif()
 
     set(${out_var} "${MDBXC_TRANSPORT_OUT_TARGET}" PARENT_SCOPE)
 endfunction()
