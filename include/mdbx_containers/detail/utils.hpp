@@ -44,6 +44,17 @@ namespace mdbxc {
             throw MdbxException(context + ": (" + std::to_string(rc) + ") " + std::string(mdbx_strerror(rc)), rc);
         }
     }
+
+    /// \brief Returns true when \p name belongs to the internal DBI namespace.
+    /// \details The `_mdbxc_` prefix is reserved for library metadata and
+    /// sync system stores. Public table wrappers and incoming replication
+    /// changes must not use it as an application DBI name.
+    inline bool is_reserved_dbi_name(const std::string& name) {
+        static const char prefix[] = "_mdbxc_";
+        const std::size_t prefix_len = sizeof(prefix) - 1u;
+        return name.size() >= prefix_len &&
+               name.compare(0u, prefix_len, prefix) == 0;
+    }
     
     /// \brief Convert IEEE754 float to monotonic sortable unsigned int key.
     /// \param f Input float value.

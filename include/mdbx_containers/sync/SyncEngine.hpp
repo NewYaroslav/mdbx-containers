@@ -63,6 +63,7 @@ namespace sync {
         SequenceGap,              ///< Batch seq is not last_applied_seq + 1.
         InconsistentBatchDbiFlags,///< One batch carries contradictory flags for one DBI.
         ExistingDbiFlagsMismatch, ///< Existing destination DBI rejects captured flags.
+        ReservedDbiName,          ///< Incoming ChangeOp targets an internal DBI name.
     };
 
     /// \brief Detailed result for callers that need conflict diagnostics.
@@ -245,6 +246,8 @@ namespace sync {
                     return "inconsistent_batch_dbi_flags";
                 case ApplyConflictReason::ExistingDbiFlagsMismatch:
                     return "existing_dbi_flags_mismatch";
+                case ApplyConflictReason::ReservedDbiName:
+                    return "reserved_dbi_name";
             }
             return "unknown";
         }
@@ -475,6 +478,9 @@ namespace sync {
                 }
                 message += ", mdbx_error_code=" +
                            std::to_string(outcome.mdbx_error_code) + ")";
+            } else if (outcome.conflict_reason ==
+                       ApplyConflictReason::ReservedDbiName) {
+                message += " (dbi='" + outcome.dbi_name + "')";
             }
             return message;
         }
@@ -503,6 +509,17 @@ namespace sync {
             dbis.clear();
             std::unordered_map<std::string, std::vector<BatchDbiFlags>::size_type> index_by_name;
             for (const ChangeOp& op : batch.ops) {
+                if (is_reserved_dbi_name(op.dbi_name)) {
+                    if (outcome != nullptr) {
+                        outcome->result = ApplyResult::Conflict;
+                        outcome->conflict_reason =
+                            ApplyConflictReason::ReservedDbiName;
+                        outcome->dbi_name = op.dbi_name;
+                        outcome->incoming_dbi_flags =
+                            persistent_dbi_flags(op.dbi_flags);
+                    }
+                    return false;
+                }
                 const std::uint32_t flags = persistent_dbi_flags(op.dbi_flags);
                 const std::pair<
                     std::unordered_map<std::string, std::vector<BatchDbiFlags>::size_type>::iterator,

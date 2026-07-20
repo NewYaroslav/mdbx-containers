@@ -50,6 +50,9 @@ All public table classes follow the same broad shape:
 - They provide constructors from `std::shared_ptr<Connection>` and `Config`.
 - Constructor `name` opens a named MDBX DBI; increase `Config::max_dbs` when
   tests/examples open several named tables in one environment.
+- Names starting with `_mdbxc_` are reserved for internal metadata and sync
+  stores. Public table wrappers reject them; choose an application-specific
+  prefix instead.
 - With `Config::read_only = true`, constructors open existing DBIs using a
   read-only transaction. `BaseTable` clears `MDBX_CREATE` automatically, so
   wrapper defaults can stay the same, but the DBI must already exist and write

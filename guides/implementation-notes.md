@@ -117,6 +117,12 @@ mdbxc::KeyValueTable<std::string, int> orders(conn, "orders");
 Set `Config::max_dbs` high enough for tests and examples that open several
 tables in one environment.
 
+DBI names starting with `_mdbxc_` are reserved for library-owned metadata and
+sync system stores. Public table wrappers must reject these names, and incoming
+sync `ChangeOp` entries must not target them. Internal store classes open their
+own DBIs directly and are the only code paths allowed to use the reserved
+namespace.
+
 Read-only configuration:
 
 - `Config::read_only` opens the environment with `MDBX_RDONLY`.
