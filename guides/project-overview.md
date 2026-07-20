@@ -50,6 +50,9 @@ primitive. For concurrent workers, prefer one wrapper instance per worker thread
 over the shared connection, or use an external mutex around a shared wrapper.
 
 Do not pass `Transaction`, raw `MDBX_txn*`, or MDBX cursors across threads.
+Caller-supplied transaction handles must also belong to the same MDBX
+environment as the receiving table wrapper, `SyncEngine`, sync store, or
+capture accumulator; foreign-environment handles are rejected before DBI use.
 `configure()`, `connect()`, `disconnect()`, and `Connection` destruction are
 lifecycle operations: call them before starting worker activity or after all
 workers, transactions, and cursors are finished.

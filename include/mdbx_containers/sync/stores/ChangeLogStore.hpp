@@ -31,6 +31,7 @@ namespace sync {
         /// \details Tries \c MDBX_CREATE first; falls back to a plain open
         /// when the transaction is read-only and the DBI already exists.
         void open(MDBX_txn* txn) {
+            txn = checked_txn(txn, "ChangeLogStore::open");
             if (m_open) return;
             int rc = mdbx_dbi_open(txn, m_dbi_name.c_str(), MDBX_CREATE, &m_dbi);
             if (rc == MDBX_EACCESS) {
@@ -65,6 +66,7 @@ namespace sync {
         /// (origin, seq) key surfaces immediately.
         void append(MDBX_txn* txn, const NodeId& origin,
                     std::uint64_t seq, const std::vector<std::uint8_t>& bytes) {
+            txn = checked_txn(txn, "ChangeLogStore::append");
             ensure_open();
             ensure_origin_index_ready(txn);
             std::vector<std::uint8_t> key_buf;
@@ -81,6 +83,7 @@ namespace sync {
 
         /// \brief Returns true when a record exists for (\p origin, \p seq).
         bool contains(MDBX_txn* txn, const NodeId& origin, std::uint64_t seq) const {
+            txn = checked_txn(txn, "ChangeLogStore::contains");
             ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(origin, seq, key_buf);
@@ -97,6 +100,7 @@ namespace sync {
         /// \return true when present, false when absent.
         bool get(MDBX_txn* txn, const NodeId& origin, std::uint64_t seq,
                  std::vector<std::uint8_t>& out) const {
+            txn = checked_txn(txn, "ChangeLogStore::get");
             ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(origin, seq, key_buf);
@@ -115,6 +119,7 @@ namespace sync {
         /// \brief Removes the record at (\p origin, \p seq).
         /// \return true when a record was removed, false when absent.
         bool erase(MDBX_txn* txn, const NodeId& origin, std::uint64_t seq) {
+            txn = checked_txn(txn, "ChangeLogStore::erase");
             ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(origin, seq, key_buf);
@@ -130,6 +135,7 @@ namespace sync {
         /// \return Number of records removed.
         std::size_t prune_up_to(MDBX_txn* txn, const NodeId& origin,
                                 std::uint64_t up_to) {
+            txn = checked_txn(txn, "ChangeLogStore::prune_up_to");
             if (!m_open) {
                 throw std::logic_error("ChangeLogStore is not open");
             }
@@ -177,6 +183,7 @@ namespace sync {
         /// \note Intended for startup diagnostics, manual repair, or rare
         /// integrity checks. Do not call from the normal pull/sync hot path.
         bool origin_index_matches_changelog(MDBX_txn* txn) const {
+            txn = checked_txn(txn, "ChangeLogStore::origin_index_matches_changelog");
             ensure_open();
             const std::vector<OriginTail> expected =
                 collect_changelog_origin_tails(txn);
@@ -210,6 +217,7 @@ namespace sync {
         /// \complexity O(changelog entries + indexed origins).
         /// \note Explicit maintenance operation; ordinary pull does not call it.
         std::size_t rebuild_origin_index(MDBX_txn* txn) {
+            txn = checked_txn(txn, "ChangeLogStore::rebuild_origin_index");
             ensure_open();
             const std::vector<OriginTail> tails =
                 collect_changelog_origin_tails(txn);
@@ -221,6 +229,10 @@ namespace sync {
         }
 
     private:
+        MDBX_txn* checked_txn(MDBX_txn* txn, const char* context) const {
+            return checked_txn_env(txn, m_env, context);
+        }
+
         struct OriginTail {
             NodeId origin;
             std::uint64_t seq;

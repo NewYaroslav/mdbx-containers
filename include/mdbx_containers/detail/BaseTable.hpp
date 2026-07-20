@@ -161,6 +161,13 @@ namespace mdbxc {
         MDBX_txn* thread_txn() const {
                 return m_connection->thread_txn();
         }
+
+        /// \brief Validates a caller-supplied transaction for this table env.
+        MDBX_txn* checked_external_txn(MDBX_txn* txn) const {
+            return checked_txn_env(txn,
+                                   m_connection->env_handle(),
+                                   "BaseTable external transaction");
+        }
         
         /// \brief Gets the raw DBI handle.
         /// \return DBI handle for the opened table.

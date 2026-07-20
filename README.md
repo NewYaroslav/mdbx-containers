@@ -35,6 +35,10 @@
 - Use one shared `Connection` per MDBX environment, with at most one active
   transaction per thread.
 - Do not share `Transaction`, raw `MDBX_txn*`, or MDBX cursors across threads.
+- Caller-supplied `Transaction` / raw `MDBX_txn*` handles must also belong to
+  the same MDBX environment as the table or sync engine that receives them.
+  Foreign-environment handles are rejected with `std::invalid_argument` before
+  the wrapper uses DBI handles.
 - Treat `configure()`, `connect()`, `disconnect()`, and `Connection`
   destruction as lifecycle operations outside concurrent table activity.
 - Use `shutdown()` to request a coordinated stop: it rejects new transactions,

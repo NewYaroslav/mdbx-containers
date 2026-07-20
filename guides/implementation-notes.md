@@ -27,6 +27,10 @@ is header-only and template-heavy.
 - Do not pass `Transaction`, raw `MDBX_txn*`, or MDBX cursors across threads.
   Commit, roll back, abort, reset, and destroy transaction guards on the owning
   thread.
+- Any caller-supplied `MDBX_txn*` or `Transaction` passed to a table wrapper,
+  `SyncEngine`, sync store, or capture accumulator must belong to the same
+  MDBX environment as that object. Foreign-environment handles are rejected
+  with `std::invalid_argument` before DBI handles are used.
 - Treat `Connection::configure()`, `connect()`, `disconnect()`, `cleanup()`, and
   destruction as lifecycle-only operations. They must not race with table
   operations, active transactions, or MDBX cursors.

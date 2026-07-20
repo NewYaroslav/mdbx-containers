@@ -19,6 +19,7 @@ namespace sync {
             : m_env(env), m_dbi_name(dbi_name), m_dbi(0), m_open(false) {}
 
         void open(MDBX_txn* txn) {
+            txn = checked_txn(txn, "AppliedStore::open");
             if (m_open) return;
             check_mdbx(
                 mdbx_dbi_open(txn, m_dbi_name.c_str(), MDBX_CREATE, &m_dbi),
@@ -40,6 +41,7 @@ namespace sync {
         /// \brief Returns the last contiguous applied \c seq for \p origin.
         /// \details Returns 0 when no record exists.
         std::uint64_t last_applied_seq(MDBX_txn* txn, const NodeId& origin) const {
+            txn = checked_txn(txn, "AppliedStore::last_applied_seq");
             ensure_open();
             MDBX_val k = { const_cast<std::uint8_t*>(origin.data()), 16 };
             MDBX_val v;
@@ -54,6 +56,7 @@ namespace sync {
         /// \p origin.
         void set_last_applied_seq(MDBX_txn* txn, const NodeId& origin,
                                   std::uint64_t seq) {
+            txn = checked_txn(txn, "AppliedStore::set_last_applied_seq");
             ensure_open();
             std::uint8_t buf[8];
             detail::write_u64_le(seq, buf);
@@ -68,6 +71,7 @@ namespace sync {
         /// \brief Removes the record for \p origin if present.
         /// \return true when a record was removed.
         bool clear(MDBX_txn* txn, const NodeId& origin) {
+            txn = checked_txn(txn, "AppliedStore::clear");
             ensure_open();
             MDBX_val k = { const_cast<std::uint8_t*>(origin.data()), 16 };
             const int rc = mdbx_del(txn, m_dbi, &k, nullptr);
@@ -78,6 +82,10 @@ namespace sync {
         }
 
     private:
+        MDBX_txn* checked_txn(MDBX_txn* txn, const char* context) const {
+            return checked_txn_env(txn, m_env, context);
+        }
+
         MDBX_env*     m_env;
         std::string   m_dbi_name;
         MDBX_dbi      m_dbi;

@@ -195,6 +195,7 @@ namespace sync {
         /// sequence gap, an inconsistent batch schema, or a destination DBI
         /// flag mismatch.
         ApplyOutcome apply_batch_ex(MDBX_txn* txn, const ChangeBatch& batch) {
+            txn = checked_external_txn(txn, "SyncEngine::apply_batch_ex");
             ApplyOutcome outcome = make_apply_outcome(ApplyResult::Applied, batch, 0);
             MetaStore meta(m_conn->env_handle());
             AppliedStore applied(m_conn->env_handle());
@@ -305,6 +306,7 @@ namespace sync {
         /// \c request.max_batches or \c request.max_bytes.
         PullResponse pull_full_snapshot(MDBX_txn* txn, MDBX_dbi dbi,
                                         const PullRequest& request) {
+            txn = checked_external_txn(txn, "SyncEngine::pull_full_snapshot");
             PullResponse out;
             out.remote_have = read_applied_cursor(txn, out.remote_have);
             const std::vector<PullOrigin> origins = collect_known_origins(txn, dbi);
@@ -365,6 +367,7 @@ namespace sync {
         /// \details Used inside \c handle_pull to avoid opening a second
         /// sticky-thread transaction on the same thread.
         SyncCursor applied_cursor(MDBX_txn* txn) const {
+            txn = checked_external_txn(txn, "SyncEngine::applied_cursor");
             SyncCursor cur;
             return read_applied_cursor(txn, cur);
         }
@@ -449,6 +452,11 @@ namespace sync {
             outcome.last_applied_seq = last_applied_seq;
             outcome.batch_seq = batch.seq;
             return outcome;
+        }
+
+        MDBX_txn* checked_external_txn(MDBX_txn* txn,
+                                       const char* context) const {
+            return checked_txn_env(txn, m_conn->env_handle(), context);
         }
 
         static std::string apply_conflict_message(const ApplyOutcome& outcome) {

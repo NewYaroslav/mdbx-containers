@@ -28,6 +28,7 @@ namespace sync {
 
         /// \brief Opens or creates the DBI inside the supplied transaction.
         void open(MDBX_txn* txn) {
+            txn = checked_txn(txn, "OriginIndexStore::open");
             if (m_open) return;
             int rc = mdbx_dbi_open(txn, m_dbi_name.c_str(), MDBX_CREATE, &m_dbi);
             if (rc == MDBX_EACCESS) {
@@ -41,6 +42,7 @@ namespace sync {
         /// \brief Opens the DBI only if it already exists.
         /// \return \c true when opened, \c false when the DBI is absent.
         bool open_existing(MDBX_txn* txn) {
+            txn = checked_txn(txn, "OriginIndexStore::open_existing");
             if (m_open) return true;
             const int rc = mdbx_dbi_open(txn, m_dbi_name.c_str(),
                                          static_cast<MDBX_db_flags_t>(0), &m_dbi);
@@ -65,6 +67,7 @@ namespace sync {
 
         /// \brief Returns true when the index contains no origins.
         bool empty(MDBX_txn* txn) const {
+            txn = checked_txn(txn, "OriginIndexStore::empty");
             ensure_open();
             MDBX_cursor* raw = nullptr;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
@@ -82,6 +85,7 @@ namespace sync {
         /// \return Number of removed origin entries.
         /// \pre Transaction must be writable.
         std::size_t clear(MDBX_txn* txn) {
+            txn = checked_txn(txn, "OriginIndexStore::clear");
             ensure_open();
             MDBX_cursor* raw = nullptr;
             check_mdbx(mdbx_cursor_open(txn, m_dbi, &raw),
@@ -109,6 +113,7 @@ namespace sync {
 
         /// \brief Records \p origin with at least \p seq as its known tail.
         void note_origin(MDBX_txn* txn, const NodeId& origin, std::uint64_t seq) {
+            txn = checked_txn(txn, "OriginIndexStore::note_origin");
             ensure_open();
             std::uint64_t current = 0;
             if (last_seq(txn, origin, current) && current >= seq) {
@@ -126,6 +131,7 @@ namespace sync {
         /// \return true when the origin exists.
         bool last_seq(MDBX_txn* txn, const NodeId& origin,
                       std::uint64_t& out) const {
+            txn = checked_txn(txn, "OriginIndexStore::last_seq");
             ensure_open();
             MDBX_val k = { const_cast<std::uint8_t*>(origin.data()), origin.size() };
             MDBX_val v;
@@ -141,6 +147,7 @@ namespace sync {
 
         /// \brief Returns all indexed origins with their tails in DB key order.
         std::vector<OriginTail> origin_tails(MDBX_txn* txn) const {
+            txn = checked_txn(txn, "OriginIndexStore::origin_tails");
             ensure_open();
             std::vector<OriginTail> out;
             MDBX_cursor* raw = nullptr;
@@ -188,6 +195,10 @@ namespace sync {
         }
 
     private:
+        MDBX_txn* checked_txn(MDBX_txn* txn, const char* context) const {
+            return checked_txn_env(txn, m_env, context);
+        }
+
         MDBX_env*     m_env;
         std::string   m_dbi_name;
         MDBX_dbi      m_dbi;

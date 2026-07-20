@@ -56,6 +56,7 @@ namespace sync {
                            std::uint32_t dbi_flags,
                            const std::vector<std::uint8_t>& storage_key,
                            const std::vector<std::uint8_t>& value) override {
+            txn = checked_txn_env(txn, m_env, "ThreadLocalChangeAccumulator::record_change");
             PendingOp op;
             op.op_type = op_type;
             op.dbi_flags = dbi_flags;
@@ -67,6 +68,7 @@ namespace sync {
         }
 
         void flush_in_txn(MDBX_txn* txn) override {
+            txn = checked_txn_env(txn, m_env, "ThreadLocalChangeAccumulator::flush_in_txn");
             std::vector<PendingOp> ops;
             {
                 std::lock_guard<std::mutex> lk(m_mutex);
