@@ -55,6 +55,25 @@ namespace mdbxc {
         return name.size() >= prefix_len &&
                name.compare(0u, prefix_len, prefix) == 0;
     }
+
+    /// \brief Validates that a raw MDBX transaction belongs to the expected env.
+    /// \details Public wrappers accept \c MDBX_txn* for integration with
+    /// caller-owned transactions. A transaction from another environment must
+    /// fail before DBI handles or sync stores are used with it.
+    inline MDBX_txn* checked_txn_env(MDBX_txn* txn,
+                                     MDBX_env* expected_env,
+                                     const char* context) {
+        if (txn == nullptr) {
+            throw std::invalid_argument(
+                std::string(context) + ": transaction is null");
+        }
+        if (mdbx_txn_env(txn) != expected_env) {
+            throw std::invalid_argument(
+                std::string(context) +
+                ": transaction belongs to a different MDBX environment");
+        }
+        return txn;
+    }
     
     /// \brief Convert IEEE754 float to monotonic sortable unsigned int key.
     /// \param f Input float value.

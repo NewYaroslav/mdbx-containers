@@ -43,6 +43,7 @@ namespace sync {
             : m_env(env), m_dbi_name(dbi_name), m_dbi(0), m_open(false) {}
 
         void open(MDBX_txn* txn) {
+            txn = checked_txn(txn, "IdentityIndexStore::open");
             if (m_open) return;
             check_mdbx(
                 mdbx_dbi_open(txn, m_dbi_name.c_str(), MDBX_CREATE, &m_dbi),
@@ -65,6 +66,7 @@ namespace sync {
         void put(MDBX_txn* txn, const std::string& dbi_name,
                  const std::vector<std::uint8_t>& identity_key,
                  const IdentityIndexValue& value) {
+            txn = checked_txn(txn, "IdentityIndexStore::put");
             ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(dbi_name, identity_key, key_buf);
@@ -83,6 +85,7 @@ namespace sync {
         bool get(MDBX_txn* txn, const std::string& dbi_name,
                  const std::vector<std::uint8_t>& identity_key,
                  IdentityIndexValue& out) const {
+            txn = checked_txn(txn, "IdentityIndexStore::get");
             ensure_open();
             std::vector<std::uint8_t> key_buf;
             encode_key(dbi_name, identity_key, key_buf);
@@ -99,6 +102,7 @@ namespace sync {
         void tombstone(MDBX_txn* txn, const std::string& dbi_name,
                        const std::vector<std::uint8_t>& identity_key,
                        const IdentityIndexValue& marker) {
+            txn = checked_txn(txn, "IdentityIndexStore::tombstone");
             ensure_open();
             IdentityIndexValue v = marker;
             v.flags |= static_cast<std::uint32_t>(IDENTITY_TOMBSTONE);
@@ -109,6 +113,7 @@ namespace sync {
         /// \return true when a record was removed.
         bool erase(MDBX_txn* txn, const std::string& dbi_name,
                    const std::vector<std::uint8_t>& identity_key) {
+            txn = checked_txn(txn, "IdentityIndexStore::erase");
             if (!m_open) {
                 throw std::logic_error("IdentityIndexStore is not open");
             }
@@ -123,6 +128,10 @@ namespace sync {
         }
 
     private:
+        MDBX_txn* checked_txn(MDBX_txn* txn, const char* context) const {
+            return checked_txn_env(txn, m_env, context);
+        }
+
         static void encode_key(const std::string& dbi_name,
                                const std::vector<std::uint8_t>& identity_key,
                                std::vector<std::uint8_t>& out) {

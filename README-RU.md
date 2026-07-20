@@ -56,6 +56,10 @@
   активной транзакции на поток.
 - `Transaction`, raw `MDBX_txn*` и курсоры MDBX нельзя передавать или
   использовать между потоками.
+- Переданный пользователем `Transaction` / raw `MDBX_txn*` также должен
+  принадлежать тому же MDBX environment, что и таблица или sync engine,
+  который его получает. Handles из другого environment отклоняются через
+  `std::invalid_argument` до использования DBI handles.
 - `configure()`, `connect()`, `disconnect()` и уничтожение `Connection` — это
   lifecycle-операции вне параллельной работы с таблицами.
 - Используйте `shutdown()` для согласованной остановки: он запрещает новые

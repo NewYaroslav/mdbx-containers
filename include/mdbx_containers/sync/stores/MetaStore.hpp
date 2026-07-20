@@ -30,6 +30,7 @@ namespace sync {
         /// Tries \c MDBX_CREATE first; falls back to a plain open when the
         /// transaction is read-only and the DBI already exists.
         void open(MDBX_txn* txn) {
+            txn = checked_txn(txn, "MetaStore::open");
             if (m_open) return;
             int rc = mdbx_dbi_open(txn, m_dbi_name.c_str(), MDBX_CREATE, &m_dbi);
             if (rc == MDBX_EACCESS) {
@@ -143,6 +144,7 @@ namespace sync {
 
         std::size_t read_fixed(MDBX_txn* txn, std::uint8_t key,
                                std::uint8_t* dst, std::size_t n) const {
+            txn = checked_txn(txn, "MetaStore::read");
             ensure_open();
             MDBX_val k = { &key, 1 };
             MDBX_val v;
@@ -156,6 +158,7 @@ namespace sync {
 
         void write_fixed(MDBX_txn* txn, std::uint8_t key,
                          const std::uint8_t* src, std::size_t n) const {
+            txn = checked_txn(txn, "MetaStore::write");
             ensure_open();
             MDBX_val k = { &key, 1 };
             MDBX_val v = { const_cast<std::uint8_t*>(src), n };
@@ -163,6 +166,10 @@ namespace sync {
                 mdbx_put(txn, m_dbi, &k, &v, MDBX_UPSERT),
                 "MetaStore write failed"
             );
+        }
+
+        MDBX_txn* checked_txn(MDBX_txn* txn, const char* context) const {
+            return checked_txn_env(txn, m_env, context);
         }
 
         MDBX_env*     m_env;
