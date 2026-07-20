@@ -13,6 +13,7 @@
 #include "ISyncCaptureSink.hpp"
 
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <stdexcept>
 
@@ -54,8 +55,10 @@ namespace sync {
             attach(sink);
         }
 
-        ~SyncCaptureScope() {
-            restore(false);
+        ~SyncCaptureScope() noexcept {
+            if (!restore()) {
+                std::terminate();
+            }
         }
 
         SyncCaptureScope(const SyncCaptureScope&) = delete;
@@ -66,7 +69,10 @@ namespace sync {
         /// another active scope or a raw attach call currently owns the
         /// connection attachment.
         void detach() {
-            restore(true);
+            if (!restore()) {
+                throw std::logic_error(
+                    "SyncCaptureScope detach called out of LIFO order");
+            }
         }
 
         /// \brief Returns whether this scope still owns the attachment.
@@ -75,20 +81,16 @@ namespace sync {
         }
 
     private:
-        void restore(bool throw_on_mismatch) {
+        bool restore() {
             if (!m_active) {
-                return;
+                return true;
             }
             if (!m_connection->restore_sync_capture_if_current(
                     m_sink, m_token, m_previous, m_previous_token)) {
-                if (throw_on_mismatch) {
-                    throw std::logic_error(
-                        "SyncCaptureScope detach called out of LIFO order");
-                }
-                m_active = false;
-                return;
+                return false;
             }
             m_active = false;
+            return true;
         }
         void attach(ISyncCaptureSink* sink) {
             if (!m_connection) {

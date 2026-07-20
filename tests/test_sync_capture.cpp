@@ -2,6 +2,7 @@
 #include <mdbx_containers/sync.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <map>
 #include <mutex>
@@ -11,6 +12,8 @@
 #include <vector>
 
 namespace {
+
+const char* g_executable_path = nullptr;
 
 void cleanup(const std::string& p) {
     std::remove(p.c_str());
@@ -319,6 +322,57 @@ void test_capture_scope_rejects_same_sink_out_of_order_detach() {
 
     if (sink.m_recorded.size() != 2u) {
         throw std::runtime_error("same-sink nested scopes captured wrong count");
+    }
+}
+
+void run_capture_scope_out_of_order_destruction_child() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_scope_out_of_order_destruction_child.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink outer_sink;
+    StubSink inner_sink;
+
+    sync::SyncCaptureScope* outer =
+        new sync::SyncCaptureScope(conn, outer_sink);
+    sync::SyncCaptureScope* inner =
+        new sync::SyncCaptureScope(conn, inner_sink);
+
+    delete outer;
+
+    delete inner;
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_capture_scope_terminates_on_out_of_order_destruction() {
+    const std::string p = "test_capture_scope_out_of_order_destruction_child.mdbx";
+    cleanup(p);
+
+    if (g_executable_path == nullptr) {
+        throw std::runtime_error("test executable path is unavailable");
+    }
+
+    std::string command = "\"";
+    command += g_executable_path;
+    command += "\" --sync-capture-out-of-order-destruction-child";
+#ifdef _WIN32
+    command += " >NUL 2>NUL";
+#else
+    command += " >/dev/null 2>/dev/null";
+#endif
+
+    const int result = std::system(command.c_str());
+    cleanup(p);
+    if (result == 0) {
+        throw std::runtime_error(
+            "out-of-order SyncCaptureScope destruction did not terminate");
     }
 }
 
@@ -1037,7 +1091,16 @@ void test_aborted_transaction_does_not_flush() {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc == 2 &&
+        std::string(argv[1]) ==
+            "--sync-capture-out-of-order-destruction-child") {
+        run_capture_scope_out_of_order_destruction_child();
+        return 0;
+    }
+
+    g_executable_path = argc > 0 ? argv[0] : nullptr;
+
     struct Case {
         const char* name;
         void (*fn)();
@@ -1054,6 +1117,8 @@ int main() {
           &test_capture_scope_rejects_out_of_order_detach },
         { "test_capture_scope_rejects_same_sink_out_of_order_detach",
           &test_capture_scope_rejects_same_sink_out_of_order_detach },
+        { "test_capture_scope_terminates_on_out_of_order_destruction",
+          &test_capture_scope_terminates_on_out_of_order_destruction },
         { "test_capture_scope_detach_restores_null_once",
           &test_capture_scope_detach_restores_null_once },
         { "test_capture_scope_rejects_null_arguments",
