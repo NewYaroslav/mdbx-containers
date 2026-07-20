@@ -567,6 +567,10 @@ namespace sync {
                             event.progress = progress;
                             notify_stage_changed(event);
                         }
+                        if (stop_requested()) {
+                            result.has_more = has_more;
+                            return result;
+                        }
                         PushRequest apply;
                         apply.db_id = request.db_id;
                         apply.batches = response.batches;

@@ -98,6 +98,27 @@ private:
     int m_cancel_count;
 };
 
+class FixedPeer : public mdbxc::sync::ISyncPeer {
+public:
+    explicit FixedPeer(const mdbxc::sync::PullResponse& response)
+        : m_response(response) {}
+
+    mdbxc::sync::PullResponse pull(
+            const mdbxc::sync::PullRequest& request) override {
+        (void)request;
+        return m_response;
+    }
+
+    mdbxc::sync::PushResponse push(
+            const mdbxc::sync::PushRequest& request) override {
+        (void)request;
+        return mdbxc::sync::PushResponse();
+    }
+
+private:
+    mdbxc::sync::PullResponse m_response;
+};
+
 class BlockingPeer : public mdbxc::sync::ISyncPeer {
 public:
     explicit BlockingPeer(const mdbxc::sync::PullResponse& response)
@@ -540,6 +561,29 @@ private:
     std::vector<mdbxc::sync::SyncWorkerRoundResult> m_rounds;
     std::vector<BackoffRecord> m_backoffs;
     std::vector<mdbxc::sync::SyncWorkerStageEvent> m_stages;
+};
+
+class StopOnApplyStartedObserver : public RecordingWorkerObserver {
+public:
+    StopOnApplyStartedObserver() : m_worker(nullptr) {}
+
+    void set_worker(mdbxc::sync::SyncWorker* worker) {
+        m_worker = worker;
+    }
+
+    void on_sync_worker_stage_changed(
+            const mdbxc::sync::SyncWorkerStageEvent& event) override {
+        RecordingWorkerObserver::on_sync_worker_stage_changed(event);
+        if (event.stage == mdbxc::sync::SyncWorkerStage::ApplyStarted) {
+            if (m_worker == nullptr) {
+                throw std::runtime_error("stop observer has no worker");
+            }
+            m_worker->request_stop();
+        }
+    }
+
+private:
+    mdbxc::sync::SyncWorker* m_worker;
 };
 
 class ThrowingRoundObserver : public mdbxc::sync::ISyncWorkerObserver {
@@ -1592,6 +1636,52 @@ void test_worker_stop_while_pull_blocked_does_not_apply_returned_page() {
     cleanup(path);
 }
 
+void test_worker_stop_from_apply_started_observer_skips_apply() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_stop_before_apply.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    const sync::NodeId replica_node = make_node(0xB3);
+    const sync::NodeId remote_origin = make_node(0xA3);
+    const sync::NodeId db_id = make_node(0xD3);
+
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = remote_origin;
+    batch.seq = 1;
+
+    sync::PullResponse response;
+    response.batches.push_back(batch);
+
+    FixedPeer peer(response);
+    StopOnApplyStartedObserver observer;
+    sync::SyncWorkerOptions options;
+    options.observer = &observer;
+    sync::SyncWorker guarded_worker(engine, peer, options);
+    observer.set_worker(&guarded_worker);
+
+    const sync::SyncWorkerRoundResult result = guarded_worker.run_once();
+    if (!result.ok || result.pages_pulled != 1u ||
+        result.batches_applied != 0u) {
+        throw std::runtime_error("stop before apply round result mismatch");
+    }
+    if (guarded_worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("stop-before-apply worker did not stop");
+    }
+    if (engine.applied_cursor().last_seq_for(remote_origin) != 0u) {
+        throw std::runtime_error("worker applied page after ApplyStarted stop");
+    }
+    if (!observer.pages().empty()) {
+        throw std::runtime_error("page-applied observer ran for skipped apply");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
 void test_worker_repeated_stop_cancels_blocking_peer_once() {
     using namespace mdbxc;
     const std::string path = "test_worker_cancel_once.mdbx";
@@ -1804,6 +1894,8 @@ int main() {
           &test_worker_rejects_invalid_options },
         { "test_worker_stop_while_pull_blocked",
           &test_worker_stop_while_pull_blocked_does_not_apply_returned_page },
+        { "test_worker_stop_from_apply_started_observer_skips_apply",
+          &test_worker_stop_from_apply_started_observer_skips_apply },
         { "test_worker_repeated_stop_cancels_blocking_peer_once",
           &test_worker_repeated_stop_cancels_blocking_peer_once },
         { "test_worker_stop_cancels_blocking_peer",
