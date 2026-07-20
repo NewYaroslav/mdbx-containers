@@ -268,6 +268,13 @@ any new payload integer: little-endian.
 
 ## Stores
 
+The `_mdbxc_` DBI prefix is reserved for library-owned stores. Application
+tables must not use that prefix, and `SyncEngine` rejects incoming `ChangeOp`
+entries whose `dbi_name` targets the reserved namespace before applying any
+operation from the containing batch. A multi-batch `PushRequest` is still
+atomic: earlier batches in the same request are rolled back when a later batch
+is rejected.
+
 ### `_mdbxc_meta` (MetaStore)
 
 | Tag | Field | Type | Notes |

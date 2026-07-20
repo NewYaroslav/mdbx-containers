@@ -131,6 +131,30 @@ void append_raw_bytes(mdbxc::sync::ChangeLogStore& log,
     log.append(txn, origin, seq, bytes);
 }
 
+const char* op_type_name(mdbxc::sync::ChangeOpType type) {
+    switch (type) {
+        case mdbxc::sync::ChangeOpType::Put:
+            return "Put";
+        case mdbxc::sync::ChangeOpType::Delete:
+            return "Delete";
+        case mdbxc::sync::ChangeOpType::ClearTable:
+            return "ClearTable";
+    }
+    return "unknown";
+}
+
+void assign_int_key(std::vector<std::uint8_t>& out, int key) {
+    mdbxc::SerializeScratch scratch;
+    const MDBX_val serialized = mdbxc::serialize_key<true>(key, scratch);
+    assign_bytes(out, serialized);
+}
+
+void assign_int_value(std::vector<std::uint8_t>& out, int value) {
+    mdbxc::SerializeScratch scratch;
+    const MDBX_val serialized = mdbxc::serialize_value(value, scratch);
+    assign_bytes(out, serialized);
+}
+
 void test_engine_round_trip_kv() {
     using namespace mdbxc;
     const std::string primary_path = "test_engine_primary.mdbx";
@@ -192,6 +216,176 @@ void test_engine_round_trip_kv() {
     replica_conn->disconnect();
     cleanup(primary_path);
     cleanup(replica_path);
+}
+
+void test_public_tables_reject_reserved_dbi_names() {
+    using namespace mdbxc;
+    const std::string p = "test_public_reserved_dbi_names.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    bool rejected = false;
+    try {
+        KeyValueTable<int, int> kv(conn, "_mdbxc_user_table");
+        (void)kv;
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    if (!rejected) {
+        throw std::runtime_error("public table accepted reserved DBI name");
+    }
+
+    sync::MetaStore meta(conn->env_handle());
+    auto txn = conn->transaction(TransactionMode::WRITABLE);
+    meta.open(txn.handle());
+    meta.set_schema_version(txn.handle(), sync::meta_schema_version());
+    txn.commit();
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_rejects_reserved_dbi_changes_and_rolls_back_page() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_reserved_dbi_changes.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    const sync::NodeId local_node = make_node(0x10);
+    const sync::NodeId db_id = make_node(0x11);
+    const sync::NodeId origin = make_node(0x20);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(local_node, db_id);
+    KeyValueTable<int, int> safe(conn, "safe");
+
+    const sync::ChangeOpType op_types[] = {
+        sync::ChangeOpType::Put,
+        sync::ChangeOpType::Delete,
+        sync::ChangeOpType::ClearTable
+    };
+
+    for (std::size_t i = 0; i < sizeof(op_types) / sizeof(op_types[0]); ++i) {
+        sync::ChangeBatch batch;
+        batch.origin_node_id = origin;
+        batch.seq = 1;
+
+        sync::ChangeOp safe_op;
+        safe_op.op_type = sync::ChangeOpType::Put;
+        safe_op.dbi_name = "safe";
+        safe_op.dbi_flags = static_cast<std::uint32_t>(MDBX_INTEGERKEY);
+        assign_int_key(safe_op.storage_key, static_cast<int>(100 + i));
+        assign_int_value(safe_op.value, static_cast<int>(200 + i));
+        batch.ops.push_back(safe_op);
+
+        sync::ChangeOp reserved_op;
+        reserved_op.op_type = op_types[i];
+        reserved_op.dbi_name = "_mdbxc_meta";
+        assign_int_key(reserved_op.storage_key, 7);
+        if (reserved_op.op_type == sync::ChangeOpType::Put) {
+            assign_int_value(reserved_op.value, 8);
+        }
+        batch.ops.push_back(reserved_op);
+
+        sync::PushRequest request;
+        request.sender = origin;
+        request.db_id = db_id;
+        request.batches.push_back(batch);
+
+        const sync::PushResponse response = engine.handle_push(request);
+        if (response.ok) {
+            throw std::runtime_error(
+                std::string("reserved DBI ") +
+                op_type_name(op_types[i]) + " push unexpectedly succeeded");
+        }
+        if (response.error.find("reserved_dbi_name") == std::string::npos ||
+            response.error.find("_mdbxc_meta") == std::string::npos) {
+            throw std::runtime_error(
+                std::string("reserved DBI ") +
+                op_type_name(op_types[i]) + " returned wrong error: " +
+                response.error);
+        }
+        if (engine.applied_cursor().last_seq_for(origin) != 0u) {
+            throw std::runtime_error(
+                std::string("reserved DBI ") +
+                op_type_name(op_types[i]) + " advanced applied cursor");
+        }
+        if (kv_has(conn, safe, static_cast<int>(100 + i))) {
+            throw std::runtime_error(
+                std::string("reserved DBI ") +
+                op_type_name(op_types[i]) + " did not roll back page");
+        }
+        if (engine.db_uuid() != db_id) {
+            throw std::runtime_error(
+                std::string("reserved DBI ") +
+                op_type_name(op_types[i]) + " changed metadata");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_reserved_dbi_rolls_back_multi_batch_push() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_reserved_dbi_multi_batch.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    const sync::NodeId local_node = make_node(0x12);
+    const sync::NodeId db_id = make_node(0x13);
+    const sync::NodeId origin = make_node(0x22);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(local_node, db_id);
+    KeyValueTable<int, int> safe(conn, "safe");
+
+    sync::ChangeBatch valid_batch;
+    valid_batch.origin_node_id = origin;
+    valid_batch.seq = 1;
+
+    sync::ChangeOp safe_op;
+    safe_op.op_type = sync::ChangeOpType::Put;
+    safe_op.dbi_name = "safe";
+    safe_op.dbi_flags = static_cast<std::uint32_t>(MDBX_INTEGERKEY);
+    assign_int_key(safe_op.storage_key, 501);
+    assign_int_value(safe_op.value, 601);
+    valid_batch.ops.push_back(safe_op);
+
+    sync::ChangeBatch reserved_batch;
+    reserved_batch.origin_node_id = origin;
+    reserved_batch.seq = 2;
+
+    sync::ChangeOp reserved_op;
+    reserved_op.op_type = sync::ChangeOpType::ClearTable;
+    reserved_op.dbi_name = "_mdbxc_meta";
+    reserved_batch.ops.push_back(reserved_op);
+
+    sync::PushRequest request;
+    request.sender = origin;
+    request.db_id = db_id;
+    request.batches.push_back(valid_batch);
+    request.batches.push_back(reserved_batch);
+
+    const sync::PushResponse response = engine.handle_push(request);
+    if (response.ok) {
+        throw std::runtime_error("reserved DBI multi-batch push unexpectedly succeeded");
+    }
+    if (response.error.find("reserved_dbi_name") == std::string::npos ||
+        response.error.find("_mdbxc_meta") == std::string::npos) {
+        throw std::runtime_error("reserved DBI multi-batch push returned wrong error: " +
+                                 response.error);
+    }
+    if (engine.applied_cursor().last_seq_for(origin) != 0u) {
+        throw std::runtime_error("reserved DBI multi-batch push advanced applied cursor");
+    }
+    if (kv_has(conn, safe, 501)) {
+        throw std::runtime_error("reserved DBI multi-batch push committed earlier batch");
+    }
+    if (engine.db_uuid() != db_id) {
+        throw std::runtime_error("reserved DBI multi-batch push changed metadata");
+    }
+
+    conn->disconnect();
+    cleanup(p);
 }
 
 void test_engine_skips_self_origin() {
@@ -1103,6 +1297,12 @@ int main() {
     struct Case { const char* name; void (*fn)(); };
     const Case cases[] = {
         { "test_engine_round_trip_kv",          &test_engine_round_trip_kv },
+        { "test_public_tables_reject_reserved_dbi_names",
+          &test_public_tables_reject_reserved_dbi_names },
+        { "test_engine_rejects_reserved_dbi_changes",
+          &test_engine_rejects_reserved_dbi_changes_and_rolls_back_page },
+        { "test_engine_reserved_dbi_rolls_back_multi_batch_push",
+          &test_engine_reserved_dbi_rolls_back_multi_batch_push },
         { "test_engine_skips_self_origin",      &test_engine_skips_self_origin },
         { "test_engine_idempotent_replay",      &test_engine_idempotent_replay },
         { "test_engine_legacy_zero_flags",      &test_engine_applies_legacy_zero_flags_to_integer_dbi },

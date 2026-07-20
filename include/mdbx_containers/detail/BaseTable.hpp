@@ -42,6 +42,10 @@ namespace mdbxc {
                         std::string name,
                         MDBX_db_flags_t flags)
             : m_connection(std::move(connection)), m_name(std::move(name)) {
+            if (is_reserved_dbi_name(m_name)) {
+                throw std::invalid_argument(
+                    "MDBX Containers table name uses reserved internal prefix '_mdbxc_'");
+            }
             bool read_only = m_connection->is_read_only();
             MDBX_db_flags_t open_flags = read_only
                 ? static_cast<MDBX_db_flags_t>(flags & ~MDBX_CREATE)
