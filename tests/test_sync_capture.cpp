@@ -55,6 +55,19 @@ public:
     }
 };
 
+void require_no_capture(const StubSink& sink,
+                        const char* table_name,
+                        const char* operation_name) {
+    std::lock_guard<std::mutex> lk(sink.m_mutex);
+    if (!sink.m_recorded.empty()) {
+        throw std::runtime_error(
+            std::string(table_name) + "::" + operation_name +
+            " must not emit sync ChangeOp in v0.1 without enabled wire-format support; got " +
+            std::to_string(sink.m_recorded.size())
+        );
+    }
+}
+
 mdbxc::Embedding make_embedding(const std::vector<float>& values) {
     mdbxc::Embedding e;
     e.dim = static_cast<std::uint32_t>(values.size());
@@ -740,9 +753,97 @@ void test_vector_store_writes_via_sink() {
     }
 }
 
-void test_specialized_tables_do_not_capture_in_v01() {
+void test_any_value_table_does_not_capture_in_v01() {
     using namespace mdbxc;
-    const std::string p = "test_capture_specialized_deferred.mdbx";
+    const std::string p = "test_capture_any_value_deferred.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    {
+        sync::SyncCaptureScope capture(conn, sink);
+        AnyValueTable<int> any_values(conn, "any_values");
+        any_values.set(1, std::string("one"));
+        require_no_capture(sink, "AnyValueTable", "set");
+        any_values.insert(2, std::string("two"));
+        require_no_capture(sink, "AnyValueTable", "insert");
+        any_values.erase(1);
+        require_no_capture(sink, "AnyValueTable", "erase");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_key_multi_value_table_does_not_capture_in_v01() {
+    using namespace mdbxc;
+    typedef KeyMultiValueTable<int, std::string> MultiTable;
+    const std::string p = "test_capture_key_multi_value_deferred.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    {
+        sync::SyncCaptureScope capture(conn, sink);
+        MultiTable multi_values(conn, "multi_values");
+        multi_values.insert(1, "one");
+        require_no_capture(sink, "KeyMultiValueTable", "insert");
+        multi_values.insert(1, "uno");
+        require_no_capture(sink, "KeyMultiValueTable", "insert repeated key");
+
+        std::vector<MultiTable::value_type> appended;
+        appended.push_back(MultiTable::value_type(2, "two"));
+        appended.push_back(MultiTable::value_type(2, "two"));
+        multi_values.append(appended);
+        require_no_capture(sink, "KeyMultiValueTable", "append");
+
+        std::vector<MultiTable::value_type> reconciled;
+        reconciled.push_back(MultiTable::value_type(1, "one"));
+        reconciled.push_back(MultiTable::value_type(3, "three"));
+        multi_values.reconcile(reconciled);
+        require_no_capture(sink, "KeyMultiValueTable", "reconcile");
+
+        multi_values.erase(1, "one");
+        require_no_capture(sink, "KeyMultiValueTable", "erase value");
+        multi_values.erase(3);
+        require_no_capture(sink, "KeyMultiValueTable", "erase key");
+
+        multi_values.insert(4, "four");
+        require_no_capture(sink, "KeyMultiValueTable", "prepare erase_range");
+        multi_values.insert(5, "five");
+        require_no_capture(sink, "KeyMultiValueTable", "prepare erase_range");
+        if (multi_values.erase_range(4, 5) == 0u) {
+            throw std::runtime_error("KeyMultiValueTable::erase_range did not remove prepared rows");
+        }
+        require_no_capture(sink, "KeyMultiValueTable", "erase_range");
+
+        multi_values.insert(6, "six");
+        require_no_capture(sink, "KeyMultiValueTable", "prepare clear");
+        if (multi_values.empty()) {
+            throw std::runtime_error("KeyMultiValueTable clear precondition is empty");
+        }
+        multi_values.clear();
+        require_no_capture(sink, "KeyMultiValueTable", "clear");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_hashed_key_value_store_does_not_capture_in_v01() {
+    using namespace mdbxc;
+    typedef HashedKeyValueStore<std::string, std::string> HashedStore;
+    const std::string p = "test_capture_hashed_key_value_deferred.mdbx";
     cleanup(p);
 
     Config cfg;
@@ -752,34 +853,36 @@ void test_specialized_tables_do_not_capture_in_v01() {
     auto conn = Connection::create(cfg);
 
     StubSink sink;
-    conn->attach_sync_capture(&sink);
-
-    auto assert_no_capture = [&sink](const char* table_name) {
-        if (!sink.m_recorded.empty()) {
-            throw std::runtime_error(
-                std::string(table_name) +
-                " must not emit sync ChangeOp in v0.1 without wire-format support"
-            );
-        }
-    };
-
     {
-        AnyValueTable<int> any_values(conn, "any_values");
-        any_values.set(1, std::string("one"));
-        assert_no_capture("AnyValueTable");
-
-        KeyMultiValueTable<int, std::string> multi_values(conn, "multi_values");
-        multi_values.insert(1, "one");
-        assert_no_capture("KeyMultiValueTable");
-        multi_values.insert(1, "uno");
-        assert_no_capture("KeyMultiValueTable");
-
-        HashedKeyValueStore<std::string, std::string> hashed(conn, "hashed_values");
+        sync::SyncCaptureScope capture(conn, sink);
+        HashedStore hashed(conn, "hashed_values");
         hashed.insert_or_assign("one", "uno");
-        assert_no_capture("HashedKeyValueStore");
+        require_no_capture(sink, "HashedKeyValueStore", "insert_or_assign");
+        hashed.insert("two", "dos");
+        require_no_capture(sink, "HashedKeyValueStore", "insert");
+
+        std::vector<HashedStore::value_type> appended;
+        appended.push_back(HashedStore::value_type("three", "tres"));
+        hashed.append(appended);
+        require_no_capture(sink, "HashedKeyValueStore", "append");
+
+        std::vector<HashedStore::value_type> reconciled;
+        reconciled.push_back(HashedStore::value_type("one", "eins"));
+        hashed.reconcile(reconciled);
+        require_no_capture(sink, "HashedKeyValueStore", "reconcile");
+
+        hashed.erase("one");
+        require_no_capture(sink, "HashedKeyValueStore", "erase");
+
+        hashed.insert_or_assign("clear-key", "clear-value");
+        require_no_capture(sink, "HashedKeyValueStore", "prepare clear");
+        if (!hashed.contains("clear-key")) {
+            throw std::runtime_error("HashedKeyValueStore clear precondition is missing");
+        }
+        hashed.clear();
+        require_no_capture(sink, "HashedKeyValueStore", "clear");
     }
 
-    conn->detach_sync_capture();
     conn->disconnect();
     cleanup(p);
 }
@@ -1132,8 +1235,12 @@ int main(int argc, char** argv) {
         { "test_vector_store_writes_via_sink",
           &test_vector_store_writes_via_sink },
         { "test_capture_flush_on_commit", &test_capture_flush_on_commit },
-        { "test_specialized_tables_do_not_capture_in_v01",
-          &test_specialized_tables_do_not_capture_in_v01 },
+        { "test_any_value_table_does_not_capture_in_v01",
+          &test_any_value_table_does_not_capture_in_v01 },
+        { "test_key_multi_value_table_does_not_capture_in_v01",
+          &test_key_multi_value_table_does_not_capture_in_v01 },
+        { "test_hashed_key_value_store_does_not_capture_in_v01",
+          &test_hashed_key_value_store_does_not_capture_in_v01 },
         { "test_changelog_capture_roundtrip", &test_changelog_capture_roundtrip },
         { "test_zero_node_id_rejected", &test_zero_node_id_rejected },
         { "test_aborted_transaction_does_not_flush",
