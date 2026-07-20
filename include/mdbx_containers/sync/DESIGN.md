@@ -197,8 +197,12 @@ global-order-key        = origin-node-id || origin-local-sequence || op-index
 ```
 
 The exact fields are deferred, but the important property is that the order key
-is carried on the wire and replayed unchanged by replicas. Its ordering is a
-deterministic total order, not wall-clock insertion time. The ordered table
+is carried on the wire and replayed unchanged by replicas. With the illustrative
+fields above, this is only a deterministic presentation order: lexicographic
+comparison groups operations by `origin-node-id` before the origin-local
+sequence. It is not wall-clock insertion time and does not express causal order
+between nodes. A causally meaningful distributed history would need an explicit
+Lamport/HLC-style component or another causal-ordering model. The ordered table
 will need its own storage format, delete semantics, conflict semantics, and
 round-trip tests; it is not part of `KeyMultiValueTable` v0.1/v0.2 multiset
 sync.
