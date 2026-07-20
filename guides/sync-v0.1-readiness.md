@@ -63,8 +63,9 @@ These table families intentionally emit no `ChangeOp` in v0.1:
 
 - `AnyValueTable`, until a wire-level type tag and compatibility policy is
   specified.
-- `KeyMultiValueTable`, until DUPSORT duplicate framing and multiplicity
-  semantics are specified.
+- `KeyMultiValueTable`, until the deferred unordered multiset design for
+  single-writer or causally serialized updates in `sync/DESIGN.md` is
+  implemented and covered by capture and round-trip tests.
 - `HashedKeyValueStore`, until the relationship between logical key bytes,
   physical storage keys, and hash-index entries is specified.
 
@@ -76,9 +77,15 @@ it can make replication appear successful while logical state diverges.
 
 - Add small ergonomics helpers around common worker setup if examples continue
   to repeat the same lifecycle boilerplate.
-- Start specialized table sync design with `KeyMultiValueTable`, then evaluate
-  whether the same framing ideas carry over to `AnyValueTable` and
-  `HashedKeyValueStore`.
+- Prototype `KeyMultiValueTable` capture/apply using the deferred
+  single-writer/serialized unordered multiset design, with repeated-pair
+  round-trip tests before enabling it.
+- Define explicit conflict/CRDT semantics before claiming general concurrent
+  multi-writer convergence for `KeyMultiValueTable`.
+- Design `KeyOrderedMultiValueTable<K, V>` separately if distributed histories
+  need order convergence across multi-writer nodes.
+- Evaluate whether any `KeyMultiValueTable` framing ideas carry over to
+  `AnyValueTable` and `HashedKeyValueStore`.
 
 ## Validation Baseline
 

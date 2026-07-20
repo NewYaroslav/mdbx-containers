@@ -253,7 +253,11 @@ cmake -S . -B tmp/build-ws-example `
 - Sync v0.1 supports `KeyValueTable`, `KeyTable`, `ValueTable`,
   `SequenceTable`, and `VectorStore` through its internal supported tables.
   `AnyValueTable`, `KeyMultiValueTable`, and `HashedKeyValueStore` are not
-  replicated until their wire formats are defined.
+  replicated in v0.1. `KeyMultiValueTable` has a deferred unordered multiset
+  design for single-writer or causally serialized updates in `sync/DESIGN.md`;
+  concurrent multi-writer conflicts and ordered distributed histories are
+  deferred to future work such as `KeyOrderedMultiValueTable<K, V>`. Capture
+  remains disabled until the implementation and round-trip tests land.
 
 ## Transport Boundary
 

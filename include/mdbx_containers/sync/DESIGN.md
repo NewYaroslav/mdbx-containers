@@ -95,12 +95,131 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 | `SequenceTable` | Supported | Captures set/append/delete/clear against stable `uint64_t` record ids. `append()` remains a local single-writer helper; external synchronization is still required for concurrent appenders. |
 | `VectorStore` | Supported indirectly | Does not own a separate wire format. Its persistent writes go through `SequenceTable` and `KeyValueTable` member tables. |
 | `AnyValueTable` | Not supported in v0.1 | Deferred until heterogeneous value type tags are part of the sync wire format. |
-| `KeyMultiValueTable` | Not supported in v0.1 | Deferred until DUPSORT duplicate-value multiplicity and per-value payload framing are specified. |
+| `KeyMultiValueTable` | Not supported in v0.1 | Deferred until unordered multiset replication and DUPSORT duplicate-value payload framing are implemented and tested. |
 | `HashedKeyValueStore` | Not supported in v0.1 | Deferred until hash-index and identity-key mapping semantics are specified. |
 
 Do not add `record_op()` paths for unsupported table types without first
 updating this design document and adding round-trip replication tests for the
 new wire-format semantics.
+
+## Deferred `KeyMultiValueTable` sync design
+
+This section documents the intended direction for future
+`KeyMultiValueTable` replication. It is a design contract only:
+`KeyMultiValueTable` still emits no `ChangeOp` in sync v0.1.
+
+`KeyMultiValueTable` cannot safely reuse the v0.1 raw DBI put/delete model as
+an undocumented implementation detail. The table stores one MDBX DUPSORT record
+per logical pair, but the duplicate value is not just the serialized public
+value. It is:
+
+```text
+stored duplicate value = sequence-prefix || serialized-value
+```
+
+The sequence prefix preserves repeated identical `(key, value)` pairs as
+separate physical records and also affects iteration order for values under the
+same key. Public reads strip the prefix. Public `erase(key, value)` removes all
+duplicate records whose stripped payload equals `serialized-value`. Therefore a
+future `KeyMultiValueTable` wire format must choose and test an explicit
+multiset model instead of assuming that a physical key, a stripped value, or a
+locally assigned sequence prefix uniquely identifies one cross-node record.
+
+The first sync design for `KeyMultiValueTable` targets unordered multiset
+preservation under single-writer or causally serialized updates:
+
+```text
+for every serialized key and serialized public value:
+    count(key, value) is preserved after replaying the same ordered operation history
+```
+
+General concurrent multi-writer convergence is not guaranteed by the operation
+set below. Destructive operations are not commutative with concurrent inserts:
+`EraseAllValues`, `EraseKey`, `EraseRange`, and `Clear` can produce different
+final counts when different replicas observe local writes and remote deletes in
+different orders. Supporting that case requires an explicit conflict model,
+such as a single authoritative writer per key/range, a deterministic global
+operation order with history replay, CRDT tagged occurrences with tombstones, or
+an LWW/version policy for destructive operations. That design is deferred.
+
+Order-sensitive APIs such as `find(key)`, `retrieve_all_vector()`, and
+`range_vector()` may expose different value order on different nodes when
+multiple nodes write values for the same key. The order and multiplicity
+converge only when the application uses one authoritative writer for the
+relevant key/logical dataset or otherwise serializes conflicting updates before
+they are replicated. Ordered distributed history belongs to a separate future
+table.
+
+Planned logical operations:
+
+| Operation | Required payload | Apply semantics |
+|-----------|------------------|-----------------|
+| `InsertOne` | serialized key, serialized public value | Add one logical pair. The replica assigns its own local duplicate sequence prefix. |
+| `EraseKey` | serialized key | Remove all values for the key. |
+| `EraseOneValue` | serialized key, serialized public value | Remove one matching repeated value for the key, if one exists. This is needed for `reconcile()` surplus deletes. |
+| `EraseAllValues` | serialized key, serialized public value | Remove all exact matching repeated values for the key, matching current public `erase(key, value)` semantics. |
+| `EraseRange` | serialized inclusive key range | Remove every physical pair whose key is in the range. |
+| `Clear` | no key/value payload | Remove all pairs in the table. |
+
+`append()` can be represented as a sequence of `InsertOne` operations in the
+same local batch. `erase(key, value)` should emit `EraseAllValues`.
+`reconcile()` should emit one `EraseOneValue` per surplus occurrence and one
+`InsertOne` per missing occurrence so that repeated identical pairs preserve
+their final multiplicity. If a future implementation captures lower-level
+physical deletes during `reconcile()` or range erase, it must copy cursor keys
+and duplicate values before `mdbx_cursor_del()` and must still publish logical
+operations whose replay is deterministic on another node.
+
+The wire payload should carry the stripped public value, not the local
+sequence-prefixed duplicate bytes. This keeps replicas free to assign local
+duplicate sequence prefixes while preserving observable multiset state for the
+supported single-writer or causally serialized case:
+
+```text
+count(key), count(key, value), and per-pair multiplicity
+```
+
+Neither order-sensitive iteration nor concurrent destructive-update convergence
+is guaranteed for general multi-writer `KeyMultiValueTable` replication. The
+sequence prefix remains a local storage detail and is not a cross-node identity.
+
+### Future ordered table
+
+If the library needs replicated per-key histories, event timelines, queues, or
+other APIs where cross-node order is part of the contract, add a separate
+`KeyOrderedMultiValueTable<K, V>` instead of overloading
+`KeyMultiValueTable`. That table should store an explicit globally stable order
+identity, for example:
+
+```text
+ordered duplicate value = global-order-key || serialized-value
+global-order-key        = origin-node-id || origin-local-sequence || op-index
+```
+
+The exact fields are deferred, but the important property is that the order key
+is carried on the wire and replayed unchanged by replicas. With the illustrative
+fields above, this is only a deterministic presentation order: lexicographic
+comparison groups operations by `origin-node-id` before the origin-local
+sequence. It is not wall-clock insertion time and does not express causal order
+between nodes. A causally meaningful distributed history would need an explicit
+Lamport/HLC-style component or another causal-ordering model. The ordered table
+will need its own storage format, delete semantics, conflict semantics, and
+round-trip tests; it is not part of `KeyMultiValueTable` v0.1/v0.2 multiset
+sync.
+
+Required tests before enabling capture:
+
+- sink-level tests for `insert()`, `append()`, `erase(key)`,
+  `erase(key, value)`, `erase_range()`, `clear()`, and `reconcile()`;
+- round-trip tests that preserve repeated identical `(key, value)`
+  multiplicity under a single writer and under causally serialized updates;
+- multi-writer same-key tests that prove order-sensitive APIs and destructive
+  update conflicts are not claimed to converge unless the scenario uses one
+  authoritative writer or another explicit conflict policy;
+- pagination and restart tests, including persisted applied cursor behavior;
+- idempotent replay checks for already-applied batches;
+- negative tests proving unsupported `AnyValueTable` and `HashedKeyValueStore`
+  still emit no `ChangeOp` until their own wire formats are defined.
 
 ## Planned before v0.1 release (NOT YET implemented)
 
@@ -110,7 +229,9 @@ new wire-format semantics.
 
 - `HashedKeyValueStore` — internal hash index layout complicates the wire
   format; deferred until an explicit identity-mapping scheme lands.
-- `KeyMultiValueTable` — DUPSORT values need per-value length prefixes.
+- `KeyMultiValueTable` — DUPSORT duplicate values need the unordered multiset
+  model described above before capture can be enabled. Ordered distributed
+  histories are deferred to a future `KeyOrderedMultiValueTable<K, V>`.
 - `AnyValueTable` — heterogeneous values need type-tag propagation on the wire.
 - `IdentityProvider` integration in `BaseTable` — declared in v0.1, no
   write path until HashedKeyValueStore.

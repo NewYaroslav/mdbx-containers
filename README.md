@@ -53,8 +53,13 @@
   `ValueTable`, and `SequenceTable`; `VectorStore` is replicated indirectly
   through its internal `SequenceTable` and `KeyValueTable` members.
 - `AnyValueTable`, `KeyMultiValueTable`, and `HashedKeyValueStore` are not
-  replicated in v0.1. Their wire formats are deferred until type tags,
-  DUPSORT duplicate framing, and hash-index identity semantics are specified.
+  replicated in v0.1. `KeyMultiValueTable` has a deferred unordered multiset
+  sync design for single-writer or causally serialized updates in
+  `sync/DESIGN.md`; general concurrent multi-writer conflict semantics and
+  order-preserving distributed histories are deferred to future work such as
+  `KeyOrderedMultiValueTable<K, V>`. Implementation remains disabled until
+  capture and round-trip tests exist. `AnyValueTable` and `HashedKeyValueStore`
+  still need type-tag and hash-index identity designs.
 - Application CRUD code does not need per-method sync wrappers for supported
   tables. Attach `ThreadLocalChangeAccumulator` to the writing `Connection`;
   use `SyncCaptureScope` for bounded write phases, or the lower-level
