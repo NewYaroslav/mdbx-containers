@@ -35,8 +35,8 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 
 ### PR #153: Not-implemented public protocol modes
 
-- Make `PullRequest::request_full_snapshot=true` return an explicit
-  permanent/protocol error until full snapshot export/import is implemented.
+- Make `PullRequest::request_full_snapshot=true` return an explicit sync-level
+  protocol rejection until full snapshot export/import is implemented.
 - Reject or otherwise make unavailable `ConflictPolicy::LastWriterWins` until
   timestamp/version-based apply semantics exist.
 - Update docs/tests so public API no longer appears to support these modes.

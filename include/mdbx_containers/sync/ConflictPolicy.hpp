@@ -12,8 +12,9 @@ namespace sync {
     enum class ConflictPolicy {
         /// \brief Reject the incoming change; surface an error to the caller.
         Reject,
-        /// \brief Deterministically pick the change with the larger
-        /// \c revision_key (lexicographic), tie-broken by \c origin_node_id.
+        /// \brief Reserved for future timestamp/version based resolution.
+        /// \details v0.1 \c SyncEngine rejects this policy because raw batch
+        /// apply does not yet have a reliable logical-key conflict authority.
         LastWriterWins,
     };
 

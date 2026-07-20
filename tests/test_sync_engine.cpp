@@ -52,6 +52,20 @@ std::shared_ptr<mdbxc::Connection> open_env(const std::string& path) {
     return Connection::create(cfg);
 }
 
+template<class Fn>
+void expect_invalid_argument(const char* name, Fn fn) {
+    bool rejected = false;
+    try {
+        fn();
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    if (!rejected) {
+        throw std::runtime_error(
+            std::string(name) + " did not throw std::invalid_argument");
+    }
+}
+
 void seed_node_id(std::shared_ptr<mdbxc::Connection> conn,
                   const mdbxc::sync::NodeId& node_id) {
     using namespace mdbxc;
@@ -941,6 +955,71 @@ void test_engine_handle_pull_wrong_db_id() {
     cleanup(p);
 }
 
+void test_engine_rejects_full_snapshot_request() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_full_snapshot_request.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xA0), make_node(0xD0));
+
+    sync::PullRequest req;
+    req.requester = make_node(0xB0);
+    req.db_id = make_node(0xD0);
+    req.request_full_snapshot = true;
+
+    const sync::PullResponse resp = engine.handle_pull(req);
+    if (resp.ok) {
+        throw std::runtime_error("full snapshot request should be rejected");
+    }
+    if (!resp.batches.empty()) {
+        throw std::runtime_error("full snapshot rejection returned batches");
+    }
+    if (resp.error.find("request_full_snapshot") == std::string::npos) {
+        throw std::runtime_error("full snapshot rejection error is not explicit");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_direct_pull_rejects_full_snapshot_request() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_direct_full_snapshot_request.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xA1), make_node(0xD1));
+
+    sync::PullRequest req;
+    req.requester = make_node(0xB1);
+    req.db_id = make_node(0xD1);
+    req.request_full_snapshot = true;
+
+    {
+        auto txn = conn->transaction(TransactionMode::READ_ONLY);
+        const sync::PullResponse resp =
+            engine.pull_full_snapshot(txn.handle(), 0, req);
+        if (resp.ok) {
+            throw std::runtime_error(
+                "direct full snapshot request should be rejected");
+        }
+        if (!resp.batches.empty()) {
+            throw std::runtime_error(
+                "direct full snapshot rejection returned batches");
+        }
+        if (resp.error.find("request_full_snapshot") == std::string::npos) {
+            throw std::runtime_error(
+                "direct full snapshot rejection error is not explicit");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_engine_handle_push_wrong_db_id() {
     using namespace mdbxc;
     const std::string p = "test_engine_push_wrong_db.mdbx";
@@ -977,6 +1056,24 @@ void test_engine_handle_push_wrong_db_id() {
             throw std::runtime_error("table must be empty on wrong db_id push");
         }
     }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_rejects_last_writer_wins_policy() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_lww_policy.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    expect_invalid_argument("SyncEngine LastWriterWins policy",
+                            [&conn]() {
+                                sync::SyncEngine engine(
+                                    conn,
+                                    sync::ConflictPolicy::LastWriterWins);
+                                (void)engine;
+                            });
 
     conn->disconnect();
     cleanup(p);
@@ -1314,7 +1411,13 @@ int main() {
         { "test_engine_handle_push_to_remote",  &test_engine_handle_push_to_remote },
         { "test_engine_push_gap_rolls_back",    &test_engine_push_gap_rolls_back },
         { "test_engine_handle_pull_wrong_db_id",&test_engine_handle_pull_wrong_db_id },
+        { "test_engine_rejects_full_snapshot_request",
+          &test_engine_rejects_full_snapshot_request },
+        { "test_engine_direct_pull_rejects_full_snapshot_request",
+          &test_engine_direct_pull_rejects_full_snapshot_request },
         { "test_engine_handle_push_wrong_db_id",&test_engine_handle_push_wrong_db_id },
+        { "test_engine_rejects_last_writer_wins_policy",
+          &test_engine_rejects_last_writer_wins_policy },
         { "test_engine_handle_pull_pagination", &test_engine_handle_pull_pagination_has_more },
         { "test_engine_handle_pull_multi_origin",&test_engine_handle_pull_multi_origin_pagination },
         { "test_engine_handle_pull_legacy_origin_index",&test_engine_handle_pull_legacy_changelog_without_origin_index },

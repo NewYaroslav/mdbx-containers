@@ -131,7 +131,12 @@ namespace sync {
         /// \param policy Conflict resolution policy (default: \c Reject).
         explicit SyncEngine(std::shared_ptr<Connection> conn,
                             ConflictPolicy policy = ConflictPolicy::Reject)
-            : m_conn(std::move(conn)), m_policy(policy) {}
+            : m_conn(std::move(conn)), m_policy(policy) {
+            if (m_policy == ConflictPolicy::LastWriterWins) {
+                throw std::invalid_argument(
+                    "ConflictPolicy::LastWriterWins is not implemented");
+            }
+        }
 
         /// \brief Initialises the local \c node_id and \c db_uuid.
         /// \details Throws when already initialised with different values.
@@ -255,8 +260,9 @@ namespace sync {
 
         /// \brief Handles a pull request: reads the local changelog
         /// for batches newer than the requester's cursor.
-        /// \details When \c request.have is empty, returns a full snapshot
-        /// (all known origins, batches from seq=1). Non-empty cursors still
+        /// \details When \c request.have is empty, replays all retained
+        /// changelog batches from seq=1 for all known origins. This is not
+        /// a full database snapshot. Non-empty cursors still
         /// consider all known origins so newly discovered origins and
         /// multi-origin pagination are not stranded. Validates
         /// \c request.db_id against the local \c db_uuid; mismatched peers
@@ -269,6 +275,11 @@ namespace sync {
             if (!db_id_matches(request.db_id)) {
                 out.ok = false;
                 out.error = "db_id mismatch";
+                return out;
+            }
+            if (request.request_full_snapshot) {
+                out.ok = false;
+                out.error = "PullRequest::request_full_snapshot is not implemented";
                 return out;
             }
 
@@ -294,20 +305,28 @@ namespace sync {
             return pull_full_snapshot(txn, changelog_dbi, request);
         }
 
-        /// \brief Returns batches newer than \c request.have.
-        /// \details Empty \c request.have returns a full snapshot. Non-empty
-        /// cursors filter each origin independently and still include origins
-        /// missing from the cursor. Origin discovery uses \c _mdbxc_origins
-        /// when available, with a changelog scan fallback for pre-index
-        /// databases. Indexed origin tails skip origins that have no new
-        /// batches; changelog keys are still used for exact \c have_seq+1
-        /// seeks so old values are not decoded.
+        /// \brief Returns retained changelog batches newer than
+        /// \c request.have.
+        /// \details Empty \c request.have replays all retained changelog
+        /// batches from seq=1 for all known origins. This is not a full
+        /// database snapshot. Non-empty cursors filter each origin
+        /// independently and still include origins missing from the cursor.
+        /// Origin discovery uses \c _mdbxc_origins when available, with a
+        /// changelog scan fallback for pre-index databases. Indexed origin
+        /// tails skip origins that have no new batches; changelog keys are
+        /// still used for exact \c have_seq+1 seeks so old values are not
+        /// decoded.
         /// Sets \c has_more=true when the walk stopped because of
         /// \c request.max_batches or \c request.max_bytes.
         PullResponse pull_full_snapshot(MDBX_txn* txn, MDBX_dbi dbi,
                                         const PullRequest& request) {
-            txn = checked_external_txn(txn, "SyncEngine::pull_full_snapshot");
             PullResponse out;
+            if (request.request_full_snapshot) {
+                out.ok = false;
+                out.error = "PullRequest::request_full_snapshot is not implemented";
+                return out;
+            }
+            txn = checked_external_txn(txn, "SyncEngine::pull_full_snapshot");
             out.remote_have = read_applied_cursor(txn, out.remote_have);
             const std::vector<PullOrigin> origins = collect_known_origins(txn, dbi);
             out.remote_tail_known = copy_known_tail(origins, out.remote_tail);
