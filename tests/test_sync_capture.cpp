@@ -1,6 +1,8 @@
 #include <mdbx_containers.hpp>
 #include <mdbx_containers/sync.hpp>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <map>
 #include <mutex>
@@ -10,6 +12,8 @@
 #include <vector>
 
 namespace {
+
+const char* g_executable_path = nullptr;
 
 void cleanup(const std::string& p) {
     std::remove(p.c_str());
@@ -163,6 +167,292 @@ void test_capture_scope_restores_previous_sink() {
     if (outer_sink.m_recorded.size() != 1u ||
         outer_sink.m_recorded[0].op_type != sync::ChangeOpType::Put) {
         throw std::runtime_error("outer sink did not capture restored write");
+    }
+}
+
+void test_capture_scope_nested_scopes_restore_in_order() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_scope_nested.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink outer_sink;
+    StubSink inner_sink;
+    KeyValueTable<int, int> kv(conn, "t");
+
+    {
+        sync::SyncCaptureScope outer(conn, outer_sink);
+        if (conn->sync_capture() != &outer_sink) {
+            throw std::runtime_error("outer scope did not attach outer sink");
+        }
+        kv.insert_or_assign(1, 100);
+
+        {
+            sync::SyncCaptureScope inner(conn, inner_sink);
+            if (conn->sync_capture() != &inner_sink) {
+                throw std::runtime_error("inner scope did not attach inner sink");
+            }
+            kv.insert_or_assign(2, 200);
+        }
+
+        if (conn->sync_capture() != &outer_sink) {
+            throw std::runtime_error("inner scope did not restore outer sink");
+        }
+        kv.insert_or_assign(3, 300);
+    }
+
+    if (conn->sync_capture() != nullptr) {
+        throw std::runtime_error("outer scope did not restore null sink");
+    }
+    kv.insert_or_assign(4, 400);
+    conn->disconnect();
+    cleanup(p);
+
+    if (outer_sink.m_recorded.size() != 2u) {
+        throw std::runtime_error("outer sink captured wrong nested count");
+    }
+    if (inner_sink.m_recorded.size() != 1u) {
+        throw std::runtime_error("inner sink captured wrong nested count");
+    }
+}
+
+void test_capture_scope_rejects_out_of_order_detach() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_scope_out_of_order_detach.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink outer_sink;
+    StubSink inner_sink;
+    KeyValueTable<int, int> kv(conn, "t");
+
+    {
+        sync::SyncCaptureScope outer(conn, outer_sink);
+        {
+            sync::SyncCaptureScope inner(conn, inner_sink);
+            bool rejected = false;
+            try {
+                outer.detach();
+            } catch (const std::logic_error&) {
+                rejected = true;
+            }
+            if (!rejected) {
+                throw std::runtime_error("out-of-order detach was not rejected");
+            }
+            if (!outer.active() || conn->sync_capture() != &inner_sink) {
+                throw std::runtime_error("out-of-order detach changed active inner sink");
+            }
+            kv.insert_or_assign(1, 100);
+        }
+        if (conn->sync_capture() != &outer_sink) {
+            throw std::runtime_error("inner scope did not restore outer after rejected detach");
+        }
+        kv.insert_or_assign(2, 200);
+    }
+
+    if (conn->sync_capture() != nullptr) {
+        throw std::runtime_error("outer scope did not restore null after rejected detach");
+    }
+    kv.insert_or_assign(3, 300);
+    conn->disconnect();
+    cleanup(p);
+
+    if (inner_sink.m_recorded.size() != 1u) {
+        throw std::runtime_error("inner sink captured wrong out-of-order count");
+    }
+    if (outer_sink.m_recorded.size() != 1u) {
+        throw std::runtime_error("outer sink captured wrong out-of-order count");
+    }
+}
+
+void test_capture_scope_rejects_same_sink_out_of_order_detach() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_scope_same_sink_out_of_order_detach.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    KeyValueTable<int, int> kv(conn, "t");
+
+    sync::SyncCaptureScope outer(conn, sink);
+    {
+        sync::SyncCaptureScope inner(conn, sink);
+        bool rejected = false;
+        try {
+            outer.detach();
+        } catch (const std::logic_error&) {
+            rejected = true;
+        }
+        if (!rejected) {
+            throw std::runtime_error("same-sink out-of-order detach was not rejected");
+        }
+        if (!outer.active() || conn->sync_capture() != &sink) {
+            throw std::runtime_error("same-sink rejected detach changed attachment");
+        }
+        kv.insert_or_assign(1, 100);
+    }
+
+    if (conn->sync_capture() != &sink) {
+        throw std::runtime_error("same-sink inner scope did not restore outer token");
+    }
+    kv.insert_or_assign(2, 200);
+
+    outer.detach();
+    if (outer.active() || conn->sync_capture() != nullptr) {
+        throw std::runtime_error("same-sink outer scope did not restore null sink");
+    }
+    kv.insert_or_assign(3, 300);
+    conn->disconnect();
+    cleanup(p);
+
+    if (sink.m_recorded.size() != 2u) {
+        throw std::runtime_error("same-sink nested scopes captured wrong count");
+    }
+}
+
+void run_capture_scope_out_of_order_destruction_child() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_scope_out_of_order_destruction_child.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink outer_sink;
+    StubSink inner_sink;
+
+    sync::SyncCaptureScope* outer =
+        new sync::SyncCaptureScope(conn, outer_sink);
+    sync::SyncCaptureScope* inner =
+        new sync::SyncCaptureScope(conn, inner_sink);
+
+    delete outer;
+
+    delete inner;
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_capture_scope_terminates_on_out_of_order_destruction() {
+    const std::string p = "test_capture_scope_out_of_order_destruction_child.mdbx";
+    cleanup(p);
+
+    if (g_executable_path == nullptr) {
+        throw std::runtime_error("test executable path is unavailable");
+    }
+
+    std::string command = "\"";
+    command += g_executable_path;
+    command += "\" --sync-capture-out-of-order-destruction-child";
+#ifdef _WIN32
+    command += " >NUL 2>NUL";
+#else
+    command += " >/dev/null 2>/dev/null";
+#endif
+
+    const int result = std::system(command.c_str());
+    cleanup(p);
+    if (result == 0) {
+        throw std::runtime_error(
+            "out-of-order SyncCaptureScope destruction did not terminate");
+    }
+}
+
+void test_capture_scope_detach_restores_null_once() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_scope_detach.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    KeyValueTable<int, int> kv(conn, "t");
+
+    sync::SyncCaptureScope scope(conn, sink);
+    if (!scope.active() || conn->sync_capture() != &sink) {
+        throw std::runtime_error("scope did not attach sink before detach");
+    }
+    kv.insert_or_assign(1, 100);
+
+    scope.detach();
+    if (scope.active() || conn->sync_capture() != nullptr) {
+        throw std::runtime_error("scope did not restore null sink on detach");
+    }
+    scope.detach();
+    if (conn->sync_capture() != nullptr) {
+        throw std::runtime_error("double detach changed null sink");
+    }
+
+    kv.insert_or_assign(2, 200);
+    conn->disconnect();
+    cleanup(p);
+
+    if (sink.m_recorded.size() != 1u) {
+        throw std::runtime_error("detached scope captured after detach");
+    }
+}
+
+void test_capture_scope_rejects_null_arguments() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_scope_null_args.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 8;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    bool null_connection_rejected = false;
+    bool null_sink_rejected = false;
+
+    try {
+        std::shared_ptr<Connection> null_connection;
+        sync::SyncCaptureScope scope(null_connection, sink);
+        (void)scope;
+    } catch (const std::invalid_argument&) {
+        null_connection_rejected = true;
+    }
+
+    try {
+        sync::SyncCaptureScope scope(conn,
+                                     static_cast<sync::ISyncCaptureSink*>(nullptr));
+        (void)scope;
+    } catch (const std::invalid_argument&) {
+        null_sink_rejected = true;
+    }
+
+    conn->disconnect();
+    cleanup(p);
+
+    if (!null_connection_rejected) {
+        throw std::runtime_error("null connection was not rejected");
+    }
+    if (!null_sink_rejected) {
+        throw std::runtime_error("null sink was not rejected");
     }
 }
 
@@ -801,148 +1091,68 @@ void test_aborted_transaction_does_not_flush() {
 
 } // namespace
 
-int main() {
-    try {
-        test_no_sink_no_capture();
-        std::printf("PASS test_no_sink_no_capture\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_no_sink_no_capture: %s\n", e.what());
-        return 1;
-    } catch (...) {
-        std::printf("FAIL test_no_sink_no_capture: non-std exception\n");
-        return 1;
+int main(int argc, char** argv) {
+    if (argc == 2 &&
+        std::string(argv[1]) ==
+            "--sync-capture-out-of-order-destruction-child") {
+        run_capture_scope_out_of_order_destruction_child();
+        return 0;
     }
-    try {
-        test_capture_writes_via_sink();
-        std::printf("PASS test_capture_writes_via_sink\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_capture_writes_via_sink: %s\n", e.what());
-        return 2;
-    } catch (...) {
-        std::printf("FAIL test_capture_writes_via_sink: non-std exception\n");
-        return 2;
-    }
-    try {
-        test_capture_scope_restores_previous_sink();
-        std::printf("PASS test_capture_scope_restores_previous_sink\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_capture_scope_restores_previous_sink: %s\n",
-                    e.what());
-        return 3;
-    } catch (...) {
-        std::printf(
-            "FAIL test_capture_scope_restores_previous_sink: non-std exception\n");
-        return 3;
-    }
-    try {
-        test_sequence_set_writes_via_sink();
-        std::printf("PASS test_sequence_set_writes_via_sink\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_sequence_set_writes_via_sink: %s\n", e.what());
-        return 4;
-    } catch (...) {
-        std::printf("FAIL test_sequence_set_writes_via_sink: non-std exception\n");
-        return 4;
-    }
-    try {
-        test_value_table_writes_storage_key_via_sink();
-        std::printf("PASS test_value_table_writes_storage_key_via_sink\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_value_table_writes_storage_key_via_sink: %s\n", e.what());
-        return 5;
-    } catch (...) {
-        std::printf("FAIL test_value_table_writes_storage_key_via_sink: non-std exception\n");
-        return 5;
-    }
-    try {
-        test_key_value_bulk_writes_via_sink();
-        std::printf("PASS test_key_value_bulk_writes_via_sink\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_key_value_bulk_writes_via_sink: %s\n", e.what());
-        return 6;
-    } catch (...) {
-        std::printf("FAIL test_key_value_bulk_writes_via_sink: non-std exception\n");
-        return 6;
-    }
-    try {
-        test_range_erase_writes_via_sink();
-        std::printf("PASS test_range_erase_writes_via_sink\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_range_erase_writes_via_sink: %s\n", e.what());
-        return 7;
-    } catch (...) {
-        std::printf("FAIL test_range_erase_writes_via_sink: non-std exception\n");
-        return 7;
-    }
-    try {
-        test_vector_store_writes_via_sink();
-        std::printf("PASS test_vector_store_writes_via_sink\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_vector_store_writes_via_sink: %s\n", e.what());
-        return 8;
-    } catch (...) {
-        std::printf("FAIL test_vector_store_writes_via_sink: non-std exception\n");
-        return 8;
-    }
-    try {
-        test_capture_flush_on_commit();
-        std::printf("PASS test_capture_flush_on_commit\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_capture_flush_on_commit: %s\n", e.what());
-        return 9;
-    } catch (...) {
-        std::printf("FAIL test_capture_flush_on_commit: non-std exception\n");
-        return 9;
-    }
-    try {
-        test_specialized_tables_do_not_capture_in_v01();
-        std::printf("PASS test_specialized_tables_do_not_capture_in_v01\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_specialized_tables_do_not_capture_in_v01: %s\n", e.what());
-        return 10;
-    } catch (...) {
-        std::printf("FAIL test_specialized_tables_do_not_capture_in_v01: non-std exception\n");
-        return 10;
-    }
-    try {
-        test_changelog_capture_roundtrip();
-        std::printf("PASS test_changelog_capture_roundtrip\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_changelog_capture_roundtrip: %s\n", e.what());
-        return 11;
-    } catch (...) {
-        std::printf("FAIL test_changelog_capture_roundtrip: non-std exception\n");
-        return 11;
-    }
-    try {
-        test_zero_node_id_rejected();
-        std::printf("PASS test_zero_node_id_rejected\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_zero_node_id_rejected: %s\n", e.what());
-        return 12;
-    } catch (...) {
-        std::printf("FAIL test_zero_node_id_rejected: non-std exception\n");
-        return 12;
-    }
-    try {
-        test_aborted_transaction_does_not_flush();
-        std::printf("PASS test_aborted_transaction_does_not_flush\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_aborted_transaction_does_not_flush: %s\n", e.what());
-        return 13;
-    } catch (...) {
-        std::printf("FAIL test_aborted_transaction_does_not_flush: non-std exception\n");
-        return 13;
-    }
-    try {
-        test_explicit_rollback_does_not_flush();
-        std::printf("PASS test_explicit_rollback_does_not_flush\n");
-    } catch (const std::exception& e) {
-        std::printf("FAIL test_explicit_rollback_does_not_flush: %s\n", e.what());
-        return 14;
-    } catch (...) {
-        std::printf("FAIL test_explicit_rollback_does_not_flush: non-std exception\n");
-        return 14;
+
+    g_executable_path = argc > 0 ? argv[0] : nullptr;
+
+    struct Case {
+        const char* name;
+        void (*fn)();
+    };
+
+    const Case cases[] = {
+        { "test_no_sink_no_capture", &test_no_sink_no_capture },
+        { "test_capture_writes_via_sink", &test_capture_writes_via_sink },
+        { "test_capture_scope_restores_previous_sink",
+          &test_capture_scope_restores_previous_sink },
+        { "test_capture_scope_nested_scopes_restore_in_order",
+          &test_capture_scope_nested_scopes_restore_in_order },
+        { "test_capture_scope_rejects_out_of_order_detach",
+          &test_capture_scope_rejects_out_of_order_detach },
+        { "test_capture_scope_rejects_same_sink_out_of_order_detach",
+          &test_capture_scope_rejects_same_sink_out_of_order_detach },
+        { "test_capture_scope_terminates_on_out_of_order_destruction",
+          &test_capture_scope_terminates_on_out_of_order_destruction },
+        { "test_capture_scope_detach_restores_null_once",
+          &test_capture_scope_detach_restores_null_once },
+        { "test_capture_scope_rejects_null_arguments",
+          &test_capture_scope_rejects_null_arguments },
+        { "test_sequence_set_writes_via_sink", &test_sequence_set_writes_via_sink },
+        { "test_value_table_writes_storage_key_via_sink",
+          &test_value_table_writes_storage_key_via_sink },
+        { "test_key_value_bulk_writes_via_sink",
+          &test_key_value_bulk_writes_via_sink },
+        { "test_range_erase_writes_via_sink", &test_range_erase_writes_via_sink },
+        { "test_vector_store_writes_via_sink",
+          &test_vector_store_writes_via_sink },
+        { "test_capture_flush_on_commit", &test_capture_flush_on_commit },
+        { "test_specialized_tables_do_not_capture_in_v01",
+          &test_specialized_tables_do_not_capture_in_v01 },
+        { "test_changelog_capture_roundtrip", &test_changelog_capture_roundtrip },
+        { "test_zero_node_id_rejected", &test_zero_node_id_rejected },
+        { "test_aborted_transaction_does_not_flush",
+          &test_aborted_transaction_does_not_flush },
+        { "test_explicit_rollback_does_not_flush",
+          &test_explicit_rollback_does_not_flush }
+    };
+
+    for (std::size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        try {
+            cases[i].fn();
+            std::printf("PASS %s\n", cases[i].name);
+        } catch (const std::exception& e) {
+            std::printf("FAIL %s: %s\n", cases[i].name, e.what());
+            return static_cast<int>(i + 1u);
+        } catch (...) {
+            std::printf("FAIL %s: non-std exception\n", cases[i].name);
+            return static_cast<int>(i + 1u);
+        }
     }
 
     return 0;
