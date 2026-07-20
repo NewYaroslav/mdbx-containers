@@ -24,8 +24,9 @@ namespace sync {
         SyncCursor   have;
         std::uint64_t max_batches = 1000;
         std::uint64_t max_bytes   = 4ULL * 1024ULL * 1024ULL;
-        /// \brief When true, the responder should produce a full snapshot
-        /// instead of an incremental delta.
+        /// \brief Requests a full snapshot instead of an incremental delta.
+        /// \details Reserved for a future snapshot protocol. v0.1
+        /// \c SyncEngine responders reject this request explicitly.
         bool         request_full_snapshot = false;
         /// \brief Cooperative cancellation token for this transport call.
         /// \details Optional; default-constructed tokens never cancel.

@@ -78,8 +78,8 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
   `KeyTable`, `SequenceTable` insert/update/delete including empty serialized
   values, and `VectorStore` add/erase/rebuild through its public API.
 - `ConflictPolicy::Reject` is the default. `ConflictPolicy::LastWriterWins`
-  is declared for future logical-key conflict resolution but is not used by
-  the current raw batch apply path.
+  is declared for future logical-key conflict resolution; `SyncEngine`
+  rejects it until a reliable conflict authority exists.
 - `SyncWorker` background pull/apply lifecycle, cooperative cancellation
   tokens, best-effort peer cancellation hook, and focused worker tests.
 - Manual hub-style benchmark (`sync_tick_hub_benchmark`) plus opt-in and
@@ -241,7 +241,7 @@ Required tests before enabling capture:
 - HLC or other production authority for logical-key `LastWriterWins`.
   `time_unix_ns` is metadata only, not a reliable conflict authority. The
   current apply path does not maintain enough identity-index conflict state to
-  use `LastWriterWins` in a non-test path.
+  use `LastWriterWins`, so `SyncEngine` rejects that policy.
 - `Custom` conflict resolver — schema-level callback; deferred until the
   first real consumer needs it.
 - Production-grade deployment wrappers for concrete socket-bound HTTP and
@@ -457,7 +457,7 @@ Cold replica sync currently uses changelog replay:
 ```
 B: empty cursor
     -> pull request, have = empty
-A: handle_pull treats it as a full changelog snapshot across known origins
+A: handle_pull treats it as a full changelog replay across known origins
     -> streams persisted ChangeBatches from seq=1 with pagination limits
 B: applies each page as above
     -> onward sync is incremental pull-from-have
@@ -465,6 +465,8 @@ B: applies each page as above
 
 The reserved `seq=0, BATCH_HAS_MORE` full export/import format remains planned
 for v0.1 and is not the current cold-replica implementation.
+`PullRequest::request_full_snapshot=true` is rejected explicitly until that
+format is implemented.
 
 ## Background worker lifecycle
 

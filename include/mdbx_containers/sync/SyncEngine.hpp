@@ -131,7 +131,12 @@ namespace sync {
         /// \param policy Conflict resolution policy (default: \c Reject).
         explicit SyncEngine(std::shared_ptr<Connection> conn,
                             ConflictPolicy policy = ConflictPolicy::Reject)
-            : m_conn(std::move(conn)), m_policy(policy) {}
+            : m_conn(std::move(conn)), m_policy(policy) {
+            if (m_policy == ConflictPolicy::LastWriterWins) {
+                throw std::invalid_argument(
+                    "ConflictPolicy::LastWriterWins is not implemented");
+            }
+        }
 
         /// \brief Initialises the local \c node_id and \c db_uuid.
         /// \details Throws when already initialised with different values.
@@ -268,6 +273,11 @@ namespace sync {
             if (!db_id_matches(request.db_id)) {
                 out.ok = false;
                 out.error = "db_id mismatch";
+                return out;
+            }
+            if (request.request_full_snapshot) {
+                out.ok = false;
+                out.error = "PullRequest::request_full_snapshot is not implemented";
                 return out;
             }
 
