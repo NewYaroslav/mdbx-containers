@@ -205,6 +205,14 @@ Operational rules:
 - v0.1 sync captures normal write paths for `KeyValueTable`, `KeyTable`,
   `ValueTable`, and `SequenceTable`. `VectorStore` is sync-covered only because
   it persists through internal `SequenceTable` and `KeyValueTable` members.
+- Use `SyncCaptureScope` for temporary capture attachment around a bounded
+  write phase. Use raw `attach_sync_capture()` / `detach_sync_capture()` only
+  for a deliberate component lifecycle and keep the same lifecycle-only rule as
+  `Connection`: do not change capture attachment concurrently with table
+  operations or active transactions.
+- Nested `SyncCaptureScope` objects are a stack discipline: detach or destroy
+  the innermost scope first. Do not replace the connection capture sink through
+  raw attach/detach while a scope owns it.
 - `HashedKeyValueStore`, `KeyMultiValueTable`, and `AnyValueTable` are
   not replicated in v0.1; their wire format is not defined. Do not add
   `record_op()` paths for them without first extending `DESIGN.md`.
