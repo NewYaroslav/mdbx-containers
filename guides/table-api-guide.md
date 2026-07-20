@@ -69,6 +69,9 @@ All public table classes follow the same broad shape:
   or use the caller-supplied transaction.
 - A supplied `MDBX_txn*` or `Transaction` must belong to the current thread.
   Do not pass transaction handles or MDBX cursors across threads.
+- A supplied `MDBX_txn*` or `Transaction` must also belong to the same
+  `Connection`/MDBX environment as the table wrapper. Passing a transaction from
+  another environment is rejected before any table data is touched.
 - Table wrapper instances are not synchronization primitives. For concurrent
   workers, prefer separate wrappers per thread over the same shared
   `Connection`, or protect one shared wrapper with an external mutex.

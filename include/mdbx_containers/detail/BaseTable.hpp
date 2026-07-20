@@ -12,6 +12,7 @@
 #endif
 
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 namespace mdbxc {
@@ -165,6 +166,22 @@ namespace mdbxc {
         /// \brief Gets the raw DBI handle.
         /// \return DBI handle for the opened table.
         MDBX_dbi handle() const { return m_dbi; }
+
+        /// \brief Validates that an external transaction belongs to this table's environment.
+        /// \details Table DBI handles are environment-local. Passing a transaction
+        /// from another Connection could otherwise address an unrelated DBI with
+        /// the same numeric handle.
+        MDBX_txn* checked_external_txn(MDBX_txn* txn) const {
+            if (txn == nullptr) {
+                return nullptr;
+            }
+            MDBX_env* txn_env = mdbx_txn_env(txn);
+            if (txn_env != m_connection->env_handle()) {
+                throw std::invalid_argument(
+                    "External transaction belongs to a different MDBX environment");
+            }
+            return txn;
+        }
 
         /// \brief Throws when a duplicate value exceeds the configured proactive limit.
         /// \param value Duplicate value that will be written into an MDBX_DUPSORT DBI.

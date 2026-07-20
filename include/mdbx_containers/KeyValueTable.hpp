@@ -1395,7 +1395,7 @@ namespace mdbxc {
         template<typename F>
         void with_transaction(F&& action, TransactionMode mode = TransactionMode::WRITABLE, MDBX_txn* txn = nullptr) const {
             if (txn) {
-                action(txn);
+                action(checked_external_txn(txn));
                 return;
             }
             txn = thread_txn(); // reuse transaction bound to this thread if any
