@@ -307,7 +307,8 @@ namespace sync {
         /// \c ISyncPeer::request_cancel() outside the worker mutex at most
         /// once for each observed in-flight peer call.
         /// Cancellation is best-effort; the worker exits before applying a
-        /// page returned after stop was requested.
+        /// page returned after stop was requested unless that page has already
+        /// passed the final apply gate immediately before \c handle_push().
         void request_stop() {
             bool cancel_peer = false;
             {
@@ -558,7 +559,14 @@ namespace sync {
                     }
 
                     if (!response.batches.empty()) {
-                        set_state(SyncWorkerState::Applying);
+                        PushRequest apply;
+                        apply.db_id = request.db_id;
+                        apply.batches = response.batches;
+
+                        if (!begin_apply_stage()) {
+                            result.has_more = has_more;
+                            return result;
+                        }
                         {
                             SyncWorkerStageEvent event = make_stage_event(
                                 SyncWorkerStage::ApplyStarted, result);
@@ -567,10 +575,12 @@ namespace sync {
                             event.progress = progress;
                             notify_stage_changed(event);
                         }
-                        PushRequest apply;
-                        apply.db_id = request.db_id;
-                        apply.batches = response.batches;
-                        const PushResponse applied = m_engine.handle_push(apply);
+                        PushResponse applied;
+                        if (!enter_apply_gate()) {
+                            result.has_more = has_more;
+                            return result;
+                        }
+                        applied = m_engine.handle_push(apply);
                         SyncCursor after_apply = request.have;
                         if (applied.ok) {
                             after_apply = m_engine.applied_cursor();
@@ -888,6 +898,25 @@ namespace sync {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_peer_call_active = false;
             m_peer_cancel_requested = false;
+        }
+
+        bool begin_apply_stage() const {
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                if (m_stop_requested) {
+                    return false;
+                }
+                m_state = SyncWorkerState::Applying;
+                m_status.state = m_state;
+                m_status.backoff_active = false;
+            }
+            m_state_changed.notify_all();
+            return true;
+        }
+
+        bool enter_apply_gate() const {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return !m_stop_requested;
         }
 
         void request_peer_cancel() const {
