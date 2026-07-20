@@ -325,6 +325,69 @@ void test_engine_rejects_reserved_dbi_changes_and_rolls_back_page() {
     cleanup(p);
 }
 
+void test_engine_reserved_dbi_rolls_back_multi_batch_push() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_reserved_dbi_multi_batch.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    const sync::NodeId local_node = make_node(0x12);
+    const sync::NodeId db_id = make_node(0x13);
+    const sync::NodeId origin = make_node(0x22);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(local_node, db_id);
+    KeyValueTable<int, int> safe(conn, "safe");
+
+    sync::ChangeBatch valid_batch;
+    valid_batch.origin_node_id = origin;
+    valid_batch.seq = 1;
+
+    sync::ChangeOp safe_op;
+    safe_op.op_type = sync::ChangeOpType::Put;
+    safe_op.dbi_name = "safe";
+    safe_op.dbi_flags = static_cast<std::uint32_t>(MDBX_INTEGERKEY);
+    assign_int_key(safe_op.storage_key, 501);
+    assign_int_value(safe_op.value, 601);
+    valid_batch.ops.push_back(safe_op);
+
+    sync::ChangeBatch reserved_batch;
+    reserved_batch.origin_node_id = origin;
+    reserved_batch.seq = 2;
+
+    sync::ChangeOp reserved_op;
+    reserved_op.op_type = sync::ChangeOpType::ClearTable;
+    reserved_op.dbi_name = "_mdbxc_meta";
+    reserved_batch.ops.push_back(reserved_op);
+
+    sync::PushRequest request;
+    request.sender = origin;
+    request.db_id = db_id;
+    request.batches.push_back(valid_batch);
+    request.batches.push_back(reserved_batch);
+
+    const sync::PushResponse response = engine.handle_push(request);
+    if (response.ok) {
+        throw std::runtime_error("reserved DBI multi-batch push unexpectedly succeeded");
+    }
+    if (response.error.find("reserved_dbi_name") == std::string::npos ||
+        response.error.find("_mdbxc_meta") == std::string::npos) {
+        throw std::runtime_error("reserved DBI multi-batch push returned wrong error: " +
+                                 response.error);
+    }
+    if (engine.applied_cursor().last_seq_for(origin) != 0u) {
+        throw std::runtime_error("reserved DBI multi-batch push advanced applied cursor");
+    }
+    if (kv_has(conn, safe, 501)) {
+        throw std::runtime_error("reserved DBI multi-batch push committed earlier batch");
+    }
+    if (engine.db_uuid() != db_id) {
+        throw std::runtime_error("reserved DBI multi-batch push changed metadata");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_engine_skips_self_origin() {
     using namespace mdbxc;
     const std::string p = "test_engine_self_origin.mdbx";
@@ -1238,6 +1301,8 @@ int main() {
           &test_public_tables_reject_reserved_dbi_names },
         { "test_engine_rejects_reserved_dbi_changes",
           &test_engine_rejects_reserved_dbi_changes_and_rolls_back_page },
+        { "test_engine_reserved_dbi_rolls_back_multi_batch_push",
+          &test_engine_reserved_dbi_rolls_back_multi_batch_push },
         { "test_engine_skips_self_origin",      &test_engine_skips_self_origin },
         { "test_engine_idempotent_replay",      &test_engine_idempotent_replay },
         { "test_engine_legacy_zero_flags",      &test_engine_applies_legacy_zero_flags_to_integer_dbi },

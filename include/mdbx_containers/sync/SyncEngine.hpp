@@ -93,7 +93,7 @@ namespace sync {
 
         /// \brief DBI name for DBI-related conflicts.
         /// \details Set for \c InconsistentBatchDbiFlags and
-        /// \c ExistingDbiFlagsMismatch.
+        /// \c ExistingDbiFlagsMismatch, and \c ReservedDbiName.
         std::string          dbi_name;
 
         /// \brief Previously seen flags for \c InconsistentBatchDbiFlags.
