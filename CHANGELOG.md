@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.
   storage, and wider integral keys use a bytewise order-preserving encoding.
   Existing development DBIs using older bytewise integral key storage must be
   rebuilt.
+- Breaking storage-format change: floating-point keys now canonicalize `-0.0`
+  and `+0.0` to one physical zero key and reject NaN keys. Existing
+  development DBIs containing older `-0.0` or NaN keys must be rebuilt.
 
 ## [v1.0.2] - 2026-05-02
 - Added this changelog to track release history in a compact, release-oriented format.

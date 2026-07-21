@@ -1,6 +1,8 @@
 #include "test_assert.hpp"
 #include <bitset>
+#include <cmath>
 #include <iostream>
+#include <limits>
 #include <mdbx_containers/common.hpp>
 
 namespace {
@@ -107,6 +109,19 @@ void assert_same_serialized_key(LeftT lhs, RightT rhs) {
     MDBXC_TEST_ASSERT(lhs_value.iov_len == rhs_value.iov_len);
     MDBXC_TEST_ASSERT(
         std::memcmp(lhs_value.iov_base, rhs_value.iov_base, lhs_value.iov_len) == 0);
+}
+
+template<typename T>
+void assert_rejects_nan_key() {
+    mdbxc::SerializeScratch scratch;
+    bool thrown = false;
+    try {
+        (void)mdbxc::serialize_key(
+            std::numeric_limits<T>::quiet_NaN(), scratch);
+    } catch (const std::invalid_argument&) {
+        thrown = true;
+    }
+    MDBXC_TEST_ASSERT(thrown);
 }
 
 #if defined(__SIZEOF_INT128__)
@@ -224,6 +239,13 @@ int main() {
     assert_same_serialized_key<char, std::uint32_t>(
         static_cast<char>(static_cast<unsigned char>(0xFFu)),
         static_cast<std::uint32_t>(0xFFu));
+
+    assert_same_serialized_key<float>(-0.0f, 0.0f);
+    assert_same_serialized_key<double>(-0.0, 0.0);
+    assert_key_roundtrip<float>(0.0f);
+    assert_key_roundtrip<double>(0.0);
+    assert_rejects_nan_key<float>();
+    assert_rejects_nan_key<double>();
 
 #if defined(__SIZEOF_INT128__)
     assert_not_integer_key_flag<__int128>();
