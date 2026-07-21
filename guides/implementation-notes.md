@@ -193,10 +193,14 @@ Operational rules:
 - Read `DESIGN.md` before changing any sync header, the `ChangeBatchCodec`
   layout, or any store's key encoding. These are wire-format and on-disk
   contracts; changes break data on disk and break other nodes.
-- Endianness policy (LE for payloads, BE only when a key participates in a
-  numeric range scan) is documented in `DESIGN.md`. Do not "fix" the BE
-  seq field in `ChangeLogStore::encode_key` back to LE — the change was
-  intentional and required for correct range scan order.
+- Sync store endianness policy (LE for payloads, BE for composite key fields
+  that participate in bytewise range scans) is documented in `DESIGN.md`. Do
+  not "fix" the BE seq field in `ChangeLogStore::encode_key` back to LE — the
+  change was intentional and required for correct range scan order.
+- Public table signed integral keys use an order-preserving bias before MDBX
+  integer-key comparison. Keep that transform scoped to key serialization; value
+  serialization for signed integers remains the ordinary trivially-copyable byte
+  representation.
 - `IdentityIndexValue` is an opaque structured payload keyed by a
   length-prefixed composite. Variable-size fields inside the value
   (`storage_key`, `revision_key`) are themselves length-prefixed for

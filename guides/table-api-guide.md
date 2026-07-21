@@ -84,6 +84,11 @@ All public table classes follow the same broad shape:
 - Raw MDBX return codes go through `check_mdbx()`.
 - Serialization uses `SerializeScratch`, `serialize_key()`,
   `serialize_value()`, and `deserialize_value()`.
+- Ordered table keys use storage encodings chosen for MDBX key comparison.
+  Signed integral keys are biased into an unsigned order-preserving
+  representation before MDBX sees them, so ranges such as `-2..1` follow normal
+  signed numeric order. This rule applies to keys only; value serialization keeps
+  the ordinary value byte representation.
 - Keep C++11 support. Guard `std::optional`, `std::filesystem`, structured
   bindings, and other C++17 features.
 
@@ -152,7 +157,8 @@ Restrictions and common mistakes:
 - Retrieval into unique-key containers follows the container's own insertion
   rules.
 - `range()` and `range_values()` scan in MDBX key order before the requested
-  output container applies its own ordering or deduplication rules.
+  output container applies its own ordering or deduplication rules. For signed
+  integral keys, MDBX key order matches signed numeric order.
 
 Use it for:
 
@@ -241,7 +247,8 @@ Restrictions and common mistakes:
 - There is no user value. Do not encode payloads into fake keys unless the data
   is truly a set.
 - `reconcile()` is replacement-oriented and not an incremental set diff.
-- Key order follows MDBX key ordering, not insertion order.
+- Key order follows MDBX key ordering, not insertion order. For signed integral
+  keys, MDBX key order matches signed numeric order.
 - `range()` scans in the same MDBX key ordering before the requested output
   container applies its own ordering or deduplication rules.
 
@@ -414,7 +421,8 @@ Restrictions and common mistakes:
 - `reconcile()` avoids unnecessary writes, but it does not reorder existing
   matching records to match source iteration order.
 - `range()` and `range_values()` follow MDBX key ordering before the requested
-  output container applies its own ordering or deduplication rules.
+  output container applies its own ordering or deduplication rules. For signed
+  integral keys, MDBX key order matches signed numeric order.
 
 Use it for:
 

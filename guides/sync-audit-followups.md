@@ -47,10 +47,8 @@ After PR #150-#153 are reviewed, agree on the next batch before implementation:
 
 - PR #154: standalone public header coverage for the full installed include
   tree, C++11/C++17, sync enabled/disabled, and transport feature macros.
-- PR #155+: signed integral key ordering. Choose the storage-format strategy
-  explicitly: order-preserving signed encoding with migration/versioning,
-  temporary compile-time rejection for ordered signed keys, or documented
-  unsigned physical ordering.
+- PR #157: signed integral key ordering. Use order-preserving signed key
+  encoding for ordered table keys, while leaving value serialization unchanged.
 
 ## Later Medium-Risk Follow-ups
 

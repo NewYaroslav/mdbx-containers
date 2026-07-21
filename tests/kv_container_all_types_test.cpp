@@ -265,6 +265,18 @@ int main() {
         kv.insert_or_assign(0, "zero");
         kv.insert_or_assign(1, "one");
 
+        std::vector<std::pair<int, std::string> > all_signed_pairs;
+        all_signed_pairs.push_back(std::make_pair(-2, std::string("minus-two")));
+        all_signed_pairs.push_back(std::make_pair(-1, std::string("minus-one")));
+        all_signed_pairs.push_back(std::make_pair(0, std::string("zero")));
+        all_signed_pairs.push_back(std::make_pair(1, std::string("one")));
+        MDBXC_TEST_ASSERT((kv.range(-2, 1) ==
+                std::map<int, std::string>(all_signed_pairs.begin(),
+                                           all_signed_pairs.end())));
+        MDBXC_TEST_ASSERT(kv.range<std::vector>(-2, 1) == all_signed_pairs);
+        MDBXC_TEST_ASSERT(kv.range_values(-2, 1) ==
+               (std::vector<std::string>{"minus-two", "minus-one", "zero", "one"}));
+
         std::vector<std::pair<int, std::string> > negative_pairs;
         negative_pairs.push_back(std::make_pair(-2, std::string("minus-two")));
         negative_pairs.push_back(std::make_pair(-1, std::string("minus-one")));
@@ -298,6 +310,29 @@ int main() {
         MDBXC_TEST_ASSERT(kv.range<std::vector>(0u, max_key) == all_pairs);
         MDBXC_TEST_ASSERT(kv.range_values(0u, max_key) ==
                (std::vector<std::string>{"zero", "one", "max"}));
+    }
+
+    {
+        mdbxc::KeyValueTable<long, std::string> kv(conn, "range_long_boundaries");
+        kv.clear();
+
+        kv.insert_or_assign(static_cast<long>(-2), "minus-two");
+        kv.insert_or_assign(static_cast<long>(-1), "minus-one");
+        kv.insert_or_assign(static_cast<long>(0), "zero");
+        kv.insert_or_assign(static_cast<long>(1), "one");
+
+        std::vector<std::pair<long, std::string> > all_pairs;
+        all_pairs.push_back(std::make_pair(static_cast<long>(-2),
+                                           std::string("minus-two")));
+        all_pairs.push_back(std::make_pair(static_cast<long>(-1),
+                                           std::string("minus-one")));
+        all_pairs.push_back(std::make_pair(static_cast<long>(0),
+                                           std::string("zero")));
+        all_pairs.push_back(std::make_pair(static_cast<long>(1),
+                                           std::string("one")));
+        MDBXC_TEST_ASSERT(kv.range<std::vector>(static_cast<long>(-2),
+                                                static_cast<long>(1)) ==
+                          all_pairs);
     }
 
     {

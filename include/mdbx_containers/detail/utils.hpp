@@ -23,6 +23,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -92,6 +93,63 @@ namespace mdbxc {
         std::memcpy(&u, &d, sizeof(uint64_t));
         return (u & 0x8000000000000000ull) ? ~u : (u ^ 0x8000000000000000ull);
     }
+
+    template<typename T>
+    struct OrderedIntegerKeyStorage {
+        typedef typename std::conditional<(sizeof(T) <= 4),
+            std::uint32_t,
+            std::uint64_t>::type type;
+    };
+
+    template<typename T, bool Signed>
+    struct OrderedIntegerKeyCodec;
+
+    template<typename T>
+    struct OrderedIntegerKeyCodec<T, false> {
+        typedef typename OrderedIntegerKeyStorage<T>::type StorageT;
+
+        static StorageT encode(T value) {
+            return static_cast<StorageT>(value);
+        }
+
+        static T decode(StorageT stored) {
+            return static_cast<T>(stored);
+        }
+    };
+
+    template<typename T>
+    struct OrderedIntegerKeyCodec<T, true> {
+        typedef typename std::make_unsigned<T>::type UnsignedT;
+        typedef typename OrderedIntegerKeyStorage<T>::type StorageT;
+
+        static StorageT encode(T value) {
+            const UnsignedT sign_bit =
+                static_cast<UnsignedT>(UnsignedT(1) << (sizeof(T) * 8u - 1u));
+            const UnsignedT encoded =
+                static_cast<UnsignedT>(value) ^ sign_bit;
+            return static_cast<StorageT>(encoded);
+        }
+
+        static T decode(StorageT stored) {
+            const UnsignedT sign_bit =
+                static_cast<UnsignedT>(UnsignedT(1) << (sizeof(T) * 8u - 1u));
+            const UnsignedT raw =
+                static_cast<UnsignedT>(stored) ^ sign_bit;
+            T out;
+            std::memcpy(&out, &raw, sizeof(T));
+            return out;
+        }
+    };
+
+    template<typename T>
+    typename OrderedIntegerKeyStorage<T>::type sortable_key_from_integral(T value) {
+        return OrderedIntegerKeyCodec<T, std::is_signed<T>::value>::encode(value);
+    }
+
+    template<typename T>
+    T integral_from_sortable_key(typename OrderedIntegerKeyStorage<T>::type stored) {
+        return OrderedIntegerKeyCodec<T, std::is_signed<T>::value>::decode(stored);
+    }
     
     // --- Traits --- 
 
@@ -150,8 +208,10 @@ namespace mdbxc {
     };
 
     /// \brief Compile-time policy options for table behavior.
-    /// \tparam SafeIntegerKey Copy 32/64-bit integer keys into aligned scratch
-    ///         storage before MDBX calls when true.
+    /// \tparam SafeIntegerKey Copy unsigned 32/64-bit integer keys into aligned
+    ///         scratch storage before MDBX calls when true. Signed integral
+    ///         keys always use scratch storage because they are biased into an
+    ///         unsigned order-preserving MDBX_INTEGERKEY representation.
     template<bool SafeIntegerKey = true>
     struct TableOptions {
         static const bool safe_integer_key = SafeIntegerKey;
@@ -160,10 +220,11 @@ namespace mdbxc {
     /// \brief Default table policy using safe integer key serialization.
     typedef TableOptions<true> DefaultTableOptions;
 
-    /// \brief Table policy using direct views for 32/64-bit integer keys.
+    /// \brief Table policy using direct views for unsigned 32/64-bit integer keys.
     ///
     /// \warning This mode is a lifetime/alignment tradeoff and does not change
-    ///          the database storage format.
+    ///          the database storage format. Signed integral keys still use the
+    ///          order-preserving scratch representation.
     typedef TableOptions<false> FastIntegerKeyOptions;
 
 //-----------------------------------------------------------------------------
@@ -174,11 +235,8 @@ namespace mdbxc {
     template<typename T>
     inline MDBX_db_flags_t get_mdbx_flags() {
         return
-            std::is_same<T, int>::value || std::is_same<T, int32_t>::value ||
-            std::is_same<T, uint32_t>::value || std::is_same<T, int64_t>::value ||
-            std::is_same<T, uint64_t>::value || std::is_same<T, float>::value ||
-            std::is_same<T, double>::value || std::is_same<T, char>::value ||
-            std::is_same<T, unsigned char>::value
+            (std::is_integral<T>::value && !std::is_same<T, bool>::value) ||
+            std::is_same<T, float>::value || std::is_same<T, double>::value
             ? MDBX_INTEGERKEY : static_cast<MDBX_db_flags_t>(0);
     }
     
@@ -354,7 +412,7 @@ namespace mdbxc {
     serialize_key(const T& key, SerializeScratch& sc) {
         (void)SafeIntegerKey;
         static_assert(sizeof(uint32_t) == 4, "Expected 4-byte wrapper");
-        uint32_t temp = static_cast<uint32_t>(key);
+        uint32_t temp = sortable_key_from_integral(key);
         return sc.view_small_copy(&temp, sizeof(uint32_t));
     }
 
@@ -362,13 +420,16 @@ namespace mdbxc {
     /// \tparam T Supported 32-bit type.
     template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
-        std::is_same<T, int32_t>::value ||
-        std::is_same<T, uint32_t>::value, MDBX_val>::type
+        std::is_integral<T>::value &&
+        (sizeof(T) > 2) &&
+        (sizeof(T) <= 4), MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
         static_assert(sizeof(uint32_t) == 4, "Expected 4-byte integer");
-        return SafeIntegerKey
-            ? sc.view_small_copy(&key, sizeof(uint32_t))
-            : SerializeScratch::view(static_cast<const void*>(&key), sizeof(uint32_t));
+        if (std::is_signed<T>::value || SafeIntegerKey) {
+            uint32_t temp = sortable_key_from_integral(key);
+            return sc.view_small_copy(&temp, sizeof(uint32_t));
+        }
+        return SerializeScratch::view(static_cast<const void*>(&key), sizeof(uint32_t));
     }
     
     /// \brief Serializes a 32-bit float key.
@@ -387,13 +448,16 @@ namespace mdbxc {
     /// \tparam T Supported 64-bit type.
     template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
-        std::is_same<T, int64_t>::value ||
-        std::is_same<T, uint64_t>::value, MDBX_val>::type
+        std::is_integral<T>::value &&
+        (sizeof(T) > 4) &&
+        (sizeof(T) <= 8), MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
         static_assert(sizeof(uint64_t) == 8, "Expected 8-byte integer");
-        return SafeIntegerKey
-            ? sc.view_small_copy(&key, sizeof(uint64_t))
-            : SerializeScratch::view(static_cast<const void*>(&key), sizeof(uint64_t));
+        if (std::is_signed<T>::value || SafeIntegerKey) {
+            uint64_t temp = sortable_key_from_integral(key);
+            return sc.view_small_copy(&temp, sizeof(uint64_t));
+        }
+        return SerializeScratch::view(static_cast<const void*>(&key), sizeof(uint64_t));
     }
     
     /// \brief Serializes a 64-bit double key.
@@ -415,11 +479,9 @@ namespace mdbxc {
         std::is_trivially_copyable<T>::value &&
         !std::is_same<T, std::string>::value &&
         !(std::is_integral<T>::value && sizeof(T) <= 2) &&
-        !std::is_same<T, int32_t>::value &&
-        !std::is_same<T, uint32_t>::value &&
+        !(std::is_integral<T>::value && (sizeof(T) > 2) && (sizeof(T) <= 4)) &&
         !std::is_same<T, float>::value &&
-        !std::is_same<T, int64_t>::value &&
-        !std::is_same<T, uint64_t>::value &&
+        !(std::is_integral<T>::value && (sizeof(T) > 4) && (sizeof(T) <= 8)) &&
         !std::is_same<T, double>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
         (void)SafeIntegerKey;
@@ -872,17 +934,22 @@ namespace mdbxc {
         }
         uint32_t out;
         std::memcpy(&out, val.iov_base, sizeof(uint32_t));
-        return static_cast<T>(out);
+        return integral_from_sortable_key<T>(out);
     }
 
     template<typename T>
     typename std::enable_if<
-        std::is_same<T, int32_t>::value ||
-        std::is_same<T, uint32_t>::value ||
-        std::is_same<T, int64_t>::value ||
-        std::is_same<T, uint64_t>::value, T>::type
+        std::is_integral<T>::value &&
+        (sizeof(T) > 2) &&
+        (sizeof(T) <= 8), T>::type
     deserialize_key(const MDBX_val& val) {
-        return deserialize_value<T>(val);
+        typedef typename OrderedIntegerKeyStorage<T>::type StorageT;
+        if (val.iov_len != sizeof(StorageT)) {
+            throw std::runtime_error("deserialize_key: size mismatch");
+        }
+        StorageT raw;
+        std::memcpy(&raw, val.iov_base, sizeof(StorageT));
+        return integral_from_sortable_key<T>(raw);
     }
 
     inline float float_from_sortable_key(uint32_t key) {
@@ -942,11 +1009,9 @@ namespace mdbxc {
         std::is_trivially_copyable<T>::value &&
         !std::is_same<T, std::string>::value &&
         !(std::is_integral<T>::value && sizeof(T) <= 2) &&
-        !std::is_same<T, int32_t>::value &&
-        !std::is_same<T, uint32_t>::value &&
+        !(std::is_integral<T>::value && (sizeof(T) > 2) && (sizeof(T) <= 4)) &&
         !std::is_same<T, float>::value &&
-        !std::is_same<T, int64_t>::value &&
-        !std::is_same<T, uint64_t>::value &&
+        !(std::is_integral<T>::value && (sizeof(T) > 4) && (sizeof(T) <= 8)) &&
         !std::is_same<T, double>::value, T>::type
     deserialize_key(const MDBX_val& val) {
         return deserialize_value<T>(val);

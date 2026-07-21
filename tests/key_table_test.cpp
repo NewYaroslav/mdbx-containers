@@ -82,11 +82,13 @@ int main() {
         mdbxc::KeyTable<int> safe_table(conn, "key_options");
         mdbxc::KeyTable<int, mdbxc::FastIntegerKeyOptions> fast_table(conn, "key_options");
         safe_table.clear();
+        MDBXC_TEST_ASSERT(safe_table.insert(-1));
+        MDBXC_TEST_ASSERT(fast_table.contains(-1));
         MDBXC_TEST_ASSERT(safe_table.insert(11));
         MDBXC_TEST_ASSERT(fast_table.contains(11));
         MDBXC_TEST_ASSERT(fast_table.insert(12));
         MDBXC_TEST_ASSERT(safe_table.contains(12));
-        MDBXC_TEST_ASSERT(safe_table.range(10, 12) == (std::set<int>{11, 12}));
+        MDBXC_TEST_ASSERT(safe_table.range(-1, 12) == (std::set<int>{-1, 11, 12}));
         MDBXC_TEST_ASSERT(fast_table.range(12, 12) == (std::set<int>{12}));
     }
 
@@ -94,11 +96,19 @@ int main() {
     {
         mdbxc::KeyTable<int> table(conn, "range_api_keys");
         table.clear();
+        table.insert(-2);
+        table.insert(-1);
+        table.insert(0);
         table.insert(1);
         table.insert(2);
         table.insert(3);
         table.insert(4);
         table.insert(5);
+
+        MDBXC_TEST_ASSERT(table.range(-2, 1) ==
+               (std::set<int>{-2, -1, 0, 1}));
+        MDBXC_TEST_ASSERT(table.range<std::vector>(-2, 1) ==
+               (std::vector<int>{-2, -1, 0, 1}));
 
         // for_each_range full scan
         std::vector<int> collected;
@@ -143,7 +153,10 @@ int main() {
 
         std::size_t erased = table.erase_range(2, 4);
         MDBXC_TEST_ASSERT(erased == 3);
-        MDBXC_TEST_ASSERT(table.count() == 2);
+        MDBXC_TEST_ASSERT(table.count() == 5);
+        MDBXC_TEST_ASSERT(table.contains(-2));
+        MDBXC_TEST_ASSERT(table.contains(-1));
+        MDBXC_TEST_ASSERT(table.contains(0));
         MDBXC_TEST_ASSERT(table.contains(1));
         MDBXC_TEST_ASSERT(table.contains(5));
         MDBXC_TEST_ASSERT(!table.contains(3));
