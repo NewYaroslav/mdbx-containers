@@ -3,6 +3,10 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Breaking API cleanup: removed the historical
+  `SyncEngine::pull_full_snapshot()` compatibility wrapper. Use
+  `SyncEngine::pull_changelog_page()` for retained changelog replay; true full
+  snapshot export/import remains unsupported.
 - Breaking storage-format change: signed integral keys stored with
   `MDBX_INTEGERKEY` now use an order-preserving unsigned rank representation
   instead of raw signed bytes. Existing DBIs created with older signed integer
