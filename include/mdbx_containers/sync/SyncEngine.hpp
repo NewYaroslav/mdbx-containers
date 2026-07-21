@@ -346,14 +346,6 @@ namespace sync {
             return out;
         }
 
-        /// \brief Compatibility wrapper for \c pull_changelog_page().
-        /// \deprecated This method never returned a database snapshot; use
-        /// \c pull_changelog_page() for the retained changelog replay API.
-        PullResponse pull_full_snapshot(MDBX_txn* txn, MDBX_dbi dbi,
-                                        const PullRequest& request) {
-            return pull_changelog_page(txn, dbi, request);
-        }
-
         /// \brief Handles a push request: applies each batch in order.
         /// \details Atomic: when \c apply_batch returns \c Conflict for any
         /// batch, the transaction is rolled back (no partial commit) and
