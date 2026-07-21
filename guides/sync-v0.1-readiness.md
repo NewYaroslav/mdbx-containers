@@ -3,6 +3,8 @@
 This checklist records the current sync surface after the transport, worker,
 and example hardening pass. It is a release-readiness map, not a stability
 promise: sync remains experimental and opt-in through `MDBXC_SYNC_ENABLED=1`.
+For the table-by-table support status, capture paths, and deferred wrapper
+rules, see [Sync table coverage matrix](sync-table-coverage.md).
 
 ## Ready For v0.1 Use
 
