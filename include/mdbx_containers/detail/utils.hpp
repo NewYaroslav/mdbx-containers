@@ -81,8 +81,16 @@ namespace mdbxc {
     /// \param f Input float value.
     /// \return Unsigned 32-bit integer with preserved numeric order.
     inline uint32_t sortable_key_from_float(float f) {
-        uint32_t u; 
+        uint32_t u;
         std::memcpy(&u, &f, sizeof(uint32_t));
+        const uint32_t magnitude = u & 0x7fffffffu;
+        if (magnitude > 0x7f800000u) {
+            throw std::invalid_argument(
+                "serialize_key: NaN floating-point keys are not supported");
+        }
+        if (magnitude == 0u) {
+            u = 0u;
+        }
         return (u & 0x80000000u) ? ~u : (u ^ 0x80000000u);
     }
     
@@ -90,8 +98,16 @@ namespace mdbxc {
     /// \param d Input double value.
     /// \return Unsigned 64-bit integer with preserved numeric order.
     inline uint64_t sortable_key_from_double(double d) {
-        uint64_t u; 
+        uint64_t u;
         std::memcpy(&u, &d, sizeof(uint64_t));
+        const uint64_t magnitude = u & 0x7fffffffffffffffull;
+        if (magnitude > 0x7ff0000000000000ull) {
+            throw std::invalid_argument(
+                "serialize_key: NaN floating-point keys are not supported");
+        }
+        if (magnitude == 0ull) {
+            u = 0ull;
+        }
         return (u & 0x8000000000000000ull) ? ~u : (u ^ 0x8000000000000000ull);
     }
 

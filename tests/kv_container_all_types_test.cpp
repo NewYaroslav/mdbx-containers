@@ -18,6 +18,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <cmath>
 
 #include <mdbx_containers/KeyValueTable.hpp>
 
@@ -223,7 +224,7 @@ struct ConcurrentStruct {
 int main() {
     mdbxc::Config cfg;
     cfg.pathname       = "data/kv_container_all_types_v2";
-    cfg.max_dbs        = 40;
+    cfg.max_dbs        = 64;
     cfg.no_subdir      = false;
     cfg.relative_to_exe= true;
 
@@ -455,6 +456,43 @@ int main() {
         MDBXC_TEST_ASSERT(kv.range<std::vector>(-1.0, 1.0) == all_pairs);
         MDBXC_TEST_ASSERT(kv.range_values(-1.0, 1.0) ==
                (std::vector<std::string>{"minus-one", "zero", "one"}));
+    }
+
+    std::cout << "[case] floating point key edge cases\n";
+    {
+        mdbxc::KeyValueTable<float, std::string> floats(conn, "float_key_edges");
+        floats.clear();
+        floats.insert_or_assign(-0.0f, "negative-zero");
+        floats.insert_or_assign(0.0f, "positive-zero");
+        MDBXC_TEST_ASSERT(floats.count() == 1);
+        ASSERT_FOUND(floats, -0.0f, std::string("positive-zero"));
+        ASSERT_FOUND(floats, 0.0f, std::string("positive-zero"));
+
+        bool float_nan_rejected = false;
+        try {
+            floats.insert_or_assign(
+                std::numeric_limits<float>::quiet_NaN(), "nan");
+        } catch (const std::invalid_argument&) {
+            float_nan_rejected = true;
+        }
+        MDBXC_TEST_ASSERT(float_nan_rejected);
+
+        mdbxc::KeyValueTable<double, std::string> doubles(conn, "double_key_edges");
+        doubles.clear();
+        doubles.insert_or_assign(-0.0, "negative-zero");
+        doubles.insert_or_assign(0.0, "positive-zero");
+        MDBXC_TEST_ASSERT(doubles.count() == 1);
+        ASSERT_FOUND(doubles, -0.0, std::string("positive-zero"));
+        ASSERT_FOUND(doubles, 0.0, std::string("positive-zero"));
+
+        bool double_nan_rejected = false;
+        try {
+            doubles.insert_or_assign(
+                std::numeric_limits<double>::quiet_NaN(), "nan");
+        } catch (const std::invalid_argument&) {
+            double_nan_rejected = true;
+        }
+        MDBXC_TEST_ASSERT(double_nan_rejected);
     }
 
     std::cout << "[case] string -> POD(SimpleStruct)\n";

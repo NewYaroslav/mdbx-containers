@@ -482,6 +482,11 @@ if(MDBXC_BUILD_TESTS)
         mdbxc_add_test_target(${test_name} ${test_file})
     endforeach()
 
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        mdbxc_add_test_target(utils_fast_math_test tests/utils_test.cpp)
+        target_compile_options(utils_fast_math_test PRIVATE -ffast-math)
+    endif()
+
     set(_mdbxc_generated_test_dir "${CMAKE_CURRENT_BINARY_DIR}/generated_tests")
     file(MAKE_DIRECTORY "${_mdbxc_generated_test_dir}")
     foreach(header IN LISTS MDBXC_STANDALONE_PUBLIC_HEADERS)
