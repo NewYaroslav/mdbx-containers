@@ -984,9 +984,9 @@ void test_engine_rejects_full_snapshot_request() {
     cleanup(p);
 }
 
-void test_engine_direct_pull_rejects_full_snapshot_request() {
+void test_engine_changelog_page_rejects_full_snapshot_request() {
     using namespace mdbxc;
-    const std::string p = "test_engine_direct_full_snapshot_request.mdbx";
+    const std::string p = "test_engine_changelog_full_snapshot_request.mdbx";
     cleanup(p);
 
     auto conn = open_env(p);
@@ -1001,18 +1001,18 @@ void test_engine_direct_pull_rejects_full_snapshot_request() {
     {
         auto txn = conn->transaction(TransactionMode::READ_ONLY);
         const sync::PullResponse resp =
-            engine.pull_full_snapshot(txn.handle(), 0, req);
+            engine.pull_changelog_page(txn.handle(), 0, req);
         if (resp.ok) {
             throw std::runtime_error(
-                "direct full snapshot request should be rejected");
+                "changelog page full snapshot request should be rejected");
         }
         if (!resp.batches.empty()) {
             throw std::runtime_error(
-                "direct full snapshot rejection returned batches");
+                "changelog page full snapshot rejection returned batches");
         }
         if (resp.error.find("request_full_snapshot") == std::string::npos) {
             throw std::runtime_error(
-                "direct full snapshot rejection error is not explicit");
+                "changelog page full snapshot rejection error is not explicit");
         }
     }
 
@@ -1413,8 +1413,8 @@ int main() {
         { "test_engine_handle_pull_wrong_db_id",&test_engine_handle_pull_wrong_db_id },
         { "test_engine_rejects_full_snapshot_request",
           &test_engine_rejects_full_snapshot_request },
-        { "test_engine_direct_pull_rejects_full_snapshot_request",
-          &test_engine_direct_pull_rejects_full_snapshot_request },
+        { "test_engine_changelog_page_rejects_full_snapshot_request",
+          &test_engine_changelog_page_rejects_full_snapshot_request },
         { "test_engine_handle_push_wrong_db_id",&test_engine_handle_push_wrong_db_id },
         { "test_engine_rejects_last_writer_wins_policy",
           &test_engine_rejects_last_writer_wins_policy },

@@ -302,7 +302,7 @@ namespace sync {
                 return out;
             }
 
-            return pull_full_snapshot(txn, changelog_dbi, request);
+            return pull_changelog_page(txn, changelog_dbi, request);
         }
 
         /// \brief Returns retained changelog batches newer than
@@ -318,7 +318,7 @@ namespace sync {
         /// decoded.
         /// Sets \c has_more=true when the walk stopped because of
         /// \c request.max_batches or \c request.max_bytes.
-        PullResponse pull_full_snapshot(MDBX_txn* txn, MDBX_dbi dbi,
+        PullResponse pull_changelog_page(MDBX_txn* txn, MDBX_dbi dbi,
                                         const PullRequest& request) {
             PullResponse out;
             if (request.request_full_snapshot) {
@@ -326,7 +326,7 @@ namespace sync {
                 out.error = "PullRequest::request_full_snapshot is not implemented";
                 return out;
             }
-            txn = checked_external_txn(txn, "SyncEngine::pull_full_snapshot");
+            txn = checked_external_txn(txn, "SyncEngine::pull_changelog_page");
             out.remote_have = read_applied_cursor(txn, out.remote_have);
             const std::vector<PullOrigin> origins = collect_known_origins(txn, dbi);
             out.remote_tail_known = copy_known_tail(origins, out.remote_tail);
@@ -344,6 +344,14 @@ namespace sync {
             }
             out.has_more = truncated;
             return out;
+        }
+
+        /// \brief Compatibility wrapper for \c pull_changelog_page().
+        /// \deprecated This method never returned a database snapshot; use
+        /// \c pull_changelog_page() for the retained changelog replay API.
+        PullResponse pull_full_snapshot(MDBX_txn* txn, MDBX_dbi dbi,
+                                        const PullRequest& request) {
+            return pull_changelog_page(txn, dbi, request);
         }
 
         /// \brief Handles a push request: applies each batch in order.
