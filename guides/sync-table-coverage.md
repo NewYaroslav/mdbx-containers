@@ -18,7 +18,7 @@ values during transport, and remote apply replays the captured physical
 | `KeyTable<K>` | Supported | `Put`, `Delete`, `ClearTable`; insert, erase, range erase, and clear paths are implemented. | Raw key bytes are replayed with empty values. | `test_sync_capture`, `test_sync_engine`, `test_sync_replication` |
 | `ValueTable<V>` | Supported | `Put`, `Delete`, `ClearTable`; set, insert, update, erase, and clear paths are implemented. | The singleton physical key and serialized value bytes are replayed. | `test_sync_capture`, `test_sync_replication` |
 | `SequenceTable<V>` | Supported | `Put`, `Delete`, `ClearTable`; append, `insert_or_assign`, erase, and clear paths are implemented. | Stable `uint64_t` sequence keys and value bytes are replayed. | `test_sync_capture`, `test_sync_replication` |
-| `VectorStore` | Indirectly supported | Captured through its internal `SequenceTable` and `KeyValueTable` members. | The internal table operations are replicated; `VectorStore` has no separate wire type. | `test_sync_capture`, `test_sync_replication` |
+| `VectorStore` | Indirectly supported | Captured through its internal `SequenceTable` and `KeyValueTable` members. | The internal table operations are replicated; `VectorStore` has no separate wire type. Remote apply updates persistent internal DBIs only; already-open `VectorStore` instances must call `rebuild_index()` or be reopened before `search()`. | `test_sync_capture`, `test_sync_replication` |
 | `AnyValueTable<K>` | Deferred | No `ChangeOp` in v0.1. | Not applied by sync as a typed heterogeneous table. | `test_sync_capture` negative coverage |
 | `KeyMultiValueTable<K, V>` | Deferred | No `ChangeOp` in v0.1. | DUPSORT duplicate multiplicity and unordered multiset semantics are deferred. | `test_sync_capture` negative coverage |
 | `HashedKeyValueStore<K, V, H, Layout>` | Deferred | No `ChangeOp` in v0.1. | Hash-index identity and logical-key mapping are deferred. | `test_sync_capture` negative coverage |
@@ -40,9 +40,8 @@ remain sufficient to open or validate the destination DBI and replay the
 operation without table-specific decoding.
 
 Focused capture and round-trip tests currently cover representative write,
-delete, bulk, range-erase, indirect `VectorStore`, and deferred-table negative
-paths. `ClearTable` capture/apply support exists in the supported wrappers, but
-wrapper-specific clear capture and round-trip tests are still pending.
+delete, bulk, range-erase, `ClearTable`, indirect `VectorStore`, and
+deferred-table negative paths.
 
 ## Deferred Table Rules
 

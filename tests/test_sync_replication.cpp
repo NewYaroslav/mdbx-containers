@@ -879,6 +879,116 @@ void test_replication_vector_store_roundtrip() {
     cleanup(p); cleanup(r);
 }
 
+void test_replication_clear_table_roundtrip() {
+    using namespace mdbxc;
+    const std::string p = "test_rep_clear_roundtrip.mdbx";
+    const std::string r = "test_rep_clear_roundtrip_replica.mdbx";
+    cleanup(p); cleanup(r);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+
+    std::shared_ptr<Connection> primary = open(p);
+    std::shared_ptr<Connection> replica = open(r);
+
+    sync::SyncEngine pe(primary), re(replica);
+    pe.initialize_local_identity(primary_node, db_id);
+    re.initialize_local_identity(replica_node, db_id);
+
+    sync::ThreadLocalChangeAccumulator sink(primary);
+    primary->attach_sync_capture(&sink);
+
+    {
+        KeyValueTable<int, std::string> kv(primary, "clear_kv");
+        kv.insert_or_assign(1, "one");
+        kv.insert_or_assign(2, "two");
+
+        KeyTable<int> keys(primary, "clear_keys");
+        keys.insert(1);
+        keys.insert(2);
+
+        ValueTable<int> value(primary, "clear_value");
+        value.set(42);
+
+        SequenceTable<std::string> seq(primary, "clear_seq");
+        seq.append("one");
+        seq.append("two");
+
+        VectorStore vectors(primary, "clear_vectors");
+        vectors.add(make_embedding(1.0f, 0.0f), "one", "{}");
+        vectors.add(make_embedding(0.0f, 1.0f), "two", "{}");
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 2) == 0u) {
+        throw std::runtime_error("initial clear roundtrip sync pulled no batches");
+    }
+
+    {
+        KeyValueTable<int, std::string> kv(replica, "clear_kv");
+        KeyTable<int> keys(replica, "clear_keys");
+        ValueTable<int> value(replica, "clear_value");
+        SequenceTable<std::string> seq(replica, "clear_seq");
+        if (kv.count() != 2u || keys.count() != 2u || !value.has_value() ||
+            seq.count() != 2u) {
+            throw std::runtime_error("initial clear roundtrip state did not replicate");
+        }
+    }
+
+    VectorStore live_vectors(replica, "clear_vectors");
+    if (live_vectors.count() != 2u) {
+        throw std::runtime_error("initial vector clear roundtrip state did not replicate");
+    }
+    if (live_vectors.search(make_embedding(1.0f, 0.0f), 10).empty()) {
+        throw std::runtime_error("initial vector clear roundtrip search is empty");
+    }
+
+    {
+        KeyValueTable<int, std::string> kv(primary, "clear_kv");
+        kv.clear();
+
+        KeyTable<int> keys(primary, "clear_keys");
+        keys.clear();
+
+        ValueTable<int> value(primary, "clear_value");
+        value.clear();
+
+        SequenceTable<std::string> seq(primary, "clear_seq");
+        seq.clear();
+
+        VectorStore vectors(primary, "clear_vectors");
+        vectors.clear();
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 2) == 0u) {
+        throw std::runtime_error("clear roundtrip sync pulled no batches");
+    }
+    primary->detach_sync_capture();
+
+    {
+        KeyValueTable<int, std::string> kv(replica, "clear_kv");
+        KeyTable<int> keys(replica, "clear_keys");
+        ValueTable<int> value(replica, "clear_value");
+        SequenceTable<std::string> seq(replica, "clear_seq");
+        VectorStore vectors(replica, "clear_vectors");
+        if (kv.count() != 0u ||
+            keys.count() != 0u ||
+            value.has_value() ||
+            seq.count() != 0u ||
+            vectors.count() != 0u) {
+            throw std::runtime_error("ClearTable batch did not clear replica state");
+        }
+    }
+    live_vectors.rebuild_index();
+    if (live_vectors.count() != 0u ||
+        !live_vectors.search(make_embedding(1.0f, 0.0f), 10).empty()) {
+        throw std::runtime_error(
+            "VectorStore rebuild_index did not observe remote ClearTable apply");
+    }
+
+    primary->disconnect();
+    replica->disconnect();
+    cleanup(p); cleanup(r);
+}
+
 void test_replication_incremental_pull() {
     using namespace mdbxc;
     const std::string p = "test_rep_incr.mdbx";
@@ -1108,6 +1218,8 @@ int main() {
           &test_replication_key_table_range_delete_roundtrip },
         { "test_replication_vector_store_roundtrip",
           &test_replication_vector_store_roundtrip },
+        { "test_replication_clear_table_roundtrip",
+          &test_replication_clear_table_roundtrip },
         { "test_replication_incremental_pull",   &test_replication_incremental_pull },
         { "test_replication_idempotent_apply",   &test_replication_idempotent_apply },
         { "test_replication_make_push_request", &test_replication_make_push_request_helper },
