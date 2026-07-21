@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <limits>
 #include <map>
+#include <memory>
 
 #include <mdbx_containers/KeyValueTable.hpp>
 
@@ -94,6 +95,82 @@ inline void safe_join(std::thread& t) noexcept {
     if (t.joinable()) t.join();
 }
 
+template<typename KeyT>
+void assert_signed_key_range_order(
+        const std::shared_ptr<mdbxc::Connection>& conn,
+        const std::string& db_name) {
+    mdbxc::KeyValueTable<KeyT, std::string> kv(conn, db_name);
+    kv.clear();
+
+    kv.insert_or_assign(static_cast<KeyT>(-2), "minus-two");
+    kv.insert_or_assign(static_cast<KeyT>(-1), "minus-one");
+    kv.insert_or_assign(static_cast<KeyT>(0), "zero");
+    kv.insert_or_assign(static_cast<KeyT>(1), "one");
+
+    std::vector<std::pair<KeyT, std::string> > expected;
+    expected.push_back(std::make_pair(static_cast<KeyT>(-2), std::string("minus-two")));
+    expected.push_back(std::make_pair(static_cast<KeyT>(-1), std::string("minus-one")));
+    expected.push_back(std::make_pair(static_cast<KeyT>(0), std::string("zero")));
+    expected.push_back(std::make_pair(static_cast<KeyT>(1), std::string("one")));
+
+    std::vector<std::pair<KeyT, std::string> > loaded;
+    kv.load(loaded);
+    MDBXC_TEST_ASSERT(loaded == expected);
+    MDBXC_TEST_ASSERT(kv.template range<std::vector>(
+        static_cast<KeyT>(-2), static_cast<KeyT>(1)) == expected);
+    MDBXC_TEST_ASSERT(kv.range_values(
+        static_cast<KeyT>(-2), static_cast<KeyT>(1)) ==
+        (std::vector<std::string>{"minus-two", "minus-one", "zero", "one"}));
+
+    std::vector<std::pair<KeyT, std::string> > reverse_expected;
+    reverse_expected.push_back(std::make_pair(static_cast<KeyT>(1), std::string("one")));
+    reverse_expected.push_back(std::make_pair(static_cast<KeyT>(0), std::string("zero")));
+    reverse_expected.push_back(std::make_pair(static_cast<KeyT>(-1), std::string("minus-one")));
+    reverse_expected.push_back(std::make_pair(static_cast<KeyT>(-2), std::string("minus-two")));
+
+    MDBXC_TEST_ASSERT(kv.range_reverse(
+        static_cast<KeyT>(-2), static_cast<KeyT>(1)) == reverse_expected);
+    MDBXC_TEST_ASSERT(kv.count_range(
+        static_cast<KeyT>(-2), static_cast<KeyT>(1)) == 4);
+
+#if __cplusplus >= 201703L
+    auto first = kv.first();
+    MDBXC_TEST_ASSERT(first.has_value() && first->first == static_cast<KeyT>(-2));
+    auto last = kv.last();
+    MDBXC_TEST_ASSERT(last.has_value() && last->first == static_cast<KeyT>(1));
+    auto upper = kv.upper_bound(static_cast<KeyT>(-1));
+    MDBXC_TEST_ASSERT(upper.has_value() && upper->first == static_cast<KeyT>(0));
+#else
+    std::pair<bool, std::pair<KeyT, std::string> > first = kv.first_compat();
+    MDBXC_TEST_ASSERT(first.first && first.second.first == static_cast<KeyT>(-2));
+    std::pair<bool, std::pair<KeyT, std::string> > last = kv.last_compat();
+    MDBXC_TEST_ASSERT(last.first && last.second.first == static_cast<KeyT>(1));
+    std::pair<bool, std::pair<KeyT, std::string> > upper =
+        kv.upper_bound_compat(static_cast<KeyT>(-1));
+    MDBXC_TEST_ASSERT(upper.first && upper.second.first == static_cast<KeyT>(0));
+#endif
+}
+
+template<typename KeyT>
+void assert_unsigned_key_table(
+        const std::shared_ptr<mdbxc::Connection>& conn,
+        const std::string& db_name) {
+    mdbxc::KeyValueTable<KeyT, std::string> kv(conn, db_name);
+    kv.clear();
+
+    const KeyT one = static_cast<KeyT>(1);
+    const KeyT two = static_cast<KeyT>(2);
+    kv.insert_or_assign(two, "two");
+    kv.insert_or_assign(one, "one");
+    ASSERT_FOUND(kv, one, std::string("one"));
+    ASSERT_FOUND(kv, two, std::string("two"));
+
+    std::vector<std::pair<KeyT, std::string> > expected;
+    expected.push_back(std::make_pair(one, std::string("one")));
+    expected.push_back(std::make_pair(two, std::string("two")));
+    MDBXC_TEST_ASSERT(kv.template range<std::vector>(one, two) == expected);
+}
+
 // ---- sample serializable structs ----
 struct SimpleStruct {
     int   x{};
@@ -145,7 +222,7 @@ struct ConcurrentStruct {
 
 int main() {
     mdbxc::Config cfg;
-    cfg.pathname       = "data/kv_container_all_types";
+    cfg.pathname       = "data/kv_container_all_types_v2";
     cfg.max_dbs        = 40;
     cfg.no_subdir      = false;
     cfg.relative_to_exe= true;
@@ -340,6 +417,26 @@ int main() {
         MDBXC_TEST_ASSERT(kv.range_values(0u, max_key) ==
                (std::vector<std::string>{"zero", "one", "max"}));
     }
+
+    std::cout << "[case] additional integral key table support\n";
+    {
+        assert_signed_key_range_order<short>(conn, "range_short_boundaries");
+        assert_signed_key_range_order<long>(conn, "range_long_boundaries");
+        assert_signed_key_range_order<long long>(conn, "range_llong_boundaries");
+        assert_unsigned_key_table<unsigned short>(conn, "range_ushort_boundaries");
+        assert_unsigned_key_table<unsigned long>(conn, "range_ulong_boundaries");
+        assert_unsigned_key_table<wchar_t>(conn, "range_wchar_boundaries");
+        assert_unsigned_key_table<char16_t>(conn, "range_char16_boundaries");
+        assert_unsigned_key_table<char32_t>(conn, "range_char32_boundaries");
+    }
+
+#if defined(__SIZEOF_INT128__)
+    std::cout << "[case] wide integral bytewise key support\n";
+    {
+        assert_signed_key_range_order<__int128>(conn, "range_i128_boundaries");
+        assert_unsigned_key_table<unsigned __int128>(conn, "range_u128_boundaries");
+    }
+#endif
 
     {
         mdbxc::KeyValueTable<double, std::string> kv(conn, "range_double_boundaries");

@@ -1,4 +1,5 @@
 #include "test_assert.hpp"
+#include <bitset>
 #include <iostream>
 #include <mdbx_containers/common.hpp>
 
@@ -67,6 +68,71 @@ void assert_unordered_uint32_values(const std::unordered_set<std::uint32_t>& out
     MDBXC_TEST_ASSERT(out.find(3u) != out.end());
 }
 
+template<typename T>
+void assert_integer_key_flag() {
+    MDBXC_TEST_ASSERT(
+        (mdbxc::get_mdbx_flags<T>() & MDBX_INTEGERKEY) !=
+        static_cast<MDBX_db_flags_t>(0));
+}
+
+template<typename T>
+void assert_not_integer_key_flag() {
+    MDBXC_TEST_ASSERT(
+        (mdbxc::get_mdbx_flags<T>() & MDBX_INTEGERKEY) ==
+        static_cast<MDBX_db_flags_t>(0));
+}
+
+template<typename T>
+void assert_key_roundtrip(T value) {
+    mdbxc::SerializeScratch scratch;
+    const MDBX_val serialized = mdbxc::serialize_key(value, scratch);
+    const T restored = mdbxc::deserialize_key<T>(serialized);
+    MDBXC_TEST_ASSERT(restored == value);
+}
+
+template<typename T>
+void assert_key_storage_size(T value, std::size_t expected_size) {
+    MDBXC_TEST_ASSERT(mdbxc::get_key_size(value) == expected_size);
+    mdbxc::SerializeScratch scratch;
+    const MDBX_val serialized = mdbxc::serialize_key(value, scratch);
+    MDBXC_TEST_ASSERT(serialized.iov_len == expected_size);
+}
+
+template<typename LeftT, typename RightT>
+void assert_same_serialized_key(LeftT lhs, RightT rhs) {
+    mdbxc::SerializeScratch lhs_scratch;
+    mdbxc::SerializeScratch rhs_scratch;
+    const MDBX_val lhs_value = mdbxc::serialize_key(lhs, lhs_scratch);
+    const MDBX_val rhs_value = mdbxc::serialize_key(rhs, rhs_scratch);
+    MDBXC_TEST_ASSERT(lhs_value.iov_len == rhs_value.iov_len);
+    MDBXC_TEST_ASSERT(
+        std::memcmp(lhs_value.iov_base, rhs_value.iov_base, lhs_value.iov_len) == 0);
+}
+
+#if defined(__SIZEOF_INT128__)
+int compare_serialized_keys(const MDBX_val& lhs, const MDBX_val& rhs) {
+    const std::size_t common =
+        lhs.iov_len < rhs.iov_len ? lhs.iov_len : rhs.iov_len;
+    const int cmp = std::memcmp(lhs.iov_base, rhs.iov_base, common);
+    if (cmp != 0) {
+        return cmp;
+    }
+    if (lhs.iov_len == rhs.iov_len) {
+        return 0;
+    }
+    return lhs.iov_len < rhs.iov_len ? -1 : 1;
+}
+
+template<typename T>
+void assert_serialized_key_less(T lhs, T rhs) {
+    mdbxc::SerializeScratch lhs_scratch;
+    mdbxc::SerializeScratch rhs_scratch;
+    const MDBX_val lhs_value = mdbxc::serialize_key(lhs, lhs_scratch);
+    const MDBX_val rhs_value = mdbxc::serialize_key(rhs, rhs_scratch);
+    MDBXC_TEST_ASSERT(compare_serialized_keys(lhs_value, rhs_value) < 0);
+}
+#endif
+
 } // namespace
 
 int main() {
@@ -96,6 +162,92 @@ int main() {
     assert_rejects_oversized_string_length<std::list<std::string>>();
     assert_rejects_oversized_string_length<std::set<std::string>>();
     assert_rejects_oversized_string_length<std::unordered_set<std::string>>();
+
+    assert_integer_key_flag<short>();
+    assert_integer_key_flag<unsigned short>();
+    assert_integer_key_flag<long>();
+    assert_integer_key_flag<unsigned long>();
+    assert_integer_key_flag<long long>();
+    assert_integer_key_flag<unsigned long long>();
+    assert_integer_key_flag<wchar_t>();
+    assert_integer_key_flag<char16_t>();
+    assert_integer_key_flag<char32_t>();
+    assert_integer_key_flag<bool>();
+
+    assert_key_roundtrip<short>(static_cast<short>(-123));
+    assert_key_roundtrip<unsigned short>(static_cast<unsigned short>(123));
+    assert_key_roundtrip<long>(static_cast<long>(-123456));
+    assert_key_roundtrip<unsigned long>(static_cast<unsigned long>(123456));
+    assert_key_roundtrip<long long>(static_cast<long long>(-1234567890123LL));
+    assert_key_roundtrip<unsigned long long>(
+        static_cast<unsigned long long>(1234567890123ULL));
+    assert_key_roundtrip<wchar_t>(static_cast<wchar_t>(42));
+    assert_key_roundtrip<char16_t>(static_cast<char16_t>(42));
+    assert_key_roundtrip<char32_t>(static_cast<char32_t>(42));
+    assert_key_roundtrip<bool>(true);
+    assert_key_roundtrip<char>(
+        static_cast<char>(static_cast<unsigned char>(0xFFu)));
+
+    assert_key_storage_size<int>(42, sizeof(std::uint32_t));
+    assert_key_storage_size<short>(static_cast<short>(-1), sizeof(std::uint32_t));
+    assert_key_storage_size<unsigned short>(
+        static_cast<unsigned short>(1), sizeof(std::uint32_t));
+    assert_key_storage_size<long>(static_cast<long>(-1), sizeof(std::uint64_t));
+    assert_key_storage_size<unsigned long>(
+        static_cast<unsigned long>(1), sizeof(std::uint64_t));
+    assert_key_storage_size<long long>(
+        static_cast<long long>(-1), sizeof(std::uint64_t));
+    assert_key_storage_size<unsigned long long>(
+        static_cast<unsigned long long>(1), sizeof(std::uint64_t));
+    assert_key_storage_size<wchar_t>(
+        static_cast<wchar_t>(42), sizeof(std::uint32_t));
+    assert_key_storage_size<char16_t>(
+        static_cast<char16_t>(42), sizeof(std::uint32_t));
+    assert_key_storage_size<char32_t>(
+        static_cast<char32_t>(42), sizeof(std::uint32_t));
+    assert_key_storage_size<bool>(true, sizeof(std::uint32_t));
+    assert_key_storage_size<std::bitset<1> >(std::bitset<1>(1u), 1u);
+    assert_key_storage_size<std::bitset<9> >(std::bitset<9>(0x101u), 2u);
+
+    assert_same_serialized_key<long, std::int64_t>(
+        static_cast<long>(42), static_cast<std::int64_t>(42));
+    assert_same_serialized_key<unsigned long, std::uint64_t>(
+        static_cast<unsigned long>(42), static_cast<std::uint64_t>(42));
+    assert_same_serialized_key<char, std::uint32_t>(
+        static_cast<char>(42), static_cast<std::uint32_t>(42));
+    assert_same_serialized_key<wchar_t, std::uint32_t>(
+        static_cast<wchar_t>(42), static_cast<std::uint32_t>(42));
+    assert_same_serialized_key<char16_t, std::uint32_t>(
+        static_cast<char16_t>(42), static_cast<std::uint32_t>(42));
+    assert_same_serialized_key<char32_t, std::uint32_t>(
+        static_cast<char32_t>(42), static_cast<std::uint32_t>(42));
+    assert_same_serialized_key<char, std::uint32_t>(
+        static_cast<char>(static_cast<unsigned char>(0xFFu)),
+        static_cast<std::uint32_t>(0xFFu));
+
+#if defined(__SIZEOF_INT128__)
+    assert_not_integer_key_flag<__int128>();
+    assert_not_integer_key_flag<unsigned __int128>();
+    assert_key_storage_size<__int128>(
+        static_cast<__int128>(1), sizeof(__int128));
+    assert_key_storage_size<unsigned __int128>(
+        static_cast<unsigned __int128>(1), sizeof(unsigned __int128));
+    assert_key_roundtrip<__int128>(static_cast<__int128>(-123456789));
+    assert_key_roundtrip<unsigned __int128>(
+        static_cast<unsigned __int128>(123456789u));
+    assert_serialized_key_less<__int128>(
+        static_cast<__int128>(-2),
+        static_cast<__int128>(-1));
+    assert_serialized_key_less<__int128>(
+        static_cast<__int128>(-1),
+        static_cast<__int128>(0));
+    assert_serialized_key_less<__int128>(
+        static_cast<__int128>(0),
+        static_cast<__int128>(1));
+    assert_serialized_key_less<unsigned __int128>(
+        static_cast<unsigned __int128>(1),
+        static_cast<unsigned __int128>(2));
+#endif
 
     return 0;
 }

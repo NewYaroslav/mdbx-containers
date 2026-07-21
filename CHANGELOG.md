@@ -7,6 +7,12 @@ All notable changes to this project will be documented in this file.
   `MDBX_INTEGERKEY` now use an order-preserving unsigned rank representation
   instead of raw signed bytes. Existing DBIs created with older signed integer
   key encoding must be rebuilt.
+- Breaking storage-format change: all integral key types with `sizeof(T) <= 8`
+  now use `MDBX_INTEGERKEY`; narrow integer and character-code-unit keys use
+  canonical 4-byte storage, `long`/`long long` keys use canonical 8-byte
+  storage, and wider integral keys use a bytewise order-preserving encoding.
+  Existing development DBIs using older bytewise integral key storage must be
+  rebuilt.
 
 ## [v1.0.2] - 2026-05-02
 - Added this changelog to track release history in a compact, release-oriented format.

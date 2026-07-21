@@ -263,6 +263,14 @@ Required tests before enabling capture:
 | `IdentityIndexStore` length prefix `u32 dbi_name_len` | little-endian | Read and written as a single u32, never sorted. |
 | All other key bytes (origins, raw `storage_key`, raw `identity_key`, dbi_name bytes) | opaque bytes | Layout defined by the application, not by the codec. |
 
+Sync v0.1 replicates application table keys as raw physical `storage_key`
+bytes. For `MDBX_INTEGERKEY` tables this targets ordinary Windows/Linux/macOS
+deployments on little-endian x86_64/aarch64-class platforms. It is not a
+cross-endian typed key wire format. Use fixed-width key types for schemas that
+must be replicated between different C++ ABIs; ABI-dependent source types such
+as `long` and `wchar_t` have canonical storage widths, but their value domain
+is still the local C++ type domain.
+
 If you add a new ordered numeric key in the future: big-endian. If you add
 any new payload integer: little-endian.
 
