@@ -209,9 +209,14 @@ Operational rules:
   method. Calling a method before `open()` throws `std::logic_error` rather
   than silently writing to DBI 0. Do not weaken this guard.
 - `ConflictPolicy::Reject` is the v0.1 default. `LastWriterWins` is declared
-  for future logical-key conflict resolution, but the current raw batch apply
-  path does not use it in a non-test path. `time_unix_ns` is metadata, not a
-  reliable conflict authority. `Custom` is deferred to v0.2.
+  for future logical-key conflict resolution, but `SyncEngine` rejects it until
+  timestamp/version-based apply semantics exist. `time_unix_ns` is metadata,
+  not a reliable conflict authority. `Custom` is deferred to v0.2.
+- `PullRequest::request_full_snapshot=true` is reserved for the future
+  full export/import protocol. v0.1 responders reject it as
+  `PullResponse{ok=false, error=...}`. This is a sync-level protocol rejection,
+  not a transport retry hint; add a structured response error code before
+  treating it as machine-classified retry policy.
 - v0.1 sync captures normal write paths for `KeyValueTable`, `KeyTable`,
   `ValueTable`, and `SequenceTable`. `VectorStore` is sync-covered only because
   it persists through internal `SequenceTable` and `KeyValueTable` members.
