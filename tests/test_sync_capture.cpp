@@ -68,6 +68,25 @@ void require_no_capture(const StubSink& sink,
     }
 }
 
+void require_one_clear_capture(const StubSink& sink,
+                               const char* dbi_name,
+                               const char* operation_name) {
+    std::lock_guard<std::mutex> lk(sink.m_mutex);
+    if (sink.m_recorded.size() != 1u) {
+        throw std::runtime_error(
+            std::string(operation_name) + " expected one ClearTable op, got " +
+            std::to_string(sink.m_recorded.size()));
+    }
+    const mdbxc::sync::ChangeOp& op = sink.m_recorded[0];
+    if (op.dbi_name != dbi_name ||
+        op.op_type != mdbxc::sync::ChangeOpType::ClearTable ||
+        !op.storage_key.empty() ||
+        !op.value.empty()) {
+        throw std::runtime_error(
+            std::string(operation_name) + " ClearTable capture incorrect");
+    }
+}
+
 mdbxc::Embedding make_embedding(const std::vector<float>& values) {
     mdbxc::Embedding e;
     e.dim = static_cast<std::uint32_t>(values.size());
@@ -708,6 +727,88 @@ void test_range_erase_writes_via_sink() {
     cleanup(p);
 }
 
+void test_clear_writes_via_sink() {
+    using namespace mdbxc;
+    const std::string p = "test_capture_clear.mdbx";
+    cleanup(p);
+
+    Config cfg;
+    cfg.pathname = p;
+    cfg.max_dbs = 16;
+    cfg.no_subdir = true;
+    auto conn = Connection::create(cfg);
+
+    StubSink sink;
+    conn->attach_sync_capture(&sink);
+
+    {
+        KeyValueTable<int, int> kv(conn, "clear_kv");
+        kv.insert_or_assign(1, 10);
+        kv.insert_or_assign(2, 20);
+        sink.clear_recorded();
+        kv.clear();
+        require_one_clear_capture(sink, "clear_kv", "KeyValueTable::clear");
+    }
+
+    {
+        KeyTable<int> keys(conn, "clear_keys");
+        keys.insert(1);
+        keys.insert(2);
+        sink.clear_recorded();
+        keys.clear();
+        require_one_clear_capture(sink, "clear_keys", "KeyTable::clear");
+    }
+
+    {
+        ValueTable<int> value(conn, "clear_value");
+        value.set(42);
+        sink.clear_recorded();
+        value.clear();
+        require_one_clear_capture(sink, "clear_value", "ValueTable::clear");
+    }
+
+    {
+        SequenceTable<std::string> seq(conn, "clear_seq");
+        seq.append("one");
+        seq.append("two");
+        sink.clear_recorded();
+        seq.clear();
+        require_one_clear_capture(sink, "clear_seq", "SequenceTable::clear");
+    }
+
+    {
+        VectorStore store(conn, "clear_vector");
+        store.add(make_embedding({ 1.0f, 0.0f }), "one", "{}");
+        sink.clear_recorded();
+        store.clear();
+        const char* expected_dbi[] = {
+            "vectors_clear_vector_ids",
+            "vectors_clear_vector_embeddings",
+            "vectors_clear_vector_texts",
+            "vectors_clear_vector_metadata"
+        };
+        {
+            std::lock_guard<std::mutex> lk(sink.m_mutex);
+            if (sink.m_recorded.size() != 4u) {
+                throw std::runtime_error("VectorStore::clear expected four ClearTable ops");
+            }
+            for (std::size_t i = 0; i < sink.m_recorded.size(); ++i) {
+                const sync::ChangeOp& op = sink.m_recorded[i];
+                if (op.dbi_name != expected_dbi[i] ||
+                    op.op_type != sync::ChangeOpType::ClearTable ||
+                    !op.storage_key.empty() ||
+                    !op.value.empty()) {
+                    throw std::runtime_error("VectorStore::clear capture incorrect");
+                }
+            }
+        }
+    }
+
+    conn->detach_sync_capture();
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_vector_store_writes_via_sink() {
     using namespace mdbxc;
     const std::string p = "test_capture_vector_store.mdbx";
@@ -1228,6 +1329,7 @@ int main(int argc, char** argv) {
         { "test_key_value_bulk_writes_via_sink",
           &test_key_value_bulk_writes_via_sink },
         { "test_range_erase_writes_via_sink", &test_range_erase_writes_via_sink },
+        { "test_clear_writes_via_sink", &test_clear_writes_via_sink },
         { "test_vector_store_writes_via_sink",
           &test_vector_store_writes_via_sink },
         { "test_capture_flush_on_commit", &test_capture_flush_on_commit },
