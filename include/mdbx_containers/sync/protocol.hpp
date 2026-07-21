@@ -27,6 +27,7 @@ namespace sync {
         DbIdMismatch            = 1, ///< Request targeted a different db_id.
         UnsupportedFullSnapshot = 2, ///< Full snapshot protocol is not implemented.
         ApplyConflict           = 3, ///< Push apply failed on a sync conflict.
+        SnapshotRequired        = 4, ///< Requested changelog history was pruned.
     };
 
     /// \brief Returns a stable diagnostic name for a sync response error code.
@@ -41,6 +42,8 @@ namespace sync {
                 return "unsupported_full_snapshot";
             case SyncResponseErrorCode::ApplyConflict:
                 return "apply_conflict";
+            case SyncResponseErrorCode::SnapshotRequired:
+                return "snapshot_required";
         }
         return "unknown";
     }

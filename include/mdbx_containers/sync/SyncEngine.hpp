@@ -335,6 +335,12 @@ namespace sync {
             out.remote_have = read_applied_cursor(txn, out.remote_have);
             const std::vector<PullOrigin> origins = collect_known_origins(txn, dbi);
             out.remote_tail_known = copy_known_tail(origins, out.remote_tail);
+            for (std::size_t i = 0; i < origins.size(); ++i) {
+                if (!request_has_retained_start(txn, dbi, origins[i], request,
+                                                out)) {
+                    return out;
+                }
+            }
             std::size_t total_bytes = 0;
             bool truncated = false;
             for (std::size_t i = 0; i < origins.size(); ++i) {
@@ -718,6 +724,62 @@ namespace sync {
                    request.have.last_seq_for(origin.origin) >= origin.last_seq;
         }
 
+        static void set_snapshot_required(PullResponse& out,
+                                          const PullOrigin& origin,
+                                          std::uint64_t have_seq,
+                                          bool earliest_known,
+                                          std::uint64_t earliest_seq) {
+            out.ok = false;
+            out.batches.clear();
+            out.has_more = false;
+            out.error_code = SyncResponseErrorCode::SnapshotRequired;
+            out.error_retryable = false;
+            out.error = "requested changelog history was pruned for origin";
+            out.error += " (have_seq=" + std::to_string(have_seq);
+            if (origin.has_last_seq) {
+                out.error += ", tail_seq=" + std::to_string(origin.last_seq);
+            }
+            if (earliest_known) {
+                out.error += ", earliest_retained_seq=" +
+                             std::to_string(earliest_seq);
+            } else {
+                out.error += ", earliest_retained_seq=none";
+            }
+            out.error += ")";
+        }
+
+        static bool request_has_retained_start(MDBX_txn* txn,
+                                               MDBX_dbi dbi,
+                                               const PullOrigin& origin,
+                                               const PullRequest& request,
+                                               PullResponse& out) {
+            if (origin_is_at_tail(origin, request)) {
+                return true;
+            }
+            const std::uint64_t have_seq =
+                request.have.last_seq_for(origin.origin);
+            if (have_seq == std::numeric_limits<std::uint64_t>::max()) {
+                return true;
+            }
+            std::uint64_t earliest_seq = 0;
+            const bool earliest_known =
+                changelog_earliest_seq(txn, dbi, origin.origin, earliest_seq);
+            if (!earliest_known) {
+                if (origin.has_last_seq && have_seq < origin.last_seq) {
+                    set_snapshot_required(out, origin, have_seq,
+                                          false, earliest_seq);
+                    return false;
+                }
+                return true;
+            }
+            if (have_seq + 1 < earliest_seq) {
+                set_snapshot_required(out, origin, have_seq,
+                                      true, earliest_seq);
+                return false;
+            }
+            return true;
+        }
+
         static bool copy_known_tail(const std::vector<PullOrigin>& origins,
                                     SyncCursor& out) {
             for (std::size_t i = 0; i < origins.size(); ++i) {
@@ -840,6 +902,33 @@ namespace sync {
                 check_mdbx(rc, "pull_full: origin batch cursor walk failed");
             }
             return false;
+        }
+
+        static bool changelog_earliest_seq(MDBX_txn* txn,
+                                           MDBX_dbi dbi,
+                                           const NodeId& origin,
+                                           std::uint64_t& out) {
+            MDBX_cursor* raw = nullptr;
+            check_mdbx(mdbx_cursor_open(txn, dbi, &raw),
+                       "pull_full: earliest retained cursor open failed");
+            CursorGuard guard(raw);
+
+            std::vector<std::uint8_t> key_buf = make_changelog_key(origin, 0);
+            MDBX_val k = {
+                key_buf.empty() ? nullptr : &key_buf[0],
+                key_buf.size()
+            };
+            MDBX_val v;
+            const int rc = mdbx_cursor_get(raw, &k, &v, MDBX_SET_RANGE);
+            if (rc == MDBX_NOTFOUND) {
+                return false;
+            }
+            check_mdbx(rc, "pull_full: earliest retained cursor get failed");
+            if (!changelog_key_matches_origin(k, origin)) {
+                return false;
+            }
+            out = changelog_key_seq(k);
+            return true;
         }
 
         /// \brief Opens \c _mdbxc_changelog read-only when it exists; 0 otherwise.

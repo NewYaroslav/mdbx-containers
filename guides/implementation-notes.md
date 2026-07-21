@@ -218,6 +218,11 @@ Operational rules:
   This is a sync-level protocol rejection, not a transport retry hint. Code
   that needs machine classification should inspect `SyncResponseErrorCode`
   instead of parsing the human-readable `error` string.
+- Pull from a cursor older than retained changelog history fails as
+  `PullResponse{ok=false, error_code=SnapshotRequired}`. The response carries no
+  batches because applying a later retained batch would produce a sequence gap
+  on the receiver. Until a snapshot protocol is implemented, the caller must
+  provision a fresh replica or use an out-of-band snapshot.
 - `PushResponse::error_retryable` describes sync-level recovery. Sequence gaps
   are retryable after the receiver catches up from its persistent applied
   cursor; DBI name/flag conflicts, reserved DBI writes, and unsupported

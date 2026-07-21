@@ -1181,6 +1181,59 @@ void test_engine_changelog_page_rejects_full_snapshot_request() {
     cleanup(p);
 }
 
+void test_engine_pull_reports_snapshot_required_after_prune() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_pull_snapshot_required_after_prune.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    const sync::NodeId local = make_node(0xA2);
+    const sync::NodeId origin = make_node(0xB2);
+    const sync::DbId db_id = make_node(0xD2);
+    engine.initialize_local_identity(local, db_id);
+
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        sync::ChangeLogStore log(conn->env_handle());
+        log.open(txn.handle());
+        append_raw_batch(log, txn.handle(), origin, 1, "t", 0x01);
+        append_raw_batch(log, txn.handle(), origin, 2, "t", 0x02);
+        append_raw_batch(log, txn.handle(), origin, 3, "t", 0x03);
+        const std::size_t removed = log.prune_up_to(txn.handle(), origin, 2);
+        if (removed != 2u) {
+            throw std::runtime_error("test prune did not remove first two batches");
+        }
+        txn.commit();
+    }
+
+    sync::PullRequest req;
+    req.requester = make_node(0xC2);
+    req.db_id = db_id;
+
+    const sync::PullResponse resp = engine.handle_pull(req);
+    if (resp.ok) {
+        throw std::runtime_error("pruned changelog pull should fail");
+    }
+    if (!resp.batches.empty() || resp.has_more) {
+        throw std::runtime_error("snapshot-required pull returned batches");
+    }
+    if (resp.error_code != sync::SyncResponseErrorCode::SnapshotRequired ||
+        resp.error_retryable) {
+        throw std::runtime_error("snapshot-required pull code incorrect");
+    }
+    if (!resp.remote_tail_known ||
+        resp.remote_tail.last_seq_for(origin) != 3u) {
+        throw std::runtime_error("snapshot-required pull lost remote tail");
+    }
+    if (resp.error.find("earliest_retained_seq=3") == std::string::npos) {
+        throw std::runtime_error("snapshot-required pull error lacks earliest seq");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_engine_handle_push_wrong_db_id() {
     using namespace mdbxc;
     const std::string p = "test_engine_push_wrong_db.mdbx";
@@ -1582,6 +1635,8 @@ int main() {
           &test_engine_rejects_full_snapshot_request },
         { "test_engine_changelog_page_rejects_full_snapshot_request",
           &test_engine_changelog_page_rejects_full_snapshot_request },
+        { "test_engine_pull_reports_snapshot_required_after_prune",
+          &test_engine_pull_reports_snapshot_required_after_prune },
         { "test_engine_handle_push_wrong_db_id",&test_engine_handle_push_wrong_db_id },
         { "test_engine_rejects_last_writer_wins_policy",
           &test_engine_rejects_last_writer_wins_policy },

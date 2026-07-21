@@ -113,6 +113,10 @@ int main() {
         std::string(mdbxc::sync::sync_response_error_code_name(
             mdbxc::sync::SyncResponseErrorCode::UnsupportedFullSnapshot)) ==
         "unsupported_full_snapshot");
+    MDBXC_TEST_ASSERT(
+        std::string(mdbxc::sync::sync_response_error_code_name(
+            mdbxc::sync::SyncResponseErrorCode::SnapshotRequired)) ==
+        "snapshot_required");
     mdbxc::sync::SyncCaptureScope* capture_scope = nullptr;
     HeaderSyncSink header_sink;
     (void)capture_scope;
