@@ -124,6 +124,40 @@ void assert_rejects_nan_key() {
     MDBXC_TEST_ASSERT(thrown);
 }
 
+float float_from_raw_bits(std::uint32_t bits) {
+    float out;
+    std::memcpy(&out, &bits, sizeof(out));
+    return out;
+}
+
+double double_from_raw_bits(std::uint64_t bits) {
+    double out;
+    std::memcpy(&out, &bits, sizeof(out));
+    return out;
+}
+
+void assert_rejects_float_nan_bits(std::uint32_t bits) {
+    mdbxc::SerializeScratch scratch;
+    bool thrown = false;
+    try {
+        (void)mdbxc::serialize_key(float_from_raw_bits(bits), scratch);
+    } catch (const std::invalid_argument&) {
+        thrown = true;
+    }
+    MDBXC_TEST_ASSERT(thrown);
+}
+
+void assert_rejects_double_nan_bits(std::uint64_t bits) {
+    mdbxc::SerializeScratch scratch;
+    bool thrown = false;
+    try {
+        (void)mdbxc::serialize_key(double_from_raw_bits(bits), scratch);
+    } catch (const std::invalid_argument&) {
+        thrown = true;
+    }
+    MDBXC_TEST_ASSERT(thrown);
+}
+
 #if defined(__SIZEOF_INT128__)
 int compare_serialized_keys(const MDBX_val& lhs, const MDBX_val& rhs) {
     const std::size_t common =
@@ -246,6 +280,14 @@ int main() {
     assert_key_roundtrip<double>(0.0);
     assert_rejects_nan_key<float>();
     assert_rejects_nan_key<double>();
+    assert_rejects_float_nan_bits(0x7fc00000u);
+    assert_rejects_float_nan_bits(0x7f800001u);
+    assert_rejects_float_nan_bits(0xffc00000u);
+    assert_rejects_float_nan_bits(0xff800001u);
+    assert_rejects_double_nan_bits(0x7ff8000000000000ull);
+    assert_rejects_double_nan_bits(0x7ff0000000000001ull);
+    assert_rejects_double_nan_bits(0xfff8000000000000ull);
+    assert_rejects_double_nan_bits(0xfff0000000000001ull);
 
 #if defined(__SIZEOF_INT128__)
     assert_not_integer_key_flag<__int128>();
