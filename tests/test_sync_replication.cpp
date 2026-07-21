@@ -977,11 +977,10 @@ void test_replication_clear_table_roundtrip() {
             throw std::runtime_error("ClearTable batch did not clear replica state");
         }
     }
-    live_vectors.rebuild_index();
     if (live_vectors.count() != 0u ||
         !live_vectors.search(make_embedding(1.0f, 0.0f), 10).empty()) {
         throw std::runtime_error(
-            "VectorStore rebuild_index did not observe remote ClearTable apply");
+            "VectorStore did not auto-refresh after remote ClearTable apply");
     }
 
     primary->disconnect();

@@ -27,6 +27,7 @@ namespace mdbxc {
     namespace sync {
         class ISyncCaptureSink;
         class SyncCaptureScope;
+        class SyncEngine;
     }
 
     /// \class Connection
@@ -191,6 +192,13 @@ namespace mdbxc {
 
         /// \brief Returns the currently attached \c ISyncCaptureSink or \c nullptr.
         sync::ISyncCaptureSink* sync_capture() const;
+
+        /// \brief Returns the remote sync-apply invalidation generation.
+        /// \details The value increments after a successful
+        /// \c SyncEngine::handle_push() commit that applied at least one
+        /// incoming batch. Table/view wrappers with RAM caches may compare a
+        /// stored generation with this value and rebuild when it changes.
+        std::uint64_t sync_apply_generation() const;
 #       endif
 
         /// \brief Copies the whole MDBX environment to a file or directory path.
@@ -257,10 +265,13 @@ namespace mdbxc {
                                              std::uint64_t expected_token,
                                              sync::ISyncCaptureSink* restore_sink,
                                              std::uint64_t restore_token);
+        void mark_sync_apply_committed();
 
+        friend class sync::SyncEngine;
         sync::ISyncCaptureSink* m_sync_capture = nullptr;
         std::uint64_t m_sync_capture_token = 0;
         std::uint64_t m_next_sync_capture_token = 0;
+        std::uint64_t m_sync_apply_generation = 0;
 #       endif
 
     }; // Connection

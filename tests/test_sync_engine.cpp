@@ -915,6 +915,9 @@ void test_engine_handle_push_to_remote() {
     sync::PushRequest req;
     req.sender = make_node(0xA0);
     req.db_id  = make_node(0xD0);
+    if (remote_conn->sync_apply_generation() != 0u) {
+        throw std::runtime_error("fresh replica should have sync apply generation 0");
+    }
 
     {
         auto txn = origin_conn->transaction(TransactionMode::WRITABLE);
@@ -939,10 +942,23 @@ void test_engine_handle_push_to_remote() {
     if (resp.receiver_have.last_seq_for(make_node(0xA0)) != 1u) {
         throw std::runtime_error("receiver cursor should reflect applied seq");
     }
+    if (remote_conn->sync_apply_generation() != 1u) {
+        throw std::runtime_error("remote apply should increment generation");
+    }
 
     KeyValueTable<int, int> remote_kv(remote_conn, "kv");
     if (kv_or_throw(remote_conn, remote_kv, 7, "remote kv[7]") != 0x77) {
         throw std::runtime_error("remote kv[7] != 0x77 after push");
+    }
+
+    const sync::PushResponse replay = peer.push(req);
+    if (!replay.ok) {
+        throw std::runtime_error("idempotent replay should succeed: " +
+                                 replay.error);
+    }
+    if (remote_conn->sync_apply_generation() != 1u) {
+        throw std::runtime_error(
+            "skipped idempotent replay should not increment generation");
     }
 
     origin_conn->disconnect();

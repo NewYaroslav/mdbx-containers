@@ -373,6 +373,7 @@ namespace sync {
                 return out;
             }
             auto txn = m_conn->transaction(TransactionMode::WRITABLE);
+            bool applied_any = false;
             for (const ChangeBatch& batch : request.batches) {
                 const ApplyOutcome outcome = apply_batch_ex(txn.handle(), batch);
                 if (outcome.result == ApplyResult::Conflict) {
@@ -386,8 +387,15 @@ namespace sync {
                     out.receiver_have = applied_cursor();
                     return out;
                 }
+                if (outcome.result == ApplyResult::Applied &&
+                    !batch.ops.empty()) {
+                    applied_any = true;
+                }
             }
             txn.commit();
+            if (applied_any) {
+                m_conn->mark_sync_apply_committed();
+            }
             out.ok = true;
             out.receiver_have = applied_cursor();
             return out;

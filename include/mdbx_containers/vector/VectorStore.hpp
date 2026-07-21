@@ -17,6 +17,11 @@ namespace mdbxc {
     ///
     /// \warning Search is exact \c O(N*dim), all embeddings are loaded into RAM,
     /// and mutable index synchronization is caller-managed.
+    /// \warning Lazy sync-apply refresh is guaranteed between completed
+    /// operations. Concurrent calls to this store and remote
+    /// \c SyncEngine::handle_push() on the same connection still require
+    /// caller-side serialization until a connection-level apply/read barrier
+    /// is available.
     ///
     /// \note Non-empty collections have a single active dimension established by
     /// the first successfully added embedding.
@@ -86,14 +91,18 @@ namespace mdbxc {
         VectorMetric m_metric;
         std::shared_ptr<Connection> m_connection;
         SequenceTable<uint64_t> m_ids;
-        KeyValueTable<uint64_t, Embedding> m_embeddings;
+        mutable KeyValueTable<uint64_t, Embedding> m_embeddings;
         KeyValueTable<uint64_t, std::string> m_texts;
         KeyValueTable<uint64_t, std::string> m_metadata;
-        FlatVectorIndex m_index;
+        mutable FlatVectorIndex m_index;
+        mutable std::uint64_t m_sync_apply_generation_seen = 0;
 
         static std::shared_ptr<Connection> require_connection(std::shared_ptr<Connection> connection);
         static std::string validate_collection_name(const std::string& name);
         static std::string make_table_name(const std::string& collection, const std::string& suffix);
+        void ensure_index_fresh() const;
+        void rebuild_index_impl() const;
+        std::uint64_t current_sync_apply_generation() const;
     };
 
 } // namespace mdbxc
