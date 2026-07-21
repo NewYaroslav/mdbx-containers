@@ -227,6 +227,10 @@ Required tests before enabling capture:
 
 ## What v0.1 does NOT cover (deferred to v0.2)
 
+For the table-by-table support status, capture coverage, and negative test
+anchors, see the
+[Sync table coverage matrix](/guides/sync-table-coverage.md).
+
 - `HashedKeyValueStore` — internal hash index layout complicates the wire
   format; deferred until an explicit identity-mapping scheme lands.
 - `KeyMultiValueTable` — DUPSORT duplicate values need the unordered multiset

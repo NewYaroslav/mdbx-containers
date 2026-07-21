@@ -94,8 +94,10 @@
   See [sync transport production notes](guides/sync-transport-production.md)
   for TLS/WSS, token rotation, graceful shutdown, structured logging, and
   offline dependency guidance. See the
-  [sync v0.1 readiness checklist](guides/sync-v0.1-readiness.md) for the
-  current support matrix and deferred work.
+  [sync table coverage matrix](guides/sync-table-coverage.md) for the current
+  wrapper support status, and the
+  [sync v0.1 readiness checklist](guides/sync-v0.1-readiness.md) for release
+  readiness and deferred work.
   Socket-backed examples use those bindings instead of reimplementing the
   transport in each file. Specialized table wire formats remain deferred.
   HTTP auth, remote-address checks, and rate-limit headers live in
