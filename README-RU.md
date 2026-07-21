@@ -239,6 +239,9 @@ auto unique_values = table.range_values<std::set>(10, 20);
 точный `O(N * dim)`, все embeddings загружаются в RAM, а ANN/HNSW,
 metadata filtering и генерация embeddings не входят в область MVP.
 
+Имена коллекций валидируются, а не переписываются: используйте непустые имена
+только из ASCII-букв, цифр, `_` и `-`.
+
 ```cpp
 #include <mdbx_containers/vector.hpp>
 #include <iostream>

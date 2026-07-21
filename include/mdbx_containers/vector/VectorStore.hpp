@@ -24,18 +24,22 @@ namespace mdbxc {
     public:
         /// \brief Opens a vector store using a new MDBX connection.
         /// \param config MDBX environment configuration.
-        /// \param collection Logical collection name; invalid table-name characters are replaced by \c _.
+        /// \param collection Logical collection name. Allowed characters are
+        /// ASCII letters, digits, \c _ and \c -.
         /// \param metric Metric used by the in-memory index.
-        /// \throws std::invalid_argument if \c collection is empty.
+        /// \throws std::invalid_argument if \c collection is empty or contains
+        /// unsupported characters.
         VectorStore(const Config& config,
                     std::string collection = "default",
                     VectorMetric metric = VectorMetric::COSINE);
 
         /// \brief Opens a vector store using an existing connection.
         /// \param connection Shared MDBX connection.
-        /// \param collection Logical collection name; invalid table-name characters are replaced by \c _.
+        /// \param collection Logical collection name. Allowed characters are
+        /// ASCII letters, digits, \c _ and \c -.
         /// \param metric Metric used by the in-memory index.
-        /// \throws std::invalid_argument if \c connection is null or \c collection is empty.
+        /// \throws std::invalid_argument if \c connection is null, or
+        /// \c collection is empty or contains unsupported characters.
         VectorStore(std::shared_ptr<Connection> connection,
                     std::string collection = "default",
                     VectorMetric metric = VectorMetric::COSINE);
@@ -74,7 +78,7 @@ namespace mdbxc {
         /// \brief Returns the number of persisted embeddings.
         std::size_t count() const;
 
-        /// \brief Returns the sanitized collection name.
+        /// \brief Returns the validated collection name.
         const std::string& collection() const noexcept;
 
     private:
@@ -88,7 +92,7 @@ namespace mdbxc {
         FlatVectorIndex m_index;
 
         static std::shared_ptr<Connection> require_connection(std::shared_ptr<Connection> connection);
-        static std::string sanitize_collection_name(const std::string& name);
+        static std::string validate_collection_name(const std::string& name);
         static std::string make_table_name(const std::string& collection, const std::string& suffix);
     };
 

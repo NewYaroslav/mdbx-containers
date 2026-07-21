@@ -102,6 +102,11 @@ Do not add `record_op()` paths for unsupported table types without first
 updating this design document and adding round-trip replication tests for the
 new wire-format semantics.
 
+`VectorStore` collection names are validated instead of sanitized. Names must
+be non-empty and contain only ASCII letters, digits, `_`, and `-`; unsupported
+characters are rejected before internal DBI names are built. This prevents
+different logical collections from collapsing to the same physical DBI names.
+
 ## Deferred `KeyMultiValueTable` sync design
 
 This section documents the intended direction for future

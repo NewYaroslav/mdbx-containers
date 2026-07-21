@@ -12,22 +12,20 @@ namespace mdbxc {
         return connection;
     }
 
-    inline std::string VectorStore::sanitize_collection_name(const std::string& name) {
+    inline std::string VectorStore::validate_collection_name(const std::string& name) {
         if (name.empty()) {
             throw std::invalid_argument("Collection name cannot be empty");
         }
-        std::string result;
-        result.reserve(name.size());
         for (std::size_t i = 0; i < name.size(); ++i) {
-            char c = name[i];
+            const char c = name[i];
             if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
                 (c >= '0' && c <= '9') || c == '_' || c == '-') {
-                result.push_back(c);
-            } else {
-                result.push_back('_');
+                continue;
             }
+            throw std::invalid_argument(
+                "Collection name contains unsupported character");
         }
-        return result;
+        return name;
     }
 
     inline std::string VectorStore::make_table_name(const std::string& collection,
@@ -38,7 +36,7 @@ namespace mdbxc {
     inline VectorStore::VectorStore(const Config& config,
                                       std::string collection,
                                       VectorMetric metric)
-        : m_collection(sanitize_collection_name(collection))
+        : m_collection(validate_collection_name(collection))
         , m_metric(metric)
         , m_connection(Connection::create(config))
         , m_ids(m_connection, make_table_name(m_collection, "ids"))
@@ -53,7 +51,7 @@ namespace mdbxc {
     inline VectorStore::VectorStore(std::shared_ptr<Connection> connection,
                                       std::string collection,
                                       VectorMetric metric)
-        : m_collection(sanitize_collection_name(collection))
+        : m_collection(validate_collection_name(collection))
         , m_metric(metric)
         , m_connection(require_connection(std::move(connection)))
         , m_ids(m_connection, make_table_name(m_collection, "ids"))

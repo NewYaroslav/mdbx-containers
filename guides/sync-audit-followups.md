@@ -63,10 +63,13 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - Return an explicit snapshot-required sync response instead of streaming
   non-contiguous retained batches.
 
+### PR #168: `VectorStore` collection naming
+
+- Reject invalid collection names before building internal DBI names.
+- Avoid silent collection-name collisions from lossy sanitization.
+
 ## Later Medium-Risk Follow-ups
 
-- `VectorStore` collection naming: reject invalid names or use a reversible
-  collision-free encoding.
 - Remote apply invalidation hooks: notify already-open table/view objects after
   sync changes their backing DBIs so cached in-memory state such as
   `VectorStore` RAM indexes can rebuild instead of going stale.
