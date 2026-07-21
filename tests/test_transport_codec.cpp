@@ -99,6 +99,8 @@ void test_pull_response_roundtrip() {
     response.has_more = true;
     response.ok = false;
     response.error = "temporary upstream timeout";
+    response.error_code = SyncResponseErrorCode::UnsupportedFullSnapshot;
+    response.error_retryable = false;
 
     const std::vector<std::uint8_t> bytes =
         TransportMessageCodec::encode_pull_response(response);
@@ -124,6 +126,10 @@ void test_pull_response_roundtrip() {
     require_true(decoded.has_more, "PullResponse has_more mismatch");
     require_true(!decoded.ok, "PullResponse ok mismatch");
     require_true(decoded.error == response.error, "PullResponse error mismatch");
+    require_true(decoded.error_code == response.error_code,
+                 "PullResponse error_code mismatch");
+    require_true(decoded.error_retryable == response.error_retryable,
+                 "PullResponse error_retryable mismatch");
 }
 
 void test_push_request_roundtrip() {
@@ -161,6 +167,8 @@ void test_push_response_roundtrip() {
     response.receiver_have.last_seq_by_origin[make_node(0xD0)] = 42;
     response.ok = false;
     response.error = "sequence gap";
+    response.error_code = SyncResponseErrorCode::ApplyConflict;
+    response.error_retryable = true;
 
     const std::vector<std::uint8_t> bytes =
         TransportMessageCodec::encode_push_response(response);
@@ -171,6 +179,10 @@ void test_push_response_roundtrip() {
                  "PushResponse cursor mismatch");
     require_true(!decoded.ok, "PushResponse ok mismatch");
     require_true(decoded.error == response.error, "PushResponse error mismatch");
+    require_true(decoded.error_code == response.error_code,
+                 "PushResponse error_code mismatch");
+    require_true(decoded.error_retryable == response.error_retryable,
+                 "PushResponse error_retryable mismatch");
 }
 
 void test_peek_message_type() {
@@ -307,6 +319,26 @@ void test_bounds_rejections() {
     });
 }
 
+void test_response_error_code_rejections() {
+    using namespace mdbxc::sync;
+
+    expect_throw("pull response error code", [] {
+        std::vector<std::uint8_t> bad =
+            TransportMessageCodec::encode_pull_response(PullResponse());
+        bad[bad.size() - 3u] = 0xFFu;
+        bad[bad.size() - 2u] = 0xFFu;
+        (void)TransportMessageCodec::decode_pull_response(bad);
+    });
+
+    expect_throw("push response error code", [] {
+        std::vector<std::uint8_t> bad =
+            TransportMessageCodec::encode_push_response(PushResponse());
+        bad[bad.size() - 3u] = 0xFFu;
+        bad[bad.size() - 2u] = 0xFFu;
+        (void)TransportMessageCodec::decode_push_response(bad);
+    });
+}
+
 void test_golden_header_shape() {
     using namespace mdbxc::sync;
     const std::vector<std::uint8_t> bytes =
@@ -317,7 +349,7 @@ void test_golden_header_shape() {
         require_true(bytes[i] == expected_magic[i],
                      "TransportMessageCodec magic mismatch");
     }
-    require_true(bytes[8] == 2u && bytes[9] == 0u,
+    require_true(bytes[8] == 3u && bytes[9] == 0u,
                  "TransportMessageCodec version mismatch");
     require_true(bytes[10] == 1u,
                  "TransportMessageCodec pull request type mismatch");
@@ -336,6 +368,7 @@ int main() {
     test_peek_message_type();
     test_message_header_rejections();
     test_bounds_rejections();
+    test_response_error_code_rejections();
     test_golden_header_shape();
     return 0;
 }

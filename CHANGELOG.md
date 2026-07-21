@@ -3,6 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Breaking transport-wire change: `TransportMessageCodec` is now version 3 and
+  response DTOs include `SyncResponseErrorCode` plus `error_retryable` after
+  the human-readable error string.
 - Breaking API cleanup: removed the historical
   `SyncEngine::pull_full_snapshot()` compatibility wrapper. Use
   `SyncEngine::pull_changelog_page()` for retained changelog replay; true full

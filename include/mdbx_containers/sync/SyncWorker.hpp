@@ -83,7 +83,9 @@ namespace sync {
         /// \details The default keeps v0.1 retry hints advisory. Set to
         /// \c StopWorker when a classified permanent transport failure should
         /// leave the worker in \c SyncWorkerState::Failed instead of entering
-        /// retry backoff.
+        /// retry backoff. Sync-level response errors are reported separately
+        /// through \c SyncWorkerRoundResult and status snapshots; this policy
+        /// does not stop on them.
         SyncWorkerPermanentFailurePolicy permanent_failure_policy =
             SyncWorkerPermanentFailurePolicy::KeepRetrying;
 
@@ -116,6 +118,12 @@ namespace sync {
         SyncWorkerProgressEstimate progress; ///< Last known progress.
         std::string error; ///< Failure detail when \c ok is false.
         SyncTransportRetryHint retry_hint; ///< Transport retry advice.
+        /// \brief Sync-level response error classification.
+        /// \details Distinct from transport retry advice. \c None means the
+        /// peer did not return a structured sync error.
+        SyncResponseErrorCode sync_error_code =
+            SyncResponseErrorCode::None;
+        bool sync_error_retryable = false; ///< Sync-level recovery hint.
     };
 
     /// \brief Fine-grained observer event for sync round stages.
@@ -132,6 +140,10 @@ namespace sync {
         SyncWorkerProgressEstimate progress; ///< Last known progress.
         std::string error; ///< Failure detail when \c ok is false.
         SyncTransportRetryHint retry_hint; ///< Transport retry advice.
+        /// \brief Sync-level response error classification.
+        SyncResponseErrorCode sync_error_code =
+            SyncResponseErrorCode::None;
+        bool sync_error_retryable = false; ///< Sync-level recovery hint.
     };
 
     /// \brief Thread-safe snapshot of the current \c SyncWorker status.
@@ -157,6 +169,9 @@ namespace sync {
         SyncWorkerRoundResult last_round; ///< Last completed round result.
         SyncWorkerProgressEstimate last_progress; ///< Last known progress.
         SyncTransportRetryHint last_retry_hint; ///< Last known retry hint.
+        SyncResponseErrorCode last_sync_error_code =
+            SyncResponseErrorCode::None; ///< Last sync-level error code.
+        bool last_sync_error_retryable = false; ///< Last sync-level hint.
         std::chrono::milliseconds last_backoff_delay =
             std::chrono::milliseconds::zero(); ///< Last scheduled backoff.
         std::chrono::steady_clock::time_point last_round_started_at;
@@ -526,6 +541,9 @@ namespace sync {
                         event.has_more = response.has_more;
                         event.ok = response.ok;
                         event.error = response.error;
+                        event.sync_error_code = response.error_code;
+                        event.sync_error_retryable =
+                            response.error_retryable;
                         if (response.ok) {
                             if (response.remote_tail_known) {
                                 progress = make_progress_estimate(
@@ -548,6 +566,9 @@ namespace sync {
                             ? "pull failed"
                             : response.error;
                         result.retry_hint = m_peer.last_retry_hint();
+                        result.sync_error_code = response.error_code;
+                        result.sync_error_retryable =
+                            response.error_retryable;
                         return result;
                     }
                     ++result.pages_pulled;
@@ -599,6 +620,9 @@ namespace sync {
                             event.has_more = has_more;
                             event.ok = applied.ok;
                             event.error = applied.error;
+                            event.sync_error_code = applied.error_code;
+                            event.sync_error_retryable =
+                                applied.error_retryable;
                             if (applied.ok) {
                                 event.batches_applied =
                                     result.batches_applied +
@@ -614,6 +638,9 @@ namespace sync {
                             result.error = applied.error.empty()
                                 ? "apply failed"
                                 : applied.error;
+                            result.sync_error_code = applied.error_code;
+                            result.sync_error_retryable =
+                                applied.error_retryable;
                             return result;
                         }
                         result.batches_applied += response.batches.size();
@@ -666,6 +693,8 @@ namespace sync {
             event.progress = result.progress;
             event.error = result.error;
             event.retry_hint = result.retry_hint;
+            event.sync_error_code = result.sync_error_code;
+            event.sync_error_retryable = result.sync_error_retryable;
             return event;
         }
 
@@ -839,6 +868,9 @@ namespace sync {
             m_status.last_stage = event;
             m_status.last_progress = event.progress;
             m_status.last_retry_hint = event.retry_hint;
+            m_status.last_sync_error_code = event.sync_error_code;
+            m_status.last_sync_error_retryable =
+                event.sync_error_retryable;
             if (event.stage == SyncWorkerStage::RoundStarted) {
                 m_status.round_active = true;
                 m_status.backoff_active = false;
@@ -857,6 +889,9 @@ namespace sync {
             m_status.last_round = result;
             m_status.last_progress = result.progress;
             m_status.last_retry_hint = result.retry_hint;
+            m_status.last_sync_error_code = result.sync_error_code;
+            m_status.last_sync_error_retryable =
+                result.sync_error_retryable;
             m_status.round_active = false;
             m_status.last_round_finished_at =
                 std::chrono::steady_clock::now();

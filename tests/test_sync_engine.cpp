@@ -318,6 +318,13 @@ void test_engine_rejects_reserved_dbi_changes_and_rolls_back_page() {
                 op_type_name(op_types[i]) + " returned wrong error: " +
                 response.error);
         }
+        if (response.error_code != sync::SyncResponseErrorCode::ApplyConflict ||
+            response.error_retryable ||
+            response.receiver_have.last_seq_for(origin) != 0u) {
+            throw std::runtime_error(
+                std::string("reserved DBI ") +
+                op_type_name(op_types[i]) + " returned wrong structured error");
+        }
         if (engine.applied_cursor().last_seq_for(origin) != 0u) {
             throw std::runtime_error(
                 std::string("reserved DBI ") +
@@ -387,6 +394,12 @@ void test_engine_reserved_dbi_rolls_back_multi_batch_push() {
         response.error.find("_mdbxc_meta") == std::string::npos) {
         throw std::runtime_error("reserved DBI multi-batch push returned wrong error: " +
                                  response.error);
+    }
+    if (response.error_code != sync::SyncResponseErrorCode::ApplyConflict ||
+        response.error_retryable ||
+        response.receiver_have.last_seq_for(origin) != 0u) {
+        throw std::runtime_error(
+            "reserved DBI multi-batch push returned wrong structured error");
     }
     if (engine.applied_cursor().last_seq_for(origin) != 0u) {
         throw std::runtime_error("reserved DBI multi-batch push advanced applied cursor");
@@ -713,6 +726,83 @@ void test_engine_existing_dbi_flag_mismatch_reports_first_batch_dbi() {
     cleanup(p);
 }
 
+void test_engine_push_dbi_conflicts_are_not_retryable() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_push_dbi_conflicts_retryable.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+    const sync::NodeId origin = make_node(0x20);
+
+    {
+        sync::ChangeBatch batch;
+        batch.origin_node_id = origin;
+        batch.seq = 1;
+
+        sync::ChangeOp first;
+        first.op_type = sync::ChangeOpType::Put;
+        first.dbi_name = "inconsistent";
+        first.dbi_flags = static_cast<std::uint32_t>(MDBX_INTEGERKEY);
+        assign_int_key(first.storage_key, 1);
+        assign_int_value(first.value, 10);
+        batch.ops.push_back(first);
+
+        sync::ChangeOp second = first;
+        second.dbi_flags = static_cast<std::uint32_t>(MDBX_REVERSEKEY);
+        assign_int_key(second.storage_key, 2);
+        assign_int_value(second.value, 20);
+        batch.ops.push_back(second);
+
+        sync::PushRequest request;
+        request.sender = origin;
+        request.db_id = make_node(0xD0);
+        request.batches.push_back(batch);
+        const sync::PushResponse response = engine.handle_push(request);
+        if (response.ok ||
+            response.error_code != sync::SyncResponseErrorCode::ApplyConflict ||
+            response.error_retryable ||
+            response.receiver_have.last_seq_for(origin) != 0u) {
+            throw std::runtime_error(
+                "inconsistent DBI flags returned wrong structured response");
+        }
+    }
+
+    {
+        KeyValueTable<int, int> existing(conn, "existing");
+        (void)existing;
+
+        sync::ChangeBatch batch;
+        batch.origin_node_id = origin;
+        batch.seq = 1;
+
+        sync::ChangeOp op;
+        op.op_type = sync::ChangeOpType::Put;
+        op.dbi_name = "existing";
+        op.dbi_flags = static_cast<std::uint32_t>(MDBX_REVERSEKEY);
+        assign_int_key(op.storage_key, 1);
+        assign_int_value(op.value, 10);
+        batch.ops.push_back(op);
+
+        sync::PushRequest request;
+        request.sender = origin;
+        request.db_id = make_node(0xD0);
+        request.batches.push_back(batch);
+        const sync::PushResponse response = engine.handle_push(request);
+        if (response.ok ||
+            response.error_code != sync::SyncResponseErrorCode::ApplyConflict ||
+            response.error_retryable ||
+            response.receiver_have.last_seq_for(origin) != 0u) {
+            throw std::runtime_error(
+                "existing DBI flags mismatch returned wrong structured response");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_engine_gap_returns_conflict() {
     using namespace mdbxc;
     const std::string p = "test_engine_gap.mdbx";
@@ -907,6 +997,11 @@ void test_engine_push_gap_rolls_back() {
         if (resp.error.find("sequence_gap") == std::string::npos) {
             throw std::runtime_error("push with gap should return sequence_gap error");
         }
+        if (resp.error_code != sync::SyncResponseErrorCode::ApplyConflict ||
+            !resp.error_retryable ||
+            resp.receiver_have.last_seq_for(make_node(0x20)) != 1u) {
+            throw std::runtime_error("push with gap error code incorrect");
+        }
     }
 
     // After rejected push, table 't' should still be empty (rollback worked)
@@ -922,6 +1017,58 @@ void test_engine_push_gap_rolls_back() {
         const sync::SyncCursor cur = engine.applied_cursor();
         if (cur.last_seq_for(make_node(0x20)) != 1u) {
             throw std::runtime_error("cursor should still be at seq=1 after rejected push");
+        }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_push_multi_batch_gap_reports_persistent_cursor() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_push_multi_batch_gap_cursor.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+
+    auto make_batch = [](std::uint64_t seq) {
+        sync::ChangeBatch b;
+        b.origin_node_id = make_node(0x20);
+        b.seq = seq;
+        sync::ChangeOp op;
+        op.op_type = sync::ChangeOpType::Put;
+        op.dbi_name = "t";
+        op.storage_key = { static_cast<std::uint8_t>(seq) };
+        op.value = { 0xFF };
+        b.ops.push_back(op);
+        return b;
+    };
+
+    sync::DirectSyncPeer peer(&engine);
+    sync::PushRequest req;
+    req.sender = make_node(0x20);
+    req.db_id = make_node(0xD0);
+    req.batches.push_back(make_batch(1));
+    req.batches.push_back(make_batch(3));
+
+    const sync::PushResponse resp = peer.push(req);
+    if (resp.ok ||
+        resp.error_code != sync::SyncResponseErrorCode::ApplyConflict ||
+        !resp.error_retryable ||
+        resp.receiver_have.last_seq_for(make_node(0x20)) != 0u) {
+        throw std::runtime_error(
+            "multi-batch gap did not report persistent retryable cursor");
+    }
+    if (engine.applied_cursor().last_seq_for(make_node(0x20)) != 0u) {
+        throw std::runtime_error("multi-batch gap advanced persistent cursor");
+    }
+    {
+        KeyValueTable<std::uint8_t, std::uint8_t> t(conn, "t");
+        if (kv_has(conn, t, static_cast<std::uint8_t>(1)) ||
+            kv_has(conn, t, static_cast<std::uint8_t>(3))) {
+            throw std::runtime_error("multi-batch gap committed partial data");
         }
     }
 
@@ -949,6 +1096,10 @@ void test_engine_handle_pull_wrong_db_id() {
     }
     if (!resp.batches.empty()) {
         throw std::runtime_error("pull with wrong db_id should not return batches");
+    }
+    if (resp.error_code != sync::SyncResponseErrorCode::DbIdMismatch ||
+        resp.error_retryable) {
+        throw std::runtime_error("pull wrong db_id error code incorrect");
     }
 
     conn->disconnect();
@@ -978,6 +1129,10 @@ void test_engine_rejects_full_snapshot_request() {
     }
     if (resp.error.find("request_full_snapshot") == std::string::npos) {
         throw std::runtime_error("full snapshot rejection error is not explicit");
+    }
+    if (resp.error_code != sync::SyncResponseErrorCode::UnsupportedFullSnapshot ||
+        resp.error_retryable) {
+        throw std::runtime_error("full snapshot rejection code incorrect");
     }
 
     conn->disconnect();
@@ -1014,6 +1169,12 @@ void test_engine_changelog_page_rejects_full_snapshot_request() {
             throw std::runtime_error(
                 "changelog page full snapshot rejection error is not explicit");
         }
+        if (resp.error_code !=
+                sync::SyncResponseErrorCode::UnsupportedFullSnapshot ||
+            resp.error_retryable) {
+            throw std::runtime_error(
+                "changelog page full snapshot rejection code incorrect");
+        }
     }
 
     conn->disconnect();
@@ -1048,6 +1209,10 @@ void test_engine_handle_push_wrong_db_id() {
     const sync::PushResponse resp = peer.push(req);
     if (resp.ok) {
         throw std::runtime_error("push with wrong db_id should return ok=false");
+    }
+    if (resp.error_code != sync::SyncResponseErrorCode::DbIdMismatch ||
+        resp.error_retryable) {
+        throw std::runtime_error("push wrong db_id error code incorrect");
     }
 
     {
@@ -1406,10 +1571,12 @@ int main() {
         { "test_engine_conflicting_dbi_flags",  &test_engine_conflicting_dbi_flags_returns_conflict },
         { "test_engine_existing_dbi_flag_mismatch",&test_engine_existing_dbi_flag_mismatch_returns_conflict },
         { "test_engine_existing_dbi_flag_mismatch_first",&test_engine_existing_dbi_flag_mismatch_reports_first_batch_dbi },
+        { "test_engine_push_dbi_conflicts_not_retryable",&test_engine_push_dbi_conflicts_are_not_retryable },
         { "test_engine_gap_returns_conflict",   &test_engine_gap_returns_conflict },
         { "test_engine_applied_cursor",         &test_engine_applied_cursor },
         { "test_engine_handle_push_to_remote",  &test_engine_handle_push_to_remote },
         { "test_engine_push_gap_rolls_back",    &test_engine_push_gap_rolls_back },
+        { "test_engine_push_multi_batch_gap_cursor",&test_engine_push_multi_batch_gap_reports_persistent_cursor },
         { "test_engine_handle_pull_wrong_db_id",&test_engine_handle_pull_wrong_db_id },
         { "test_engine_rejects_full_snapshot_request",
           &test_engine_rejects_full_snapshot_request },

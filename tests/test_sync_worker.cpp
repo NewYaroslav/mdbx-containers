@@ -1614,6 +1614,130 @@ void test_worker_rejects_invalid_options() {
     cleanup(path);
 }
 
+void test_worker_propagates_pull_sync_error() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_pull_sync_error.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+
+    sync::PullResponse response;
+    response.ok = false;
+    response.error = "db_id mismatch";
+    response.error_code = sync::SyncResponseErrorCode::DbIdMismatch;
+    response.error_retryable = false;
+
+    FixedPeer peer(response);
+    RecordingWorkerObserver observer;
+    sync::SyncWorkerOptions options;
+    options.observer = &observer;
+    sync::SyncWorker worker(engine, peer, options);
+
+    const sync::SyncWorkerRoundResult result = worker.run_once();
+    if (result.ok ||
+        result.sync_error_code != sync::SyncResponseErrorCode::DbIdMismatch ||
+        result.sync_error_retryable) {
+        throw std::runtime_error("worker did not propagate pull sync error");
+    }
+
+    const std::vector<sync::SyncWorkerStageEvent> stages = observer.stages();
+    bool saw_pull_finished = false;
+    for (std::size_t i = 0; i < stages.size(); ++i) {
+        if (stages[i].stage == sync::SyncWorkerStage::PullFinished) {
+            saw_pull_finished = true;
+            if (stages[i].ok ||
+                stages[i].sync_error_code !=
+                    sync::SyncResponseErrorCode::DbIdMismatch ||
+                stages[i].sync_error_retryable) {
+                throw std::runtime_error(
+                    "worker pull stage sync error mismatch");
+            }
+        }
+    }
+    if (!saw_pull_finished) {
+        throw std::runtime_error("worker did not report PullFinished");
+    }
+
+    const sync::SyncWorkerStatus status = worker.status();
+    if (!status.last_round_known ||
+        status.last_round.sync_error_code !=
+            sync::SyncResponseErrorCode::DbIdMismatch ||
+        status.last_sync_error_code !=
+            sync::SyncResponseErrorCode::DbIdMismatch ||
+        status.last_sync_error_retryable) {
+        throw std::runtime_error("worker status lost pull sync error");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_worker_propagates_apply_sync_error() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_apply_sync_error.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    const sync::NodeId replica_node = make_node(0x11);
+    const sync::NodeId remote_origin = make_node(0x21);
+    const sync::NodeId db_id = make_node(0xD1);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = remote_origin;
+    batch.seq = 3;
+
+    sync::PullResponse response;
+    response.batches.push_back(batch);
+
+    FixedPeer peer(response);
+    RecordingWorkerObserver observer;
+    sync::SyncWorkerOptions options;
+    options.observer = &observer;
+    sync::SyncWorker worker(engine, peer, options);
+
+    const sync::SyncWorkerRoundResult result = worker.run_once();
+    if (result.ok ||
+        result.sync_error_code != sync::SyncResponseErrorCode::ApplyConflict ||
+        !result.sync_error_retryable) {
+        throw std::runtime_error("worker did not propagate apply sync error");
+    }
+
+    const std::vector<sync::SyncWorkerStageEvent> stages = observer.stages();
+    bool saw_apply_finished = false;
+    for (std::size_t i = 0; i < stages.size(); ++i) {
+        if (stages[i].stage == sync::SyncWorkerStage::ApplyFinished) {
+            saw_apply_finished = true;
+            if (stages[i].ok ||
+                stages[i].sync_error_code !=
+                    sync::SyncResponseErrorCode::ApplyConflict ||
+                !stages[i].sync_error_retryable) {
+                throw std::runtime_error(
+                    "worker apply stage sync error mismatch");
+            }
+        }
+    }
+    if (!saw_apply_finished) {
+        throw std::runtime_error("worker did not report ApplyFinished");
+    }
+
+    const sync::SyncWorkerStatus status = worker.status();
+    if (!status.last_round_known ||
+        status.last_round.sync_error_code !=
+            sync::SyncResponseErrorCode::ApplyConflict ||
+        status.last_sync_error_code !=
+            sync::SyncResponseErrorCode::ApplyConflict ||
+        !status.last_sync_error_retryable) {
+        throw std::runtime_error("worker status lost apply sync error");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
 void test_worker_stop_while_pull_blocked_does_not_apply_returned_page() {
     using namespace mdbxc;
     const std::string path = "test_worker_blocked_stop.mdbx";
@@ -1967,6 +2091,10 @@ int main() {
           &test_worker_page_observer_exception_does_not_fail_round },
         { "test_worker_rejects_invalid_options",
           &test_worker_rejects_invalid_options },
+        { "test_worker_propagates_pull_sync_error",
+          &test_worker_propagates_pull_sync_error },
+        { "test_worker_propagates_apply_sync_error",
+          &test_worker_propagates_apply_sync_error },
         { "test_worker_stop_while_pull_blocked",
           &test_worker_stop_while_pull_blocked_does_not_apply_returned_page },
         { "test_worker_stop_from_apply_started_observer_skips_apply",

@@ -17,6 +17,34 @@
 namespace mdbxc {
 namespace sync {
 
+    /// \brief Machine-readable classification for sync-level response errors.
+    /// \details This classifies errors produced by the sync protocol or
+    /// engine itself. Transport-local failures such as HTTP status codes,
+    /// WebSocket close codes, authentication rejection, and rate limits remain
+    /// represented by transport retry hints and adapter metadata.
+    enum class SyncResponseErrorCode : std::uint16_t {
+        None                    = 0, ///< No structured sync error.
+        DbIdMismatch            = 1, ///< Request targeted a different db_id.
+        UnsupportedFullSnapshot = 2, ///< Full snapshot protocol is not implemented.
+        ApplyConflict           = 3, ///< Push apply failed on a sync conflict.
+    };
+
+    /// \brief Returns a stable diagnostic name for a sync response error code.
+    inline const char* sync_response_error_code_name(
+            SyncResponseErrorCode code) {
+        switch (code) {
+            case SyncResponseErrorCode::None:
+                return "none";
+            case SyncResponseErrorCode::DbIdMismatch:
+                return "db_id_mismatch";
+            case SyncResponseErrorCode::UnsupportedFullSnapshot:
+                return "unsupported_full_snapshot";
+            case SyncResponseErrorCode::ApplyConflict:
+                return "apply_conflict";
+        }
+        return "unknown";
+    }
+
     /// \brief Request from a replica to a primary node for new change batches.
     struct PullRequest {
         NodeId       requester{};
@@ -47,6 +75,15 @@ namespace sync {
         bool                     has_more = false;
         bool                     ok       = true;
         std::string              error;
+        /// \brief Optional machine-readable sync-level error code.
+        /// \details \c None means there is no structured sync classification;
+        /// callers may still inspect \c ok and \c error. When set on
+        /// \c ok=false responses, \c error_retryable describes whether the
+        /// failure can be recovered by protocol progress such as re-pulling
+        /// missing batches or resending after a fresher cursor. It does not
+        /// mean blindly replaying the identical request is always useful.
+        SyncResponseErrorCode    error_code = SyncResponseErrorCode::None;
+        bool                     error_retryable = false;
     };
 
     /// \brief Request carrying changes that the sender wants the receiver to
@@ -65,6 +102,15 @@ namespace sync {
         SyncCursor               receiver_have;
         bool                     ok = true;
         std::string              error;
+        /// \brief Optional machine-readable sync-level error code.
+        /// \details \c None means there is no structured sync classification;
+        /// callers may still inspect \c ok and \c error. When set on
+        /// \c ok=false responses, \c error_retryable describes whether the
+        /// failure can be recovered by protocol progress such as re-pulling
+        /// missing batches or resending after a fresher cursor. It does not
+        /// mean blindly replaying the identical request is always useful.
+        SyncResponseErrorCode    error_code = SyncResponseErrorCode::None;
+        bool                     error_retryable = false;
     };
 
 } // namespace sync
