@@ -137,6 +137,9 @@ void test_websocket_channel_cancel_unblocks_silent_exchange() {
     mdbxc::sync::simple_web::WebSocketSyncChannelConfig config;
     config.host = "127.0.0.1";
     config.port = server.port();
+    config.bounds.max_transport_message_bytes = 1024u;
+    require_true(config.bounds.max_transport_message_bytes == 1024u,
+                 "WebSocket channel bounds field was not configurable");
     mdbxc::sync::simple_web::WebSocketSyncChannel channel(config);
 
     mdbxc::sync::PullRequest request;
@@ -197,9 +200,32 @@ void test_websocket_channel_cancel_unblocks_silent_exchange() {
                  "WebSocket cancelled exchange reported wrong result");
 }
 
+void test_websocket_channel_rejects_oversized_outbound_message() {
+    mdbxc::sync::simple_web::WebSocketSyncChannelConfig config;
+    config.host = "127.0.0.1";
+    config.port = 1;
+    config.bounds.max_transport_message_bytes = 4u;
+    mdbxc::sync::simple_web::WebSocketSyncChannel channel(config);
+
+    bool rejected = false;
+    try {
+        mdbxc::sync::CancellationToken cancel;
+        std::vector<std::uint8_t> message(5u, 0x42u);
+        (void)channel.exchange_binary(message, cancel);
+    } catch (const std::length_error& e) {
+        rejected =
+            std::string(e.what()).find("max_transport_message_bytes") !=
+            std::string::npos;
+    }
+
+    require_true(rejected,
+                 "WebSocket channel accepted oversized outbound message");
+}
+
 } // namespace
 
 int main() {
     test_websocket_channel_cancel_unblocks_silent_exchange();
+    test_websocket_channel_rejects_oversized_outbound_message();
     return 0;
 }

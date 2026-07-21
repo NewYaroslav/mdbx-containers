@@ -155,6 +155,15 @@ For WebSocket, close codes `1001`, `1005`, `1006`, `1011`, `1012`, `1013`, and
 payload, and size limits, such as `1007`, `1008`, and `1009`, are permanent
 until the request or session changes.
 
+Concrete ready-made transport bindings expose `CodecBounds` in their config
+objects and reject oversized request/response bodies before handing bytes to
+`TransportMessageCodec`. Simple-Web HTTP can reject an oversized
+`Content-Length` before copying the request body into the adapter DTO; messages
+without a usable length header are still checked after the framework provides
+the buffered body. Simple-WebSocket and Kurlyk/libcurl also guard before sync
+decode, but their underlying libraries may already have buffered the frame or
+response content.
+
 Concrete `ISyncPeer` implementations that can classify transport failures
 should publish the most recent hint through `ISyncPeer::last_retry_hint()`.
 The default hint is unavailable, which means the peer did not provide advice

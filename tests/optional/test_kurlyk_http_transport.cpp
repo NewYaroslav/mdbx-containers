@@ -13,8 +13,10 @@
 int main() {
     mdbxc::sync::kurlyk::HttpSyncClientConfig config;
     config.base_url = "http://127.0.0.1:18080";
+    config.bounds.max_transport_message_bytes = 1024u;
 
     MDBXC_TEST_ASSERT(config.base_url == "http://127.0.0.1:18080");
+    MDBXC_TEST_ASSERT(config.bounds.max_transport_message_bytes == 1024u);
 
     return 0;
 }

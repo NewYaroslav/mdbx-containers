@@ -739,6 +739,11 @@ cancel, and batch counters without changing transport behavior.
 WebSocket binary messages. It complements `CodecBounds`: adapters can reject
 oversized transport frames before decoding, while the codec still validates the
 structured payload.
+Ready-made concrete bindings also expose `CodecBounds` in their config objects.
+Simple-Web HTTP rejects oversized `Content-Length` before copying the request
+body into an adapter DTO and checks the actual buffered body as a fallback.
+Simple-WebSocket and Kurlyk/libcurl check their buffered messages before
+calling the framework-neutral sync decoder.
 
 These helpers do not replace server-framework authentication or
 per-remote-client rate limiting before `HttpSyncServer::handle()`. They also

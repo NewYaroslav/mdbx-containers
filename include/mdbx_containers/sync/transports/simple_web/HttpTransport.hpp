@@ -38,6 +38,7 @@
 #include <cstdlib>
 #include <exception>
 #include <future>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -82,6 +83,58 @@ namespace simple_web {
             return it == headers.end() ? std::string() : it->second;
         }
 
+        inline bool decimal_size_exceeds_limit(
+                const std::string& value,
+                std::uint64_t limit) {
+            std::size_t pos = 0;
+            while (pos < value.size() &&
+                   (value[pos] == ' ' || value[pos] == '\t')) {
+                ++pos;
+            }
+            if (pos == value.size()) {
+                return false;
+            }
+
+            std::uint64_t parsed = 0;
+            bool saw_digit = false;
+            for (; pos < value.size(); ++pos) {
+                const char ch = value[pos];
+                if (ch >= '0' && ch <= '9') {
+                    saw_digit = true;
+                    const std::uint64_t digit =
+                        static_cast<std::uint64_t>(ch - '0');
+                    if (parsed >
+                        (std::numeric_limits<std::uint64_t>::max() -
+                         digit) / 10u) {
+                        return true;
+                    }
+                    parsed = parsed * 10u + digit;
+                    if (parsed > limit) {
+                        return true;
+                    }
+                    continue;
+                }
+
+                while (pos < value.size() &&
+                       (value[pos] == ' ' || value[pos] == '\t')) {
+                    ++pos;
+                }
+                return false;
+            }
+            return saw_digit && parsed > limit;
+        }
+
+        inline bool content_length_exceeds_limit(
+                const SimpleWeb::CaseInsensitiveMultimap& headers,
+                const CodecBounds& bounds) {
+            const std::string value = header_value(headers, "Content-Length");
+            if (value.empty()) {
+                return false;
+            }
+            return decimal_size_exceeds_limit(
+                value, bounds.max_transport_message_bytes);
+        }
+
         inline SimpleWeb::StatusCode to_simple_status(unsigned status) {
             return SimpleWeb::status_code(
                 std::to_string(static_cast<unsigned>(status)));
@@ -100,6 +153,8 @@ namespace simple_web {
         std::string bearer_token;
         /// \brief Extra headers sent with every sync POST request.
         std::vector<HttpSyncHeader> headers;
+        /// \brief Maximum accepted response body size before decode.
+        CodecBounds bounds;
     };
 
     /// \brief Simple-Web-Server HTTP client binding for \c HttpSyncPeer.
@@ -184,8 +239,18 @@ namespace simple_web {
                      ++it) {
                     http_add_header(out.headers, it->first, it->second);
                 }
-                out.body = detail::string_to_bytes(
-                    received->content.string());
+                if (detail::content_length_exceeds_limit(
+                        received->header, m_config.bounds)) {
+                    return make_payload_too_large_response(
+                        "HTTP sync response exceeds max_transport_message_bytes");
+                }
+                const std::string content = received->content.string();
+                if (content.size() >
+                    m_config.bounds.max_transport_message_bytes) {
+                    return make_payload_too_large_response(
+                        "HTTP sync response exceeds max_transport_message_bytes");
+                }
+                out.body = detail::string_to_bytes(content);
                 return out;
             } catch (const SimpleWeb::system_error& e) {
                 if (m_cancel_generation.load(std::memory_order_acquire) !=
@@ -243,6 +308,16 @@ namespace simple_web {
             return out;
         }
 
+        static HttpSyncResponse make_payload_too_large_response(
+                const std::string& diagnostic) {
+            HttpSyncResponse out;
+            out.status_code = 413;
+            out.content_type = "text/plain; charset=utf-8";
+            out.error = diagnostic;
+            out.body = detail::string_to_bytes(out.error);
+            return out;
+        }
+
         void set_active_client(Client* client) {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_active_client = client;
@@ -279,6 +354,8 @@ namespace simple_web {
         /// Use this when the same MDBX-backed \c SyncEngine is also touched
         /// by application code while the HTTP listener is running.
         std::mutex* handler_mutex = nullptr;
+        /// \brief Maximum accepted request body size before dispatch/decode.
+        CodecBounds bounds;
     };
 
     /// \brief Simple-Web-Server listener binding for \c HttpSyncServer.
@@ -395,14 +472,13 @@ namespace simple_web {
                             headers);
         }
 
-        HttpSyncRequest make_request(
+        HttpSyncRequest make_request_metadata(
                 const std::shared_ptr<Server::Request>& request) const {
             HttpSyncRequest in;
             in.method = request->method;
             in.target = request->path;
             in.content_type =
                 detail::header_value(request->header, "Content-Type");
-            in.body = detail::string_to_bytes(request->content.string());
             for (SimpleWeb::CaseInsensitiveMultimap::const_iterator it =
                      request->header.begin();
                  it != request->header.end();
@@ -416,6 +492,22 @@ namespace simple_web {
                 in.remote_address.clear();
             }
             return in;
+        }
+
+        bool load_request_body(
+                const std::shared_ptr<Server::Request>& request,
+                HttpSyncRequest& in) const {
+            if (detail::content_length_exceeds_limit(
+                    request->header, m_config.bounds)) {
+                return false;
+            }
+            const std::string body = request->content.string();
+            if (body.size() >
+                m_config.bounds.max_transport_message_bytes) {
+                return false;
+            }
+            in.body = detail::string_to_bytes(body);
+            return true;
         }
 
         static HttpSyncResponse make_rejected_response(
@@ -432,10 +524,26 @@ namespace simple_web {
             return out;
         }
 
+        static HttpSyncResponse make_payload_too_large_response(
+                const HttpSyncRequest& in) {
+            HttpSyncResponse out;
+            out.status_code = 413;
+            out.content_type = "text/plain; charset=utf-8";
+            http_copy_sync_correlation_headers(in.headers, out.headers);
+            out.error =
+                "HTTP sync request exceeds max_transport_message_bytes";
+            out.body = detail::string_to_bytes(out.error);
+            return out;
+        }
+
         void handle_post(
                 const std::shared_ptr<Server::Response>& response,
                 const std::shared_ptr<Server::Request>& request) {
-            const HttpSyncRequest in = make_request(request);
+            HttpSyncRequest in = make_request_metadata(request);
+            if (!load_request_body(request, in)) {
+                write_response(response, make_payload_too_large_response(in));
+                return;
+            }
             if (m_policy != nullptr) {
                 const SyncTransportDecision decision =
                     m_policy->check_http_request(in);
