@@ -278,6 +278,47 @@ int main() {
         nonnegative_pairs.push_back(std::make_pair(1, std::string("one")));
         MDBXC_TEST_ASSERT((kv.range(0, 1) == std::map<int, std::string>(nonnegative_pairs.begin(), nonnegative_pairs.end())));
         MDBXC_TEST_ASSERT(kv.range_values(0, 1) == (std::vector<std::string>{"zero", "one"}));
+
+        std::vector<std::pair<int, std::string> > signed_pairs;
+        signed_pairs.push_back(std::make_pair(-2, std::string("minus-two")));
+        signed_pairs.push_back(std::make_pair(-1, std::string("minus-one")));
+        signed_pairs.push_back(std::make_pair(0, std::string("zero")));
+        signed_pairs.push_back(std::make_pair(1, std::string("one")));
+        std::vector<std::pair<int, std::string> > loaded_pairs;
+        kv.load(loaded_pairs);
+        MDBXC_TEST_ASSERT(loaded_pairs == signed_pairs);
+        MDBXC_TEST_ASSERT(kv.range<std::vector>(-2, 1) == signed_pairs);
+        MDBXC_TEST_ASSERT(kv.range_values(-2, 1) ==
+               (std::vector<std::string>{"minus-two", "minus-one", "zero", "one"}));
+
+        std::vector<std::pair<int, std::string> > reverse_limited;
+        reverse_limited.push_back(std::make_pair(1, std::string("one")));
+        reverse_limited.push_back(std::make_pair(0, std::string("zero")));
+        reverse_limited.push_back(std::make_pair(-1, std::string("minus-one")));
+        MDBXC_TEST_ASSERT(kv.range_reverse(-2, 1, 3) == reverse_limited);
+
+        kv.clear();
+        kv.insert_or_assign(-2, "minus-two");
+        kv.insert_or_assign(0, "zero");
+#if __cplusplus >= 201703L
+        auto lower = kv.lower_bound(-1);
+        MDBXC_TEST_ASSERT(lower.has_value() && lower->first == 0);
+        auto upper = kv.upper_bound(-2);
+        MDBXC_TEST_ASSERT(upper.has_value() && upper->first == 0);
+        auto first = kv.first();
+        MDBXC_TEST_ASSERT(first.has_value() && first->first == -2);
+        auto last = kv.last();
+        MDBXC_TEST_ASSERT(last.has_value() && last->first == 0);
+#else
+        std::pair<bool, std::pair<int, std::string> > lower = kv.lower_bound_compat(-1);
+        MDBXC_TEST_ASSERT(lower.first && lower.second.first == 0);
+        std::pair<bool, std::pair<int, std::string> > upper = kv.upper_bound_compat(-2);
+        MDBXC_TEST_ASSERT(upper.first && upper.second.first == 0);
+        std::pair<bool, std::pair<int, std::string> > first = kv.first_compat();
+        MDBXC_TEST_ASSERT(first.first && first.second.first == -2);
+        std::pair<bool, std::pair<int, std::string> > last = kv.last_compat();
+        MDBXC_TEST_ASSERT(last.first && last.second.first == 0);
+#endif
     }
 
     {
