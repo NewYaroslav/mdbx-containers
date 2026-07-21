@@ -482,9 +482,15 @@ if(MDBXC_BUILD_TESTS)
         mdbxc_add_test_target(${test_name} ${test_file})
     endforeach()
 
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
+            ((CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND
+             NOT CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC"))
         mdbxc_add_test_target(utils_fast_math_test tests/utils_test.cpp)
         target_compile_options(utils_fast_math_test PRIVATE -ffast-math)
+    elseif((CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND
+            CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+        mdbxc_add_test_target(utils_fast_math_test tests/utils_test.cpp)
+        target_compile_options(utils_fast_math_test PRIVATE /fp:fast)
     endif()
 
     set(_mdbxc_generated_test_dir "${CMAKE_CURRENT_BINARY_DIR}/generated_tests")
