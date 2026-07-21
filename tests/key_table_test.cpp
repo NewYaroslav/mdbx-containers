@@ -242,6 +242,48 @@ int main() {
     }
 #endif
 
+    {
+        mdbxc::KeyTable<int> table(conn, "signed_integer_key_order");
+        table.clear();
+        table.insert(1);
+        table.insert(-2);
+        table.insert(0);
+        table.insert(-1);
+
+        MDBXC_TEST_ASSERT(table.retrieve_all<std::vector>() ==
+                          (std::vector<int>{-2, -1, 0, 1}));
+        MDBXC_TEST_ASSERT(table.operator()<std::vector>() ==
+                          (std::vector<int>{-2, -1, 0, 1}));
+        MDBXC_TEST_ASSERT(table.range<std::vector>(-2, 1) ==
+                          (std::vector<int>{-2, -1, 0, 1}));
+        MDBXC_TEST_ASSERT(table.range_reverse(-2, 1, 3) ==
+                          (std::vector<int>{1, 0, -1}));
+
+        table.clear();
+        table.insert(-2);
+        table.insert(0);
+
+#if __cplusplus >= 201703L
+        auto lower = table.lower_bound(-1);
+        MDBXC_TEST_ASSERT(lower.has_value() && lower.value() == 0);
+        auto upper = table.upper_bound(-2);
+        MDBXC_TEST_ASSERT(upper.has_value() && upper.value() == 0);
+        auto first = table.first();
+        MDBXC_TEST_ASSERT(first.has_value() && first.value() == -2);
+        auto last = table.last();
+        MDBXC_TEST_ASSERT(last.has_value() && last.value() == 0);
+#else
+        std::pair<bool, int> lower = table.lower_bound_compat(-1);
+        MDBXC_TEST_ASSERT(lower.first && lower.second == 0);
+        std::pair<bool, int> upper = table.upper_bound_compat(-2);
+        MDBXC_TEST_ASSERT(upper.first && upper.second == 0);
+        std::pair<bool, int> first = table.first_compat();
+        MDBXC_TEST_ASSERT(first.first && first.second == -2);
+        std::pair<bool, int> last = table.last_compat();
+        MDBXC_TEST_ASSERT(last.first && last.second == 0);
+#endif
+    }
+
     std::cout << "KeyTable test passed.\n";
     return 0;
 }

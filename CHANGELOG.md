@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+- Breaking storage-format change: signed integral keys stored with
+  `MDBX_INTEGERKEY` now use an order-preserving unsigned rank representation
+  instead of raw signed bytes. Existing DBIs created with older signed integer
+  key encoding must be rebuilt.
+
 ## [v1.0.2] - 2026-05-02
 - Added this changelog to track release history in a compact, release-oriented format.
 - Moved bundled dependency infrastructure from `libs/` to `external/`, including the `external/libmdbx` submodule path and related CMake references.

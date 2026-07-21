@@ -294,6 +294,60 @@ int main() {
 
     }
 
+    {
+        mdbxc::KeyMultiValueTable<int, std::string> table(conn, "multi_signed_integer_key_order");
+        table.clear();
+        table.insert(1, "one");
+        table.insert(-2, "minus-two");
+        table.insert(0, "zero");
+        table.insert(-1, "minus-one");
+
+        std::vector<std::pair<int, std::string> > signed_pairs;
+        signed_pairs.push_back(std::make_pair(-2, std::string("minus-two")));
+        signed_pairs.push_back(std::make_pair(-1, std::string("minus-one")));
+        signed_pairs.push_back(std::make_pair(0, std::string("zero")));
+        signed_pairs.push_back(std::make_pair(1, std::string("one")));
+
+        std::vector<std::pair<int, std::string> > loaded;
+        table.load(loaded);
+        assert_vector_equal(loaded, signed_pairs);
+        assert_vector_equal(table.range_vector(-2, 1), signed_pairs);
+        assert_vector_equal(table.range_values(-2, 1),
+                            std::vector<std::string>{"minus-two", "minus-one", "zero", "one"});
+
+        std::vector<std::pair<int, std::string> > reverse_limited;
+        reverse_limited.push_back(std::make_pair(1, std::string("one")));
+        reverse_limited.push_back(std::make_pair(0, std::string("zero")));
+        reverse_limited.push_back(std::make_pair(-1, std::string("minus-one")));
+        assert_vector_equal(table.range_reverse(-2, 1, 3), reverse_limited);
+
+        table.clear();
+        table.insert(-2, "minus-two");
+        table.insert(0, "zero");
+
+#if __cplusplus >= 201703L
+        auto lower = table.lower_bound(-1);
+        MDBXC_TEST_ASSERT(lower.has_value() && lower->first == 0);
+        auto upper = table.upper_bound(-2);
+        MDBXC_TEST_ASSERT(upper.has_value() && upper->first == 0);
+        auto first = table.first();
+        MDBXC_TEST_ASSERT(first.has_value() && first->first == -2);
+        auto last = table.last();
+        MDBXC_TEST_ASSERT(last.has_value() && last->first == 0);
+#else
+        std::pair<bool, std::pair<int, std::string> > lower =
+            table.lower_bound_compat(-1);
+        MDBXC_TEST_ASSERT(lower.first && lower.second.first == 0);
+        std::pair<bool, std::pair<int, std::string> > upper =
+            table.upper_bound_compat(-2);
+        MDBXC_TEST_ASSERT(upper.first && upper.second.first == 0);
+        std::pair<bool, std::pair<int, std::string> > first = table.first_compat();
+        MDBXC_TEST_ASSERT(first.first && first.second.first == -2);
+        std::pair<bool, std::pair<int, std::string> > last = table.last_compat();
+        MDBXC_TEST_ASSERT(last.first && last.second.first == 0);
+#endif
+    }
+
 #if __cplusplus >= 201703L
     {
         mdbxc::KeyMultiValueTable<int, std::string> table(conn, "multi_range_api_opt");

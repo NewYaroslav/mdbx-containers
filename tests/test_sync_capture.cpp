@@ -75,6 +75,14 @@ mdbxc::Embedding make_embedding(const std::vector<float>& values) {
     return e;
 }
 
+std::vector<std::uint8_t> storage_key_bytes(int key) {
+    mdbxc::SerializeScratch scratch;
+    const MDBX_val value = mdbxc::serialize_key(key, scratch);
+    const std::uint8_t* data =
+        static_cast<const std::uint8_t*>(value.iov_base);
+    return std::vector<std::uint8_t>(data, data + value.iov_len);
+}
+
 void test_no_sink_no_capture() {
     using namespace mdbxc;
     const std::string p = "test_capture_no_sink.mdbx";
@@ -1056,12 +1064,6 @@ void test_explicit_rollback_does_not_flush() {
         txn.commit();
     }
 
-    auto key_bytes = [](int k) {
-        std::vector<std::uint8_t> out(sizeof(int));
-        std::memcpy(out.data(), &k, sizeof(int));
-        return out;
-    };
-
     std::vector<std::uint8_t> batch1, batch2;
     {
         auto txn = conn->transaction(TransactionMode::READ_ONLY);
@@ -1083,10 +1085,10 @@ void test_explicit_rollback_does_not_flush() {
         return false;
     };
 
-    if (!batch_has_key(batch1, key_bytes(1))) throw std::runtime_error("seq 1 should contain key=1");
-    if (batch_has_key(batch1, key_bytes(2))) throw std::runtime_error("seq 1 should not contain rolled-back key=2");
-    if (!batch_has_key(batch2, key_bytes(3))) throw std::runtime_error("seq 2 should contain key=3");
-    if (batch_has_key(batch2, key_bytes(2))) throw std::runtime_error("seq 2 leaked rolled-back key=2");
+    if (!batch_has_key(batch1, storage_key_bytes(1))) throw std::runtime_error("seq 1 should contain key=1");
+    if (batch_has_key(batch1, storage_key_bytes(2))) throw std::runtime_error("seq 1 should not contain rolled-back key=2");
+    if (!batch_has_key(batch2, storage_key_bytes(3))) throw std::runtime_error("seq 2 should contain key=3");
+    if (batch_has_key(batch2, storage_key_bytes(2))) throw std::runtime_error("seq 2 leaked rolled-back key=2");
 
     conn->disconnect();
     cleanup(p);
@@ -1146,12 +1148,6 @@ void test_aborted_transaction_does_not_flush() {
         txn.commit();
     }
 
-    auto key_bytes = [](int k) {
-        std::vector<std::uint8_t> out(sizeof(int));
-        std::memcpy(out.data(), &k, sizeof(int));
-        return out;
-    };
-
     std::vector<std::uint8_t> batch1, batch2;
     {
         auto txn = conn->transaction(TransactionMode::READ_ONLY);
@@ -1175,16 +1171,16 @@ void test_aborted_transaction_does_not_flush() {
         return false;
     };
 
-    if (!batch_has_key(batch1, key_bytes(1))) {
+    if (!batch_has_key(batch1, storage_key_bytes(1))) {
         throw std::runtime_error("seq 1 should contain op with key=1");
     }
-    if (batch_has_key(batch1, key_bytes(2))) {
+    if (batch_has_key(batch1, storage_key_bytes(2))) {
         throw std::runtime_error("seq 1 should not contain aborted op with key=2");
     }
-    if (!batch_has_key(batch2, key_bytes(3))) {
+    if (!batch_has_key(batch2, storage_key_bytes(3))) {
         throw std::runtime_error("seq 2 should contain op with key=3 (post-abort commit)");
     }
-    if (batch_has_key(batch2, key_bytes(2))) {
+    if (batch_has_key(batch2, storage_key_bytes(2))) {
         throw std::runtime_error("seq 2 leaked aborted op with key=2");
     }
 

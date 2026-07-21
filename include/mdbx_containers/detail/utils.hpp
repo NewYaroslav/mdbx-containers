@@ -9,11 +9,13 @@
 /// \ingroup mdbxc_utils
 /// @{
 
+#include <array>
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <deque>
+#include <type_traits>
 #include <list>
 
 #include <mdbx.h>
@@ -92,6 +94,32 @@ namespace mdbxc {
         std::memcpy(&u, &d, sizeof(uint64_t));
         return (u & 0x8000000000000000ull) ? ~u : (u ^ 0x8000000000000000ull);
     }
+
+    inline uint32_t sortable_key_from_signed_int32(int32_t key) {
+        uint32_t raw;
+        std::memcpy(&raw, &key, sizeof(uint32_t));
+        return raw ^ 0x80000000u;
+    }
+
+    inline int32_t signed_int32_from_sortable_key(uint32_t key) {
+        key ^= 0x80000000u;
+        int32_t out;
+        std::memcpy(&out, &key, sizeof(int32_t));
+        return out;
+    }
+
+    inline uint64_t sortable_key_from_signed_int64(int64_t key) {
+        uint64_t raw;
+        std::memcpy(&raw, &key, sizeof(uint64_t));
+        return raw ^ 0x8000000000000000ull;
+    }
+
+    inline int64_t signed_int64_from_sortable_key(uint64_t key) {
+        key ^= 0x8000000000000000ull;
+        int64_t out;
+        std::memcpy(&out, &key, sizeof(int64_t));
+        return out;
+    }
     
     // --- Traits --- 
 
@@ -147,6 +175,22 @@ namespace mdbxc {
         static const bool value =
             std::is_same<T, std::set<std::string>>::value ||
             std::is_same<T, std::unordered_set<std::string>>::value;
+    };
+
+    /// \brief True for signed integral key types stored with MDBX_INTEGERKEY.
+    /// \details Signed keys use an unsigned rank representation before MDBX
+    /// sees them, so the physical INTEGERKEY order matches numeric signed
+    /// order. This is a breaking storage-format choice for pre-existing DBIs
+    /// created with older raw signed key bytes.
+    template<typename T>
+    struct is_signed_mdbx_integer_key {
+        static const bool value =
+            std::is_integral<T>::value &&
+            std::is_signed<T>::value &&
+            (std::is_same<T, int>::value ||
+             std::is_same<T, int32_t>::value ||
+             std::is_same<T, int64_t>::value ||
+             std::is_same<T, char>::value);
     };
 
     /// \brief Compile-time policy options for table behavior.
@@ -350,7 +394,8 @@ namespace mdbxc {
     template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
         std::is_integral<T>::value &&
-        (sizeof(T) <= 2), MDBX_val>::type
+        (sizeof(T) <= 2) &&
+        !is_signed_mdbx_integer_key<T>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
         (void)SafeIntegerKey;
         static_assert(sizeof(uint32_t) == 4, "Expected 4-byte wrapper");
@@ -358,12 +403,28 @@ namespace mdbxc {
         return sc.view_small_copy(&temp, sizeof(uint32_t));
     }
 
+    /// \brief Serializes a signed integral key into MDBX INTEGERKEY order.
+    /// \details The key is mapped to an unsigned rank so MDBX's unsigned
+    /// integer comparator returns signed numeric order.
+    template<bool SafeIntegerKey = true, typename T>
+    typename std::enable_if<
+        is_signed_mdbx_integer_key<T>::value &&
+        (sizeof(T) <= 4), MDBX_val>::type
+    serialize_key(const T& key, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
+        static_assert(sizeof(uint32_t) == 4, "Expected 4-byte integer");
+        const uint32_t temp =
+            sortable_key_from_signed_int32(static_cast<int32_t>(key));
+        return sc.view_small_copy(&temp, sizeof(uint32_t));
+    }
+
     /// \brief Serializes a 32-bit integral key.
     /// \tparam T Supported 32-bit type.
     template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
-        std::is_same<T, int32_t>::value ||
-        std::is_same<T, uint32_t>::value, MDBX_val>::type
+        (std::is_same<T, int32_t>::value ||
+         std::is_same<T, uint32_t>::value) &&
+        !is_signed_mdbx_integer_key<T>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
         static_assert(sizeof(uint32_t) == 4, "Expected 4-byte integer");
         return SafeIntegerKey
@@ -383,12 +444,29 @@ namespace mdbxc {
         return sc.view_small_copy(&temp, sizeof(uint32_t));
     }
 
+    /// \brief Serializes a signed 64-bit key into MDBX INTEGERKEY order.
+    /// \details The key is mapped to an unsigned rank so MDBX's unsigned
+    /// integer comparator returns signed numeric order.
+    template<bool SafeIntegerKey = true, typename T>
+    typename std::enable_if<
+        is_signed_mdbx_integer_key<T>::value &&
+        (sizeof(T) > 4) &&
+        (sizeof(T) <= 8), MDBX_val>::type
+    serialize_key(const T& key, SerializeScratch& sc) {
+        (void)SafeIntegerKey;
+        static_assert(sizeof(uint64_t) == 8, "Expected 8-byte integer");
+        const uint64_t temp =
+            sortable_key_from_signed_int64(static_cast<int64_t>(key));
+        return sc.view_small_copy(&temp, sizeof(uint64_t));
+    }
+
     /// \brief Serializes a 64-bit integral key.
     /// \tparam T Supported 64-bit type.
     template<bool SafeIntegerKey = true, typename T>
     typename std::enable_if<
-        std::is_same<T, int64_t>::value ||
-        std::is_same<T, uint64_t>::value, MDBX_val>::type
+        (std::is_same<T, int64_t>::value ||
+         std::is_same<T, uint64_t>::value) &&
+        !is_signed_mdbx_integer_key<T>::value, MDBX_val>::type
     serialize_key(const T& key, SerializeScratch& sc) {
         static_assert(sizeof(uint64_t) == 8, "Expected 8-byte integer");
         return SafeIntegerKey
@@ -415,6 +493,7 @@ namespace mdbxc {
         std::is_trivially_copyable<T>::value &&
         !std::is_same<T, std::string>::value &&
         !(std::is_integral<T>::value && sizeof(T) <= 2) &&
+        !is_signed_mdbx_integer_key<T>::value &&
         !std::is_same<T, int32_t>::value &&
         !std::is_same<T, uint32_t>::value &&
         !std::is_same<T, float>::value &&
@@ -865,7 +944,8 @@ namespace mdbxc {
     template<typename T>
     typename std::enable_if<
         std::is_integral<T>::value &&
-        (sizeof(T) <= 2), T>::type
+        (sizeof(T) <= 2) &&
+        !is_signed_mdbx_integer_key<T>::value, T>::type
     deserialize_key(const MDBX_val& val) {
         if (val.iov_len != sizeof(uint32_t)) {
             throw std::runtime_error("deserialize_key: size mismatch");
@@ -877,10 +957,38 @@ namespace mdbxc {
 
     template<typename T>
     typename std::enable_if<
-        std::is_same<T, int32_t>::value ||
-        std::is_same<T, uint32_t>::value ||
-        std::is_same<T, int64_t>::value ||
-        std::is_same<T, uint64_t>::value, T>::type
+        is_signed_mdbx_integer_key<T>::value &&
+        (sizeof(T) <= 4), T>::type
+    deserialize_key(const MDBX_val& val) {
+        if (val.iov_len != sizeof(uint32_t)) {
+            throw std::runtime_error("deserialize_key: size mismatch");
+        }
+        uint32_t raw;
+        std::memcpy(&raw, val.iov_base, sizeof(uint32_t));
+        return static_cast<T>(signed_int32_from_sortable_key(raw));
+    }
+
+    template<typename T>
+    typename std::enable_if<
+        is_signed_mdbx_integer_key<T>::value &&
+        (sizeof(T) > 4) &&
+        (sizeof(T) <= 8), T>::type
+    deserialize_key(const MDBX_val& val) {
+        if (val.iov_len != sizeof(uint64_t)) {
+            throw std::runtime_error("deserialize_key: size mismatch");
+        }
+        uint64_t raw;
+        std::memcpy(&raw, val.iov_base, sizeof(uint64_t));
+        return static_cast<T>(signed_int64_from_sortable_key(raw));
+    }
+
+    template<typename T>
+    typename std::enable_if<
+        (std::is_same<T, int32_t>::value ||
+         std::is_same<T, uint32_t>::value ||
+         std::is_same<T, int64_t>::value ||
+         std::is_same<T, uint64_t>::value) &&
+        !is_signed_mdbx_integer_key<T>::value, T>::type
     deserialize_key(const MDBX_val& val) {
         return deserialize_value<T>(val);
     }
@@ -942,6 +1050,7 @@ namespace mdbxc {
         std::is_trivially_copyable<T>::value &&
         !std::is_same<T, std::string>::value &&
         !(std::is_integral<T>::value && sizeof(T) <= 2) &&
+        !is_signed_mdbx_integer_key<T>::value &&
         !std::is_same<T, int32_t>::value &&
         !std::is_same<T, uint32_t>::value &&
         !std::is_same<T, float>::value &&
