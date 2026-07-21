@@ -210,13 +210,13 @@ void test_sync_components_reject_foreign_transactions() {
         expect_invalid_argument("SyncEngine::applied_cursor",
                                 [&engine, raw] { engine.applied_cursor(raw); });
         expect_invalid_argument_containing(
-            "SyncEngine::pull_full_snapshot",
-            "SyncEngine::pull_full_snapshot",
+            "SyncEngine::pull_changelog_page",
+            "SyncEngine::pull_changelog_page",
             [&engine, raw] {
                 PullRequest request;
                 request.max_batches = 10;
                 request.max_bytes = 1024;
-                engine.pull_full_snapshot(raw, 0, request);
+                engine.pull_changelog_page(raw, 0, request);
             });
 
         expect_invalid_argument("MetaStore::get_schema_version",
