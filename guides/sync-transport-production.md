@@ -129,6 +129,15 @@ For HTTP, transport status and sync DTO status are separate:
 - HTTP `2xx` means the transport request succeeded;
 - the decoded `PullResponse::ok` or `PushResponse::ok` still reports sync-level
   success or conflict;
+- decoded responses may also carry `SyncResponseErrorCode` and
+  `error_retryable` for sync-level failures such as DB id mismatch, unsupported
+  full-snapshot requests, or apply conflicts;
+- sync-level retryability means protocol recovery, for example re-pulling from
+  the persistent cursor after a sequence gap, not blindly resending the same
+  request;
+- `SyncWorkerPermanentFailurePolicy` applies only to classified transport
+  failures from `SyncTransportRetryHint`; sync-level response errors are
+  surfaced in worker round results, stage events, and status snapshots;
 - HTTP `408`, `425`, `429`, `500`, `502`, `503`, and `504` are retryable by
   default;
 - HTTP policy/framing failures such as `400`, `401`, `403`, `413`, and `415`

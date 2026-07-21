@@ -109,6 +109,10 @@ int main() {
     MDBXC_TEST_ASSERT(
         worker_options.permanent_failure_policy ==
         mdbxc::sync::SyncWorkerPermanentFailurePolicy::StopWorker);
+    MDBXC_TEST_ASSERT(
+        std::string(mdbxc::sync::sync_response_error_code_name(
+            mdbxc::sync::SyncResponseErrorCode::UnsupportedFullSnapshot)) ==
+        "unsupported_full_snapshot");
     mdbxc::sync::SyncCaptureScope* capture_scope = nullptr;
     HeaderSyncSink header_sink;
     (void)capture_scope;

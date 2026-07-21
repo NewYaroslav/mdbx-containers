@@ -390,7 +390,7 @@ payload itself.
 Locked contract:
 
 - Magic: 8 bytes `MDBXCPRT`.
-- Version: u16 little-endian, currently `2`.
+- Version: u16 little-endian, currently `3`.
 - Message type: u8 (`1=PullRequest`, `2=PullResponse`, `3=PushRequest`,
   `4=PushResponse`).
 - Message flags: u32 little-endian, currently zero. Unknown non-zero flags are
@@ -403,6 +403,16 @@ Locked contract:
 - `PullResponse` carries both `remote_have` (responder applied cursor) and
   optional `remote_tail` (responder changelog tail) so receivers can report
   catch-up progress without changing pagination semantics.
+- `PullResponse` and `PushResponse` carry a structured
+  `SyncResponseErrorCode` plus an `error_retryable` boolean after their
+  human-readable error string. `None` means no structured sync-level
+  classification is available. `error_retryable` describes protocol-level
+  recovery, not blind replay of the identical request: for example a
+  `SequenceGap` apply conflict is retryable after the caller catches up from a
+  fresher cursor, while DBI flag conflicts and unsupported full snapshots are
+  permanent until the caller changes behavior. Transport-local errors remain
+  represented by adapter status, close codes, response headers, and
+  `SyncTransportRetryHint`.
 - `CancellationToken` fields in request DTOs are local call-control state and
   are never serialized. Decoded request DTOs contain default non-cancellable
   tokens.
@@ -481,8 +491,12 @@ The reserved `seq=0, BATCH_HAS_MORE` full export/import format remains planned
 for v0.1 and is not the current cold-replica implementation.
 `PullRequest::request_full_snapshot=true` is rejected explicitly until that
 format is implemented. In v0.1 this is a sync-level protocol rejection carried
-as `PullResponse{ok=false, error=...}`; it does not produce a transport retry
-hint because pull responses do not yet carry structured error codes.
+as `PullResponse{ok=false, error=..., error_code=UnsupportedFullSnapshot}`; it
+does not produce a transport retry hint because the server returned a valid
+sync response rather than a transport failure.
+`SyncWorkerPermanentFailurePolicy` is transport-only; workers still expose
+sync-level response errors through round results, stage events, and status
+snapshots without treating them as permanent transport failures.
 
 ## Background worker lifecycle
 

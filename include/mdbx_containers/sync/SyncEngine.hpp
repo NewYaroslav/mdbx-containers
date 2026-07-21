@@ -275,11 +275,14 @@ namespace sync {
             if (!db_id_matches(request.db_id)) {
                 out.ok = false;
                 out.error = "db_id mismatch";
+                out.error_code = SyncResponseErrorCode::DbIdMismatch;
                 return out;
             }
             if (request.request_full_snapshot) {
                 out.ok = false;
                 out.error = "PullRequest::request_full_snapshot is not implemented";
+                out.error_code =
+                    SyncResponseErrorCode::UnsupportedFullSnapshot;
                 return out;
             }
 
@@ -324,6 +327,8 @@ namespace sync {
             if (request.request_full_snapshot) {
                 out.ok = false;
                 out.error = "PullRequest::request_full_snapshot is not implemented";
+                out.error_code =
+                    SyncResponseErrorCode::UnsupportedFullSnapshot;
                 return out;
             }
             txn = checked_external_txn(txn, "SyncEngine::pull_changelog_page");
@@ -357,6 +362,7 @@ namespace sync {
             if (!db_id_matches(request.db_id)) {
                 out.ok = false;
                 out.error = "db_id mismatch";
+                out.error_code = SyncResponseErrorCode::DbIdMismatch;
                 out.receiver_have = applied_cursor();
                 return out;
             }
@@ -364,9 +370,15 @@ namespace sync {
             for (const ChangeBatch& batch : request.batches) {
                 const ApplyOutcome outcome = apply_batch_ex(txn.handle(), batch);
                 if (outcome.result == ApplyResult::Conflict) {
+                    txn.rollback();
                     out.ok = false;
                     out.error = apply_conflict_message(outcome);
-                    return out;  // txn dtor rolls back; receiver_have stays stale
+                    out.error_code = SyncResponseErrorCode::ApplyConflict;
+                    out.error_retryable =
+                        outcome.conflict_reason ==
+                            ApplyConflictReason::SequenceGap;
+                    out.receiver_have = applied_cursor();
+                    return out;
                 }
             }
             txn.commit();

@@ -214,9 +214,15 @@ Operational rules:
   not a reliable conflict authority. `Custom` is deferred to v0.2.
 - `PullRequest::request_full_snapshot=true` is reserved for the future
   full export/import protocol. v0.1 responders reject it as
-  `PullResponse{ok=false, error=...}`. This is a sync-level protocol rejection,
-  not a transport retry hint; add a structured response error code before
-  treating it as machine-classified retry policy.
+  `PullResponse{ok=false, error=..., error_code=UnsupportedFullSnapshot}`.
+  This is a sync-level protocol rejection, not a transport retry hint. Code
+  that needs machine classification should inspect `SyncResponseErrorCode`
+  instead of parsing the human-readable `error` string.
+- `PushResponse::error_retryable` describes sync-level recovery. Sequence gaps
+  are retryable after the receiver catches up from its persistent applied
+  cursor; DBI name/flag conflicts, reserved DBI writes, and unsupported
+  full-snapshot requests are permanent until the caller changes behavior.
+  This flag is independent from `SyncTransportRetryHint`.
 - v0.1 sync captures normal write paths for `KeyValueTable`, `KeyTable`,
   `ValueTable`, and `SequenceTable`. `VectorStore` is sync-covered only because
   it persists through internal `SequenceTable` and `KeyValueTable` members.

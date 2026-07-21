@@ -8,7 +8,7 @@
 /// Envelope layout for all messages:
 /// \code
 ///   magic             "MDBXCPRT"   8 bytes
-///   codec_version     u16 le       = 2
+///   codec_version     u16 le       = 3
 ///   message_type      u8           1=pull request, 2=pull response,
 ///                                  3=push request, 4=push response
 ///   message_flags     u32 le       = 0 in v0.1
@@ -61,7 +61,7 @@ namespace sync {
         static std::size_t magic_size() { return 8; }
 
         /// \brief Supported transport codec version.
-        static std::uint16_t codec_version() { return 2; }
+        static std::uint16_t codec_version() { return 3; }
 
         /// \brief Reads the message type from a transport envelope.
         /// \details Validates magic, codec version, and mandatory flags but
@@ -105,6 +105,8 @@ namespace sync {
             append_bool(out, response.has_more);
             append_bool(out, response.ok);
             append_string(out, response.error, bounds);
+            append_response_error_code(out, response.error_code);
+            append_bool(out, response.error_retryable);
             validate_message_size(out, bounds);
             return out;
         }
@@ -133,6 +135,8 @@ namespace sync {
             append_cursor(out, response.receiver_have, bounds);
             append_bool(out, response.ok);
             append_string(out, response.error, bounds);
+            append_response_error_code(out, response.error_code);
+            append_bool(out, response.error_retryable);
             validate_message_size(out, bounds);
             return out;
         }
@@ -170,6 +174,8 @@ namespace sync {
             response.has_more = read_bool(cur);
             response.ok = read_bool(cur);
             response.error = read_string(cur, bounds);
+            response.error_code = read_response_error_code(cur);
+            response.error_retryable = read_bool(cur);
             check_consumed(cur);
             return response;
         }
@@ -200,6 +206,8 @@ namespace sync {
             response.receiver_have = read_cursor(cur, bounds);
             response.ok = read_bool(cur);
             response.error = read_string(cur, bounds);
+            response.error_code = read_response_error_code(cur);
+            response.error_retryable = read_bool(cur);
             check_consumed(cur);
             return response;
         }
@@ -304,6 +312,21 @@ namespace sync {
 
         static void append_bool(std::vector<std::uint8_t>& out, bool value) {
             append_u8(out, value ? 1u : 0u);
+        }
+
+        static void append_response_error_code(
+                std::vector<std::uint8_t>& out,
+                SyncResponseErrorCode code) {
+            switch (code) {
+                case SyncResponseErrorCode::None:
+                case SyncResponseErrorCode::DbIdMismatch:
+                case SyncResponseErrorCode::UnsupportedFullSnapshot:
+                case SyncResponseErrorCode::ApplyConflict:
+                    detail::append_u16_le(out,
+                        static_cast<std::uint16_t>(code));
+                    return;
+            }
+            throw std::logic_error("unknown SyncResponseErrorCode");
         }
 
         static void append_bytes(std::vector<std::uint8_t>& out,
@@ -421,6 +444,24 @@ namespace sync {
             const std::uint16_t value = detail::read_u16_le(cur.data + cur.pos);
             cur.pos += 2;
             return value;
+        }
+
+        static SyncResponseErrorCode read_response_error_code(Cursor& cur) {
+            const std::uint16_t value = read_u16_le(cur);
+            switch (value) {
+                case static_cast<std::uint16_t>(SyncResponseErrorCode::None):
+                    return SyncResponseErrorCode::None;
+                case static_cast<std::uint16_t>(
+                        SyncResponseErrorCode::DbIdMismatch):
+                    return SyncResponseErrorCode::DbIdMismatch;
+                case static_cast<std::uint16_t>(
+                        SyncResponseErrorCode::UnsupportedFullSnapshot):
+                    return SyncResponseErrorCode::UnsupportedFullSnapshot;
+                case static_cast<std::uint16_t>(
+                        SyncResponseErrorCode::ApplyConflict):
+                    return SyncResponseErrorCode::ApplyConflict;
+            }
+            throw std::runtime_error("Invalid SyncResponseErrorCode");
         }
 
         static std::uint32_t read_u32_le(Cursor& cur) {
