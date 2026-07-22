@@ -145,9 +145,12 @@ int main() {
     apply_event.generation = 1u;
     apply_event.applied_batches = 1u;
     apply_event.applied_ops = 1u;
+    apply_event.affected_dbi_names.push_back("header_table");
     apply_observer.on_sync_apply_committed(apply_event);
     MDBXC_TEST_ASSERT(apply_observer.calls == 1u);
     MDBXC_TEST_ASSERT(apply_observer.last_event.applied_ops == 1u);
+    MDBXC_TEST_ASSERT(
+        apply_observer.last_event.affected_dbi_names.size() == 1u);
     (void)capture_scope;
     (void)worker_guard;
     (void)node_session;

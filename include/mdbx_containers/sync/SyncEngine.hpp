@@ -385,6 +385,7 @@ namespace sync {
             Connection::SyncApplyNotification notification;
             std::size_t applied_batches = 0;
             std::size_t applied_ops = 0;
+            std::vector<std::string> affected_dbi_names;
             {
                 const Connection::SyncApplyWriteGuard sync_apply_guard =
                     m_conn->sync_apply_write_guard();
@@ -407,13 +408,18 @@ namespace sync {
                         !batch.ops.empty()) {
                         ++applied_batches;
                         applied_ops += batch.ops.size();
+                        for (std::size_t i = 0; i < batch.ops.size(); ++i) {
+                            add_unique_dbi_name(affected_dbi_names,
+                                                batch.ops[i].dbi_name);
+                        }
                     }
                 }
                 txn.commit();
                 if (applied_batches != 0u) {
                     notification =
                         m_conn->mark_sync_apply_committed(applied_batches,
-                                                          applied_ops);
+                                                          applied_ops,
+                                                          affected_dbi_names);
                 }
             }
             m_conn->notify_sync_apply_observers(notification);
@@ -557,6 +563,16 @@ namespace sync {
                 message += " (dbi='" + outcome.dbi_name + "')";
             }
             return message;
+        }
+
+        static void add_unique_dbi_name(std::vector<std::string>& names,
+                                        const std::string& dbi_name) {
+            for (std::size_t i = 0; i < names.size(); ++i) {
+                if (names[i] == dbi_name) {
+                    return;
+                }
+            }
+            names.push_back(dbi_name);
         }
 
         static std::uint32_t persistent_dbi_flags_mask() {

@@ -30,7 +30,8 @@ rules, see [Sync table coverage matrix](sync-table-coverage.md).
   health endpoints, and structured logging code that do not subscribe to
   observer callbacks.
 - `Connection::add_sync_apply_observer()` provides a post-commit remote apply
-  hook for coarse cache invalidation, metrics, and structured logging.
+  hook for cache invalidation, metrics, and structured logging. Events include
+  the unique affected DBI names in first-seen order.
 - HTTP and WebSocket framework-neutral seams use `TransportMessageCodec`; DTOs
   do not carry bearer tokens, cookies, remote addresses, request ids, or trace
   ids.
@@ -84,9 +85,9 @@ it can make replication appear successful while logical state diverges.
 
 ## Suggested Next PRs
 
-- Extend `ISyncApplyObserver` events with affected DBI names or table identity
-  filters so cache invalidation can be more precise than the current coarse
-  generation marker.
+- Add optional table identity filters on top of the affected DBI names already
+  reported by `ISyncApplyObserver`, if more cached wrappers need narrower
+  subscriptions.
 - Prototype `KeyMultiValueTable` capture/apply using the deferred
   single-writer/serialized unordered multiset design. Add explicit wire
   sub-operation framing and repeated-pair round-trip tests before enabling

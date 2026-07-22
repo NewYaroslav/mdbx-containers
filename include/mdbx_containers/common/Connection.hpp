@@ -303,12 +303,14 @@ namespace mdbxc {
             std::uint64_t generation = 0;
             std::size_t applied_batches = 0;
             std::size_t applied_ops = 0;
+            std::vector<std::string> affected_dbi_names;
             std::vector<SyncApplyObserverCallback> callbacks;
         };
 
         SyncApplyNotification mark_sync_apply_committed(
             std::size_t applied_batches,
-            std::size_t applied_ops);
+            std::size_t applied_ops,
+            const std::vector<std::string>& affected_dbi_names);
         void notify_sync_apply_observers(
             const SyncApplyNotification& notification);
         void begin_sync_apply_observer_callback(

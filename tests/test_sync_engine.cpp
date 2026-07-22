@@ -66,12 +66,14 @@ public:
         generation = event.generation;
         applied_batches = event.applied_batches;
         applied_ops = event.applied_ops;
+        affected_dbi_names = event.affected_dbi_names;
     }
 
     std::size_t calls;
     std::uint64_t generation;
     std::size_t applied_batches;
     std::size_t applied_ops;
+    std::vector<std::string> affected_dbi_names;
 };
 
 class ThrowingApplyObserver : public mdbxc::sync::ISyncApplyObserver {
@@ -1065,6 +1067,10 @@ void test_engine_handle_push_to_remote() {
         observer.applied_batches != 1u || observer.applied_ops != 1u) {
         throw std::runtime_error("remote apply observer did not receive event");
     }
+    if (observer.affected_dbi_names.size() != 1u ||
+        observer.affected_dbi_names[0] != "kv") {
+        throw std::runtime_error("remote apply observer DBI names incorrect");
+    }
     if (reentrant_observer.calls != 1u ||
         reentrant_observer.last_count != 0u) {
         throw std::runtime_error(
@@ -1269,6 +1275,57 @@ void test_sync_apply_observer_remove_waits_for_in_flight_callback() {
     if (observer.call_count() != 1u) {
         throw std::runtime_error(
             "removed observer should not receive later callbacks");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_sync_apply_observer_reports_unique_dbi_names() {
+    using namespace mdbxc;
+    const std::string p = "test_sync_apply_observer_dbi_names.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+
+    CountingApplyObserver observer;
+    const std::uint64_t token = conn->add_sync_apply_observer(&observer);
+
+    sync::ChangeBatch batch;
+    batch.origin_node_id = make_node(0x20);
+    batch.seq = 1;
+    for (int i = 0; i < 3; ++i) {
+        sync::ChangeOp op;
+        op.op_type = sync::ChangeOpType::Put;
+        op.dbi_name = i == 1 ? "second_table" : "first_table";
+        op.storage_key.push_back(static_cast<std::uint8_t>(0x40 + i));
+        op.value.push_back(static_cast<std::uint8_t>(0x50 + i));
+        batch.ops.push_back(op);
+    }
+
+    sync::PushRequest req;
+    req.sender = make_node(0x20);
+    req.db_id = make_node(0xD0);
+    req.batches.push_back(batch);
+
+    const sync::PushResponse resp = engine.handle_push(req);
+    if (!resp.ok) {
+        throw std::runtime_error("push should succeed: " + resp.error);
+    }
+    if (observer.calls != 1u || observer.applied_batches != 1u ||
+        observer.applied_ops != 3u) {
+        throw std::runtime_error("observer apply counts incorrect");
+    }
+    if (observer.affected_dbi_names.size() != 2u ||
+        observer.affected_dbi_names[0] != "first_table" ||
+        observer.affected_dbi_names[1] != "second_table") {
+        throw std::runtime_error("observer DBI names are not unique/stable");
+    }
+
+    if (!conn->remove_sync_apply_observer(token)) {
+        throw std::runtime_error("failed to remove observer");
     }
 
     conn->disconnect();
@@ -1988,6 +2045,8 @@ int main() {
         { "test_engine_push_gap_rolls_back",    &test_engine_push_gap_rolls_back },
         { "test_sync_apply_observer_remove_waits",
           &test_sync_apply_observer_remove_waits_for_in_flight_callback },
+        { "test_sync_apply_observer_reports_unique_dbi_names",
+          &test_sync_apply_observer_reports_unique_dbi_names },
         { "test_engine_push_multi_batch_gap_cursor",&test_engine_push_multi_batch_gap_reports_persistent_cursor },
         { "test_engine_handle_pull_wrong_db_id",&test_engine_handle_pull_wrong_db_id },
         { "test_engine_rejects_full_snapshot_request",
