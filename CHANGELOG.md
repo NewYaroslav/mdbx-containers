@@ -23,6 +23,8 @@ All notable changes to this project will be documented in this file.
   `FixedWindowHttpRateLimitPolicy`.
 - Added `WebSocketSyncChannelConfig::exchange_timeout` for the ready-made
   Simple-WebSocket client binding.
+- Added installed-package fallback for lowercase `mdbxConfig.cmake` and common
+  libmdbx target-name variants.
 - Added `CodecBounds` knobs to ready-made Simple-Web HTTP, Simple-WebSocket,
   and Kurlyk HTTP transport configs so oversized concrete transport bodies are
   rejected before sync codec decode.
