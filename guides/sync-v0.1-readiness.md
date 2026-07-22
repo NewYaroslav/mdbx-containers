@@ -80,8 +80,9 @@ it can make replication appear successful while logical state diverges.
 - Add small ergonomics helpers around common worker setup if examples continue
   to repeat the same lifecycle boilerplate.
 - Prototype `KeyMultiValueTable` capture/apply using the deferred
-  single-writer/serialized unordered multiset design, with repeated-pair
-  round-trip tests before enabling it.
+  single-writer/serialized unordered multiset design. Add explicit wire
+  sub-operation framing and repeated-pair round-trip tests before enabling
+  capture.
 - Implement the deferred full snapshot protocol before treating
   `SnapshotRequired` as automatically recoverable by sync itself.
 - Define explicit conflict/CRDT semantics before claiming general concurrent

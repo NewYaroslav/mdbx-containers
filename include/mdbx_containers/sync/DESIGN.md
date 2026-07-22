@@ -178,6 +178,40 @@ Planned logical operations:
 | `EraseRange` | serialized inclusive key range | Remove every physical pair whose key is in the range. |
 | `Clear` | no key/value payload | Remove all pairs in the table. |
 
+These operations require an explicit wire extension. Do not encode them as
+plain v0.1 `ChangeOpType::Put` / `Delete` records against the DUPSORT DBI:
+that would leak the local sequence-prefixed duplicate value and would make
+remote replay depend on another node's private prefix allocator. A future
+implementation must add either a table-kind/sub-operation field to `ChangeOp`
+or a versioned table-specific payload envelope before enabling capture.
+Receivers must not attempt raw apply when they do not understand the extension.
+An old v0.1 decoder can only fail closed at the codec/framing boundary, which
+normally surfaces as a transport/framing rejection rather than a structured
+`PushResponse`. A capability-aware receiver may return a structured permanent
+sync error such as `UnsupportedCapability` only after it can parse the common
+envelope and determine that the table-specific operation is unsupported.
+
+Implementation phases:
+
+1. Add a capability-readable envelope and codec framing for a
+   `KeyMultiValueTable` operation subtype. Keep the subtype behind a new
+   mandatory batch/op capability bit so old decoders fail closed before apply,
+   while upgraded decoders can reject unsupported capability combinations as
+   structured permanent sync errors.
+2. Implement apply helpers that call the public/logical multivalue semantics:
+   assign a fresh local duplicate prefix on `InsertOne`; match stripped public
+   values for `EraseOneValue` and `EraseAllValues`; use public key ordering for
+   range erasure.
+3. Add capture only after every mutating public method maps to one of the
+   logical operations above. A method that mutates the table but emits no
+   operation keeps the wrapper unsupported.
+4. Add negative compatibility tests: old decoders must reject the extension at
+   the framing boundary, while capability-aware decoders that lack the
+   `KeyMultiValueTable` subtype must return a structured permanent sync error.
+5. Add round-trip tests before documenting the wrapper as supported. Tests must
+   compare logical multiset counts, not raw duplicate bytes or local iteration
+   order.
+
 `append()` can be represented as a sequence of `InsertOne` operations in the
 same local batch. `erase(key, value)` should emit `EraseAllValues`.
 `reconcile()` should emit one `EraseOneValue` per surplus occurrence and one
@@ -226,6 +260,8 @@ sync.
 
 Required tests before enabling capture:
 
+- codec tests proving unknown multivalue operation bits/subtypes are rejected by
+  older or capability-limited decoders;
 - sink-level tests for `insert()`, `append()`, `erase(key)`,
   `erase(key, value)`, `erase_range()`, `clear()`, and `reconcile()`;
 - round-trip tests that preserve repeated identical `(key, value)`
