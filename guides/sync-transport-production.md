@@ -160,6 +160,9 @@ For WebSocket, close codes `1001`, `1005`, `1006`, `1011`, `1012`, `1013`, and
 `1014` are retryable by default. Close codes produced by policy, malformed
 payload, and size limits, such as `1007`, `1008`, and `1009`, are permanent
 until the request or session changes.
+The ready-made Simple-WebSocket client binding exposes `exchange_timeout` as a
+whole-exchange deadline covering connect, request send, and response wait. A
+zero timeout disables the deadline; negative values are rejected.
 
 Concrete ready-made transport bindings expose `CodecBounds` in their config
 objects and reject oversized request/response bodies before handing bytes to

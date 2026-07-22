@@ -33,6 +33,8 @@
 #include <server_ws.hpp>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <exception>
 #include <future>
@@ -106,6 +108,9 @@ namespace simple_web {
         unsigned char binary_frame_opcode = 130;
         /// \brief Maximum accepted binary request/response size.
         CodecBounds bounds;
+        /// \brief Whole exchange deadline. Zero disables the deadline.
+        std::chrono::milliseconds exchange_timeout =
+            std::chrono::milliseconds::zero();
     };
 
     class WebSocketExchangeState {
@@ -135,6 +140,32 @@ namespace simple_web {
         std::mutex m_mutex;
         bool m_completed = false;
         std::promise<std::vector<std::uint8_t> > m_promise;
+    };
+
+    class WebSocketDeadlineSignal {
+    public:
+        bool wait_until_finished(std::chrono::milliseconds timeout) {
+            std::unique_lock<std::mutex> lock(m_mutex);
+            if (!m_finished) {
+                m_changed.wait_for(lock, timeout, [this]() {
+                    return m_finished;
+                });
+            }
+            return m_finished;
+        }
+
+        void finish() {
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_finished = true;
+            }
+            m_changed.notify_all();
+        }
+
+    private:
+        std::mutex m_mutex;
+        std::condition_variable m_changed;
+        bool m_finished = false;
     };
 
     /// \brief Simple-WebSocket-Server channel binding for
@@ -175,6 +206,10 @@ namespace simple_web {
                 throw std::runtime_error(
                     "cancelled before WebSocket exchange");
             }
+            if (m_config.exchange_timeout.count() < 0) {
+                throw std::invalid_argument(
+                    "WebSocket exchange_timeout must not be negative");
+            }
 
             const std::uint64_t call_generation =
                 m_cancel_generation.load(std::memory_order_acquire);
@@ -195,6 +230,10 @@ namespace simple_web {
                 detail::ws_bytes_to_string(binary_message);
             const unsigned char opcode = m_config.binary_frame_opcode;
             const CodecBounds bounds = m_config.bounds;
+            const std::chrono::milliseconds exchange_timeout =
+                m_config.exchange_timeout;
+            std::shared_ptr<WebSocketDeadlineSignal> deadline_signal(
+                new WebSocketDeadlineSignal());
 
             client.on_open =
                 [state, outbound, opcode](
@@ -256,7 +295,31 @@ namespace simple_web {
                 throw std::runtime_error("cancelled before WebSocket start");
             }
 
-            client.start();
+            std::thread deadline_thread;
+            if (exchange_timeout.count() > 0) {
+                deadline_thread = std::thread(
+                    [state, deadline_signal, exchange_timeout, &client]() {
+                        if (!deadline_signal->wait_until_finished(
+                                exchange_timeout)) {
+                            state->set_exception(
+                                "WebSocket exchange deadline exceeded");
+                            client.stop();
+                        }
+                    });
+            }
+            try {
+                client.start();
+            } catch (...) {
+                deadline_signal->finish();
+                if (deadline_thread.joinable()) {
+                    deadline_thread.join();
+                }
+                throw;
+            }
+            deadline_signal->finish();
+            if (deadline_thread.joinable()) {
+                deadline_thread.join();
+            }
             if (cancel_token.is_cancellation_requested() ||
                 m_cancel_generation.load(std::memory_order_acquire) !=
                     call_generation) {

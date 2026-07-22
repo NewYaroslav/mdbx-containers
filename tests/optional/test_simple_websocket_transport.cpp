@@ -222,10 +222,83 @@ void test_websocket_channel_rejects_oversized_outbound_message() {
                  "WebSocket channel accepted oversized outbound message");
 }
 
+void test_websocket_channel_deadline_unblocks_silent_exchange() {
+    SilentWebSocketServer server;
+    server.start();
+
+    mdbxc::sync::simple_web::WebSocketSyncChannelConfig config;
+    config.host = "127.0.0.1";
+    config.port = server.port();
+    config.bounds.max_transport_message_bytes = 1024u;
+    config.exchange_timeout = std::chrono::milliseconds(50);
+    mdbxc::sync::simple_web::WebSocketSyncChannel channel(config);
+
+    mdbxc::sync::PullRequest request;
+    request.requester = make_node(0x20);
+    request.db_id = make_node(0xD0);
+    const std::vector<std::uint8_t> message =
+        mdbxc::sync::TransportMessageCodec::encode_pull_request(request);
+
+    std::promise<std::string> result_promise;
+    std::future<std::string> result = result_promise.get_future();
+    mdbxc::sync::CancellationSource cancel;
+    std::thread client(
+        [&channel, &message, &cancel, &result_promise]() {
+            try {
+                (void)channel.exchange_binary(message, cancel.token());
+                result_promise.set_value("completed");
+            } catch (const std::exception& e) {
+                result_promise.set_value(e.what());
+            } catch (...) {
+                result_promise.set_value("unknown");
+            }
+        });
+
+    const bool exchange_ready =
+        result.wait_for(std::chrono::seconds(5)) ==
+        std::future_status::ready;
+    if (!exchange_ready) {
+        channel.request_cancel();
+    }
+    if (client.joinable()) {
+        client.join();
+    }
+    server.stop();
+
+    require_true(exchange_ready,
+                 "WebSocket exchange did not unblock after deadline");
+    require_true(result.get().find("deadline") != std::string::npos,
+                 "WebSocket deadline exchange reported wrong result");
+}
+
+void test_websocket_channel_rejects_negative_deadline() {
+    mdbxc::sync::simple_web::WebSocketSyncChannelConfig config;
+    config.host = "127.0.0.1";
+    config.port = 1;
+    config.exchange_timeout = std::chrono::milliseconds(-1);
+    mdbxc::sync::simple_web::WebSocketSyncChannel channel(config);
+
+    bool rejected = false;
+    try {
+        mdbxc::sync::CancellationToken cancel;
+        std::vector<std::uint8_t> message(1u, 0x42u);
+        (void)channel.exchange_binary(message, cancel);
+    } catch (const std::invalid_argument& e) {
+        rejected =
+            std::string(e.what()).find("exchange_timeout") !=
+            std::string::npos;
+    }
+
+    require_true(rejected,
+                 "WebSocket channel accepted a negative exchange deadline");
+}
+
 } // namespace
 
 int main() {
     test_websocket_channel_cancel_unblocks_silent_exchange();
     test_websocket_channel_rejects_oversized_outbound_message();
+    test_websocket_channel_deadline_unblocks_silent_exchange();
+    test_websocket_channel_rejects_negative_deadline();
     return 0;
 }
