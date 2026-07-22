@@ -67,6 +67,7 @@ namespace mdbxc {
                                        const std::string& text,
                                        const std::string& metadata_json) {
         embedding.validate();
+        ensure_index_fresh();
         if (m_index.dim() != 0 && embedding.dim != m_index.dim()) {
             throw std::invalid_argument("Embedding dimension does not match index dimension");
         }
@@ -85,6 +86,7 @@ namespace mdbxc {
     inline std::vector<SearchResult> VectorStore::search(const Embedding& query,
                                                            std::size_t top_k) const {
         query.validate();
+        ensure_index_fresh();
 
         std::vector<VectorMatch> matches = m_index.search(query, top_k);
         std::vector<SearchResult> results;
@@ -110,6 +112,7 @@ namespace mdbxc {
     }
 
     inline bool VectorStore::erase(uint64_t id) {
+        ensure_index_fresh();
         auto txn = m_connection->transaction(TransactionMode::WRITABLE);
         bool emb_ok = m_embeddings.erase(id, txn);
         bool txt_ok = m_texts.erase(id, txn);
@@ -128,15 +131,50 @@ namespace mdbxc {
         m_metadata.clear(txn);
         txn.commit();
         m_index.clear();
+        m_sync_apply_generation_seen = current_sync_apply_generation();
     }
 
     inline void VectorStore::rebuild_index() {
-        m_index.clear();
-        std::vector<std::pair<uint64_t, Embedding>> entries;
-        m_embeddings.load(entries);
-        for (std::size_t i = 0; i < entries.size(); ++i) {
-            entries[i].second.validate();
-            m_index.add(entries[i].first, entries[i].second);
+        rebuild_index_impl();
+    }
+
+    inline void VectorStore::rebuild_index_impl() const {
+        for (;;) {
+            const std::uint64_t before = current_sync_apply_generation();
+            FlatVectorIndex rebuilt(m_metric);
+            std::vector<std::pair<uint64_t, Embedding>> entries;
+            m_embeddings.load(entries);
+            for (std::size_t i = 0; i < entries.size(); ++i) {
+                entries[i].second.validate();
+                rebuilt.add(entries[i].first, entries[i].second);
+            }
+
+            const std::uint64_t after = current_sync_apply_generation();
+            if (before != after) {
+                continue;
+            }
+
+            // Publish only an index built from a stable remote-apply
+            // generation, otherwise seen could acknowledge data that was not
+            // included in the loaded rows.
+            m_index = std::move(rebuilt);
+            m_sync_apply_generation_seen = after;
+            return;
+        }
+    }
+
+    inline std::uint64_t VectorStore::current_sync_apply_generation() const {
+#if MDBXC_SYNC_ENABLED
+        return m_connection->sync_apply_generation();
+#else
+        return 0;
+#endif
+    }
+
+    inline void VectorStore::ensure_index_fresh() const {
+        const std::uint64_t current = current_sync_apply_generation();
+        if (current != m_sync_apply_generation_seen) {
+            rebuild_index_impl();
         }
     }
 

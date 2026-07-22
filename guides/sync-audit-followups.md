@@ -68,11 +68,23 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - Reject invalid collection names before building internal DBI names.
 - Avoid silent collection-name collisions from lossy sanitization.
 
+### PR #169: Remote apply invalidation generation
+
+- Expose `Connection::sync_apply_generation()` as a lightweight invalidation
+  marker for successful remote sync apply commits.
+- Make already-open `VectorStore` instances lazily rebuild their RAM index
+  after the generation changes.
+
 ## Later Medium-Risk Follow-ups
 
-- Remote apply invalidation hooks: notify already-open table/view objects after
-  sync changes their backing DBIs so cached in-memory state such as
-  `VectorStore` RAM indexes can rebuild instead of going stale.
+- General remote apply invalidation hooks: notify future table/view objects
+  with their own caches after sync changes their backing DBIs. `VectorStore`
+  currently uses the connection-level generation marker; richer per-DBI or
+  callback-based invalidation can be added if more cached wrappers appear.
+- Connection-level sync apply/read barrier: serialize remote `handle_push()`
+  apply+generation publication against cache-backed readers such as
+  `VectorStore::search()`. Use `std::shared_mutex`/`shared_lock` for C++17 and
+  fall back to an exclusive `std::mutex` model for C++11.
 - Transport body limits before full buffering in concrete HTTP/WebSocket
   backends.
 - Rate-limit bucket eviction / hard caps.

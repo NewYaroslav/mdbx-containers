@@ -186,6 +186,11 @@ namespace mdbxc {
         return m_sync_capture;
     }
 
+    inline std::uint64_t Connection::sync_apply_generation() const {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        return m_sync_apply_generation;
+    }
+
     inline std::uint64_t Connection::sync_capture_token() const {
         return m_sync_capture_token;
     }
@@ -203,6 +208,11 @@ namespace mdbxc {
         m_sync_capture = restore_sink;
         m_sync_capture_token = restore_token;
         return true;
+    }
+
+    inline void Connection::mark_sync_apply_committed() {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        ++m_sync_apply_generation;
     }
 
     inline void Connection::on_pre_commit(MDBX_txn* txn) {

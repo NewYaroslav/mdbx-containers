@@ -93,7 +93,7 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 | `KeyTable` | Supported | Captures insert/delete, range erase, reconcile/clear paths that operate on physical keys. |
 | `ValueTable` | Supported | Captures singleton put/delete/clear using its fixed physical key. |
 | `SequenceTable` | Supported | Captures set/append/delete/clear against stable `uint64_t` record ids. `append()` remains a local single-writer helper; external synchronization is still required for concurrent appenders. |
-| `VectorStore` | Supported indirectly | Does not own a separate wire format. Its persistent writes go through `SequenceTable` and `KeyValueTable` member tables. |
+| `VectorStore` | Supported indirectly | Does not own a separate wire format. Its persistent writes go through `SequenceTable` and `KeyValueTable` member tables. Already-open instances refresh their RAM index lazily after completed remote apply when the connection sync-apply generation changes. |
 | `AnyValueTable` | Not supported in v0.1 | Deferred until heterogeneous value type tags are part of the sync wire format. |
 | `KeyMultiValueTable` | Not supported in v0.1 | Deferred until unordered multiset replication and DUPSORT duplicate-value payload framing are implemented and tested. |
 | `HashedKeyValueStore` | Not supported in v0.1 | Deferred until hash-index and identity-key mapping semantics are specified. |
@@ -106,6 +106,16 @@ new wire-format semantics.
 be non-empty and contain only ASCII letters, digits, `_`, and `-`; unsupported
 characters are rejected before internal DBI names are built. This prevents
 different logical collections from collapsing to the same physical DBI names.
+
+`Connection::sync_apply_generation()` is a coarse invalidation marker for
+remote sync apply. `SyncEngine::handle_push()` increments it after a successful
+commit that applied at least one incoming operation. `VectorStore` stores the
+last seen generation and rebuilds its in-memory index before index-dependent
+operations when the value changes. This is an inter-operation invalidation
+contract, not a concurrent apply/read barrier: applications that run
+`VectorStore` operations at the same time as background remote `handle_push()`
+on the same connection must still serialize those operations externally until
+a connection-level apply/read barrier is added.
 
 ## Deferred `KeyMultiValueTable` sync design
 

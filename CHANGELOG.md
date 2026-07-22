@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 - Breaking API behavior change: `VectorStore` collection names are now
   validated instead of lossy-sanitized. Names must be non-empty and contain
   only ASCII letters, digits, `_`, and `-`.
+- Added `Connection::sync_apply_generation()` and made already-open
+  `VectorStore` instances lazily refresh their RAM index between completed
+  operations after successful remote sync apply commits.
 - Breaking API cleanup: removed the historical
   `SyncEngine::pull_full_snapshot()` compatibility wrapper. Use
   `SyncEngine::pull_changelog_page()` for retained changelog replay; true full
