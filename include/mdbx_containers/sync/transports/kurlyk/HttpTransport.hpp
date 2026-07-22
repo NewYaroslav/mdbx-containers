@@ -39,7 +39,8 @@
 #include <string>
 #include <vector>
 
-#include <mdbx_containers/sync/transport.hpp>
+#include <mdbx_containers/sync/sync_module.hpp>
+#include <mdbx_containers/sync/HttpTransport.hpp>
 
 #if !MDBXC_SYNC_ENABLED
 #error "mdbx_containers/sync/transports/kurlyk/HttpTransport.hpp requires MDBXC_SYNC_ENABLED=1"

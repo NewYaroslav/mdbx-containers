@@ -5,6 +5,15 @@
 /// \file AppliedStore.hpp
 /// \brief Tracks the last contiguous applied \c seq per origin \c NodeId.
 
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+
+#include <mdbx.h>
+
+#include "../../detail/utils.hpp"
+#include "../common.hpp"
+
 namespace mdbxc {
 namespace sync {
 

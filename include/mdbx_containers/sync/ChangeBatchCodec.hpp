@@ -34,6 +34,7 @@
 /// decode error. \c BATCH_COMPRESSED_ZSTD is reserved and explicitly
 /// rejected.
 
+#include "ChangeBatch.hpp"
 #include "CodecBounds.hpp"
 #include "codec_flags.hpp"
 #include "common.hpp"
