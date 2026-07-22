@@ -52,6 +52,8 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
   invalidation, metrics, and logging after successful remote apply commits.
 - PR #181 added `SyncWorkerGuard` as an RAII helper for one background worker
   session.
+- PR #182 added an application-facing example that combines
+  `SyncCaptureScope`, `SyncWorkerGuard`, and `ISyncApplyObserver`.
 
 ## Current PR Sequence
 
