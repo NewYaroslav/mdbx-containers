@@ -76,6 +76,8 @@ These table families intentionally emit no `ChangeOp` in v0.1:
 - `KeyMultiValueTable`, until the deferred unordered multiset design for
   single-writer or causally serialized updates in `sync/DESIGN.md` is
   implemented and covered by capture and round-trip tests.
+- `KeyOrderedMultiValueTable`, until its ordered multi-value sync wire contract
+  and round-trip tests are implemented.
 - `HashedKeyValueStore`, until the relationship between logical key bytes,
   physical storage keys, and hash-index entries is specified.
 
@@ -96,8 +98,8 @@ it can make replication appear successful while logical state diverges.
   `SnapshotRequired` as automatically recoverable by sync itself.
 - Define explicit conflict/CRDT semantics before claiming general concurrent
   multi-writer convergence for `KeyMultiValueTable`.
-- Design `KeyOrderedMultiValueTable<K, V>` separately if distributed histories
-  need order convergence across multi-writer nodes.
+- Add sync capture/apply for `KeyOrderedMultiValueTable<K, V>` only after its
+  ordered-history wire identity and conflict semantics are specified.
 - Evaluate whether any `KeyMultiValueTable` framing ideas carry over to
   `AnyValueTable` and `HashedKeyValueStore`.
 

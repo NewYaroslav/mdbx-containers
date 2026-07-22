@@ -19,6 +19,7 @@ source of truth.
 | One true singleton object in a named table | `ValueTable<V>` | persistent variable | Best for metadata, config snapshots, module state, schema/version records, and checkpoints. |
 | Unique keys only | `KeyTable<K>` | `std::set` | Stores serialized keys with empty values. |
 | Multiple values per key | `KeyMultiValueTable<K, V>` | `std::multimap` | Preserves repeated identical `(key, value)` pairs. |
+| Ordered values per key | `KeyOrderedMultiValueTable<K, V>` | grouped append log | Preserves repeated values and current append order within each key. |
 | Append-only stable-id sequence | `SequenceTable<V>` | `std::vector`-like append, but sparse | Stable uint64_t ids; erase does not shift indices. |
 | Different value types by key | `AnyValueTable<K>` | Heterogeneous key-value store | Caller names value type on each access. |
 
@@ -33,7 +34,11 @@ Choose the narrowest table that represents the data:
 - Use `HashedKeyValueStore` when keys are strings or byte vectors and a compact
   hash-index lookup path is preferable to ordering by full original key bytes.
 - Use `KeyMultiValueTable` for event lists, secondary indexes, histories, and
-  any model where repeated values for the same key must remain visible.
+  any model where repeated values for the same key must remain visible but
+  unordered multiset reconciliation is enough.
+- Use `KeyOrderedMultiValueTable` when repeated values for one key must remain
+  visible in their current append order, such as per-entity timelines or ordered
+  histories.
 - Use `AnyValueTable` only for small heterogeneous keyed settings where values
   under one stable key domain genuinely need different C++ types. It is not a
   replacement for schema design or a typed singleton object.
@@ -111,6 +116,10 @@ Important differences:
 - `KeyMultiValueTable::append()` inserts every source pair as a stored pair.
 - `KeyMultiValueTable::reconcile()` compares pair multiplicity, keeps matching
   records, deletes surplus records, and inserts missing records.
+- `KeyOrderedMultiValueTable::append()` appends after the currently last value
+  for that key.
+- `KeyOrderedMultiValueTable::replace_with()` clears the table and appends
+  source pairs in source iteration order.
 
 ## KeyValueTable
 
@@ -163,7 +172,8 @@ Use it for:
 
 Avoid it when:
 
-- Repeated values for a key are meaningful. Use `KeyMultiValueTable`.
+- Repeated values for a key are meaningful. Use `KeyMultiValueTable`, or
+  `KeyOrderedMultiValueTable` when their order is meaningful too.
 - Only membership matters. Use `KeyTable`.
 
 ## HashedKeyValueStore
@@ -210,7 +220,8 @@ Use it for:
 before `mdbx_put` when set to a positive value. The default is `-1`, so the
 proactive check is disabled and MDBX returns its own storage error. Set an
 explicit positive limit, such as `16 * 1024`, to enable an application-level
-guard. This limit applies to `KeyMultiValueTable` stored values and
+guard. This limit applies to `KeyMultiValueTable` and
+`KeyOrderedMultiValueTable` stored duplicate values, and to
 `HashedKeyValueStore<..., HashedStoreLayout::SmallValues>`.
 
 ## KeyTable
@@ -253,7 +264,8 @@ Use it for:
 Avoid it when:
 
 - A key needs a payload. Use `KeyValueTable`.
-- A key needs multiple payloads. Use `KeyMultiValueTable`.
+- A key needs multiple payloads. Use `KeyMultiValueTable`, or
+  `KeyOrderedMultiValueTable` when per-key order is part of the model.
 
 ## ValueTable
 
@@ -427,6 +439,70 @@ Avoid it when:
 - Only one current value per key matters. Use `KeyValueTable`.
 - Exact repeat preservation is not needed and a unique set is enough. Consider
   `KeyTable` or `KeyValueTable` depending on shape.
+
+## KeyOrderedMultiValueTable
+
+`KeyOrderedMultiValueTable<K, V>` stores multiple values for the same key and
+makes current append order part of the public contract. It uses an MDBX DUPSORT
+table where duplicate values are stored as `big-endian-order || serialized-value`.
+Public reads strip the order prefix and return only user values. The internal
+order prefix is not a stable public record id and may be reused after deleting
+the tail value for a key, deleting the key, or clearing the table.
+
+`MDBX_DB_ACCEDE` is intended only for DBIs previously created with the same
+`KeyOrderedMultiValueTable` storage contract. The wrapper validates persistent
+MDBX flags and, for a non-empty `MDBX_INTEGERKEY` DBI, the physical key width.
+No persistent format marker is stored yet, so the caller remains responsible
+for ensuring that duplicate values use the `KeyOrderedMultiValueTable`
+order-prefix format and the same key/value serialization contract.
+
+Write methods:
+
+- `append(key, value)` always creates a separate stored value after the
+  currently last value for that key.
+- `insert(key, value)` is an alias for `append(key, value)`.
+- `append(vector<pair<K, V>>)` appends source pairs in vector iteration order.
+- `replace_with(vector<pair<K, V>>)` clears the table and appends the source
+  pairs in vector iteration order.
+- `operator=(vector<pair<K, V>>)` delegates to `replace_with()`.
+- `erase(key)` removes all values for a key.
+- `erase(key, value)` removes all exact matching values under a key.
+- `erase_at(key, index)` removes the zero-based value position under a key.
+- `clear()` removes all pairs.
+
+Read/meta methods:
+
+- `find(key)` returns `std::vector<ValueT>` in current append order for that key.
+- `range_vector(from_key, to_key)` returns pairs in MDBX key order and current
+  per-key append order.
+- `retrieve_all_vector()` returns every stored pair as a vector element.
+- `contains()` and `count()` mirror the key and key-value helpers from
+  `KeyMultiValueTable`.
+
+Comparison with `KeyMultiValueTable`:
+
+| Property | `KeyMultiValueTable` | `KeyOrderedMultiValueTable` |
+| --- | --- | --- |
+| Single insert | Adds one physical pair. | Appends one value to the current per-key sequence. |
+| Bulk assignment | `reconcile()` treats pair multiplicity as state and keeps matching records. | `replace_with()` treats vector iteration order as state and rebuilds the table. |
+| Repeated identical values | Preserved. | Preserved. |
+| Internal sequence prefix | Hidden physical detail for duplicate preservation. | Hidden physical detail for current per-key presentation order. |
+| Public order/id returned from append | None. | None. |
+| Sync capture | Deferred. | Deferred. |
+
+Use it for:
+
+- Per-entity timelines.
+- Ordered histories where repeated identical values are meaningful.
+- Grouped append logs that need key-range scans and current per-key order.
+
+Avoid it when:
+
+- Only pair multiplicity matters. Use `KeyMultiValueTable`.
+- One global sequence is enough. Use `SequenceTable`.
+- Sync v0.1 replication is required. This wrapper intentionally emits no
+  `ChangeOp` until its ordered multi-value sync contract is implemented and
+  tested.
 
 ## AnyValueTable
 

@@ -6,13 +6,15 @@
 /// \brief Includes the table wrappers only.
 /// \details
 /// Pulls in every table wrapper (KeyValue, Key, Value, Sequence,
-/// HashedKeyValue, KeyMultiValue, AnyValue, Hash) but NOT the sync or
-/// vector subsystems. Use when the project only needs the table API.
+/// HashedKeyValue, KeyMultiValue, KeyOrderedMultiValue, AnyValue, Hash) but
+/// NOT the sync or vector subsystems. Use when the project only needs the
+/// table API.
 
 #include "mdbx_containers/AnyValueTable.hpp"
 #include "mdbx_containers/Hash.hpp"
 #include "mdbx_containers/HashedKeyValueStore.hpp"
 #include "mdbx_containers/KeyMultiValueTable.hpp"
+#include "mdbx_containers/KeyOrderedMultiValueTable.hpp"
 #include "mdbx_containers/KeyTable.hpp"
 #include "mdbx_containers/KeyValueTable.hpp"
 #include "mdbx_containers/SequenceTable.hpp"

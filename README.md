@@ -19,6 +19,7 @@
 - `AnyValueTable<K>` stores heterogeneous values by caller-selected type and supports typed `set`, `insert`, `get`, `find`, `get_or`, `update`, `contains`, `erase`, and `keys`.
 - `KeyTable<K>` stores unique keys with a `std::set`-like API: `insert`, `contains`, `range`, `for_each_range`, `filter_range`, `lower_bound`, `upper_bound`, `range_reverse`, `erase_range`, `clear`, `load`, `reconcile`, and related helpers.
 - `KeyMultiValueTable<K, V>` stores multiple values per key with a `std::multimap`-like API, streaming and materialized key-range scans, reverse scans, range erasure, and repeated identical `(key, value)` pair preservation.
+- `KeyOrderedMultiValueTable<K, V>` stores multiple values per key where current append order is part of the API; repeated identical values stay visible and `find(key)` returns values in order.
 - `SequenceTable<ValueT>` stores values by stable uint64_t id with append-only semantics and sparse index support. Append returns a stable id; erase does not reindex following records.
 - `AnyValueTable` type-tag prefix verification is opt-in via `set_type_tag_check(true)` and is disabled by default for compatibility with existing raw records.
 - `VectorStore` is an MVP embedded vector store for local RAG: persistent MDBX
@@ -56,14 +57,13 @@
 - v0.1 captures normal write paths for `KeyValueTable`, `KeyTable`,
   `ValueTable`, and `SequenceTable`; `VectorStore` is replicated indirectly
   through its internal `SequenceTable` and `KeyValueTable` members.
-- `AnyValueTable`, `KeyMultiValueTable`, and `HashedKeyValueStore` are not
-  replicated in v0.1. `KeyMultiValueTable` has a deferred unordered multiset
-  sync design for single-writer or causally serialized updates in
-  `sync/DESIGN.md`; general concurrent multi-writer conflict semantics and
-  order-preserving distributed histories are deferred to future work such as
-  `KeyOrderedMultiValueTable<K, V>`. Implementation remains disabled until
-  capture and round-trip tests exist. `AnyValueTable` and `HashedKeyValueStore`
-  still need type-tag and hash-index identity designs.
+- `AnyValueTable`, `KeyMultiValueTable`, `KeyOrderedMultiValueTable`, and
+  `HashedKeyValueStore` are not replicated in v0.1. `KeyMultiValueTable` has a
+  deferred unordered multiset sync design in `sync/DESIGN.md`.
+  `KeyOrderedMultiValueTable` is the order-sensitive table API, but its sync
+  capture/apply contract remains disabled until capture and round-trip tests
+  exist. `AnyValueTable` and `HashedKeyValueStore` still need type-tag and
+  hash-index identity designs.
 - Application CRUD code does not need per-method sync wrappers for supported
   tables. Attach `ThreadLocalChangeAccumulator` to the writing `Connection`;
   use `SyncCaptureScope` for bounded write phases, or the lower-level
@@ -298,6 +298,19 @@ events.insert(7, "created"); // exact repeats are preserved
 events.insert(7, "sent");
 
 std::vector<std::string> values = events.find(7);
+```
+
+### Ordered multi-value table
+
+```cpp
+#include <mdbx_containers/KeyOrderedMultiValueTable.hpp>
+
+mdbxc::KeyOrderedMultiValueTable<int, std::string> timeline(conn, "timeline");
+timeline.append(7, "created");
+timeline.append(7, "created"); // exact repeats are preserved
+timeline.append(7, "sent");
+
+std::vector<std::string> ordered_values = timeline.find(7);
 ```
 
 ### Manual transaction

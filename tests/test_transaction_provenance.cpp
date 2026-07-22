@@ -3,6 +3,7 @@
 #include <mdbx_containers/AnyValueTable.hpp>
 #include <mdbx_containers/HashedKeyValueStore.hpp>
 #include <mdbx_containers/KeyMultiValueTable.hpp>
+#include <mdbx_containers/KeyOrderedMultiValueTable.hpp>
 #include <mdbx_containers/KeyTable.hpp>
 #include <mdbx_containers/KeyValueTable.hpp>
 #include <mdbx_containers/SequenceTable.hpp>
@@ -88,6 +89,7 @@ void test_public_tables_reject_foreign_transactions() {
     mdbxc::SequenceTable<int> sequence(conn_a, "sequence");
     mdbxc::AnyValueTable<int> any(conn_a, "any");
     mdbxc::KeyMultiValueTable<int, std::string> multi(conn_a, "multi");
+    mdbxc::KeyOrderedMultiValueTable<int, std::string> ordered_multi(conn_a, "ordered_multi");
     mdbxc::HashedKeyValueStore<std::string, std::string> hashed(conn_a, "hashed");
 
     {
@@ -122,6 +124,10 @@ void test_public_tables_reject_foreign_transactions() {
                                 [&multi, raw] {
                                     multi.insert(1, std::string("value"), raw);
                                 });
+        expect_invalid_argument("KeyOrderedMultiValueTable raw txn",
+                                [&ordered_multi, raw] {
+                                    ordered_multi.append(1, std::string("value"), raw);
+                                });
         expect_invalid_argument("HashedKeyValueStore raw txn",
                                 [&hashed, raw] {
                                     hashed.insert_or_assign(std::string("key"),
@@ -137,6 +143,7 @@ void test_public_tables_reject_foreign_transactions() {
     MDBXC_TEST_ASSERT(sequence.count() == 0u);
     MDBXC_TEST_ASSERT(!any.contains(1));
     MDBXC_TEST_ASSERT(multi.count() == 0u);
+    MDBXC_TEST_ASSERT(ordered_multi.count() == 0u);
     MDBXC_TEST_ASSERT(hashed.count() == 0u);
 
     conn_a->disconnect();

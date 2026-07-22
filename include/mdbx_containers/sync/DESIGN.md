@@ -96,6 +96,7 @@ Wire is transport-agnostic, codec is versioned, storage uses named DBIs.
 | `VectorStore` | Supported indirectly | Does not own a separate wire format. Its persistent writes go through `SequenceTable` and `KeyValueTable` member tables. Already-open instances refresh their RAM index lazily after completed remote apply when the connection sync-apply generation changes. |
 | `AnyValueTable` | Not supported in v0.1 | Deferred until heterogeneous value type tags are part of the sync wire format. |
 | `KeyMultiValueTable` | Not supported in v0.1 | Deferred until unordered multiset replication and DUPSORT duplicate-value payload framing are implemented and tested. |
+| `KeyOrderedMultiValueTable` | Not supported in v0.1 | Local ordered multi-value table exists, but sync capture/apply is deferred until ordered-history wire identity and conflict semantics are specified and tested. |
 | `HashedKeyValueStore` | Not supported in v0.1 | Deferred until hash-index and identity-key mapping semantics are specified. |
 
 Do not add `record_op()` paths for unsupported table types without first
@@ -176,8 +177,8 @@ Order-sensitive APIs such as `find(key)`, `retrieve_all_vector()`, and
 multiple nodes write values for the same key. The order and multiplicity
 converge only when the application uses one authoritative writer for the
 relevant key/logical dataset or otherwise serializes conflicting updates before
-they are replicated. Ordered distributed history belongs to a separate future
-table.
+they are replicated. Ordered distributed history belongs to the separate
+`KeyOrderedMultiValueTable` API and still needs its own sync contract.
 
 Planned logical operations:
 
@@ -246,13 +247,21 @@ Neither order-sensitive iteration nor concurrent destructive-update convergence
 is guaranteed for general multi-writer `KeyMultiValueTable` replication. The
 sequence prefix remains a local storage detail and is not a cross-node identity.
 
-### Future ordered table
+### Deferred `KeyOrderedMultiValueTable` sync design
 
-If the library needs replicated per-key histories, event timelines, queues, or
-other APIs where cross-node order is part of the contract, add a separate
-`KeyOrderedMultiValueTable<K, V>` instead of overloading
-`KeyMultiValueTable`. That table should store an explicit globally stable order
-identity, for example:
+`KeyOrderedMultiValueTable<K, V>` exists as a local table API for replicated
+per-key histories, event timelines, queues, and other local models where
+per-key append order is part of the contract. Sync support for it remains
+deferred. The local storage format is:
+
+```text
+MDBX key                 = serialized-key
+ordered duplicate value  = local-order-prefix || serialized-value
+local-order-prefix       = per-key uint64_t assigned by the destination DBI
+```
+
+The local-order prefix is a storage detail, not a cross-node identity. A future
+sync format must carry an explicit globally stable order identity, for example:
 
 ```text
 ordered duplicate value = global-order-key || serialized-value
@@ -299,8 +308,10 @@ anchors, see the
 - `HashedKeyValueStore` — internal hash index layout complicates the wire
   format; deferred until an explicit identity-mapping scheme lands.
 - `KeyMultiValueTable` — DUPSORT duplicate values need the unordered multiset
-  model described above before capture can be enabled. Ordered distributed
-  histories are deferred to a future `KeyOrderedMultiValueTable<K, V>`.
+  model described above before capture can be enabled.
+- `KeyOrderedMultiValueTable` — local ordered storage exists, but ordered
+  distributed histories need the explicit sync wire identity described above
+  before capture can be enabled.
 - `AnyValueTable` — heterogeneous values need type-tag propagation on the wire.
 - `IdentityProvider` integration in `BaseTable` — declared in v0.1, no
   write path until HashedKeyValueStore.

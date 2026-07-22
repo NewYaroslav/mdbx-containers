@@ -18,6 +18,9 @@ int main() {
     mdbxc::KeyMultiValueTable<std::uint64_t, std::string>* multi_value_table = nullptr;
     MDBXC_TEST_ASSERT(multi_value_table == nullptr);
 
+    mdbxc::KeyOrderedMultiValueTable<std::uint64_t, std::string>* ordered_multi_value_table = nullptr;
+    MDBXC_TEST_ASSERT(ordered_multi_value_table == nullptr);
+
     mdbxc::SequenceTable<std::uint64_t>* sequence_table = nullptr;
     MDBXC_TEST_ASSERT(sequence_table == nullptr);
 
