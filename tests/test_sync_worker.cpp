@@ -31,6 +31,24 @@ mdbxc::sync::NodeId make_node(std::uint8_t seed) {
     return node;
 }
 
+mdbxc::sync::ChangeBatch make_raw_batch(const mdbxc::sync::NodeId& origin,
+                                        std::uint64_t seq,
+                                        const std::string& dbi_name,
+                                        std::uint8_t key_seed) {
+    mdbxc::sync::ChangeBatch batch;
+    batch.origin_node_id = origin;
+    batch.seq = seq;
+    mdbxc::sync::ChangeOp op;
+    op.op_type = mdbxc::sync::ChangeOpType::Put;
+    op.dbi_name = dbi_name;
+    op.storage_key.push_back(key_seed);
+    op.storage_key.push_back(static_cast<std::uint8_t>(seq & 0xffu));
+    op.value.push_back(static_cast<std::uint8_t>(0x80u | key_seed));
+    op.value.push_back(static_cast<std::uint8_t>(seq & 0xffu));
+    batch.ops.push_back(op);
+    return batch;
+}
+
 std::shared_ptr<mdbxc::Connection> open_env(const std::string& path) {
     mdbxc::Config config;
     config.pathname = path;
@@ -135,6 +153,45 @@ private:
     mutable std::condition_variable m_changed;
     std::size_t m_events;
     std::uint64_t m_generation;
+};
+
+class NodeSessionCaptureSink : public mdbxc::sync::ISyncCaptureSink {
+public:
+    NodeSessionCaptureSink() : m_records(0), m_flushes(0), m_discards(0) {}
+
+    void record_change(MDBX_txn* txn,
+                       const std::string& dbi_name,
+                       mdbxc::sync::ChangeOpType op_type,
+                       std::uint32_t dbi_flags,
+                       const std::vector<std::uint8_t>& storage_key,
+                       const std::vector<std::uint8_t>& value) override {
+        (void)txn;
+        (void)dbi_name;
+        (void)op_type;
+        (void)dbi_flags;
+        (void)storage_key;
+        (void)value;
+        ++m_records;
+    }
+
+    void flush_in_txn(MDBX_txn* txn) override {
+        (void)txn;
+        ++m_flushes;
+    }
+
+    void discard_txn(MDBX_txn* txn) noexcept override {
+        (void)txn;
+        ++m_discards;
+    }
+
+    int records() const {
+        return m_records;
+    }
+
+private:
+    int m_records;
+    int m_flushes;
+    int m_discards;
 };
 
 class FixedPeer : public mdbxc::sync::ISyncPeer {
@@ -2223,6 +2280,319 @@ void test_sync_node_session_wires_capture_worker_and_observer() {
     cleanup(replica_path);
 }
 
+void test_sync_node_session_destructor_releases_hooks() {
+    using namespace mdbxc;
+    const std::string primary_path =
+        "test_sync_node_session_destructor_primary.mdbx";
+    const std::string replica_path =
+        "test_sync_node_session_destructor_replica.mdbx";
+    cleanup(primary_path);
+    cleanup(replica_path);
+
+    std::shared_ptr<Connection> primary_conn = open_env(primary_path);
+    std::shared_ptr<Connection> replica_conn = open_env(replica_path);
+
+    const sync::NodeId primary_node = make_node(0xA1);
+    const sync::NodeId replica_node = make_node(0xA2);
+    const sync::NodeId db_id = make_node(0xDA);
+
+    sync::SyncEngine primary_engine(primary_conn);
+    sync::SyncEngine replica_engine(replica_conn);
+    primary_engine.initialize_local_identity(primary_node, db_id);
+    replica_engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ThreadLocalChangeAccumulator capture(primary_conn);
+    sync::DirectSyncPeer primary_peer(&primary_engine);
+    NodeSessionApplyObserver observer;
+
+    sync::SyncWorkerOptions worker_options;
+    worker_options.idle_interval = std::chrono::milliseconds(20);
+    sync::SyncWorker worker(replica_engine, primary_peer, worker_options);
+
+    KeyValueTable<int, std::string> primary_items(primary_conn, "items");
+    KeyValueTable<int, std::string> replica_items(replica_conn, "items");
+
+    std::uint64_t observer_token = 0;
+    {
+        sync::SyncNodeSessionOptions session_options;
+        session_options.capture_connection = primary_conn;
+        session_options.capture_sink = &capture;
+        session_options.apply_observer_connection = replica_conn;
+        session_options.apply_observer = &observer;
+
+        sync::SyncNodeSession session(worker, session_options);
+        observer_token = session.apply_observer_token();
+        primary_items.insert_or_assign(21, "twenty one");
+        if (!observer.wait_for_events(1u, std::chrono::milliseconds(3000))) {
+            throw std::runtime_error(
+                "SyncNodeSession destructor test did not observe apply");
+        }
+        if (kv_or_throw(replica_conn, replica_items, 21, "replica item 21") !=
+            "twenty one") {
+            throw std::runtime_error(
+                "SyncNodeSession destructor test replicated wrong value");
+        }
+    }
+
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error(
+            "SyncNodeSession destructor did not stop worker");
+    }
+    if (primary_conn->sync_capture() != nullptr) {
+        throw std::runtime_error(
+            "SyncNodeSession destructor did not detach capture");
+    }
+    if (replica_conn->remove_sync_apply_observer(observer_token)) {
+        throw std::runtime_error(
+            "SyncNodeSession destructor did not remove observer");
+    }
+
+    primary_conn->disconnect();
+    replica_conn->disconnect();
+    cleanup(primary_path);
+    cleanup(replica_path);
+}
+
+void test_sync_node_session_supports_optional_hook_subsets() {
+    using namespace mdbxc;
+    const std::string primary_path =
+        "test_sync_node_session_optional_primary.mdbx";
+    const std::string replica_path =
+        "test_sync_node_session_optional_replica.mdbx";
+    cleanup(primary_path);
+    cleanup(replica_path);
+
+    std::shared_ptr<Connection> primary_conn = open_env(primary_path);
+    std::shared_ptr<Connection> replica_conn = open_env(replica_path);
+
+    const sync::NodeId primary_node = make_node(0xB1);
+    const sync::NodeId replica_node = make_node(0xB2);
+    const sync::NodeId db_id = make_node(0xDB);
+
+    sync::SyncEngine primary_engine(primary_conn);
+    sync::SyncEngine replica_engine(replica_conn);
+    primary_engine.initialize_local_identity(primary_node, db_id);
+    replica_engine.initialize_local_identity(replica_node, db_id);
+
+    sync::DirectSyncPeer primary_peer(&primary_engine);
+    sync::SyncWorkerOptions worker_options;
+    worker_options.idle_interval = std::chrono::milliseconds(20);
+
+    {
+        sync::SyncWorker worker(replica_engine, primary_peer, worker_options);
+        sync::SyncNodeSessionOptions session_options;
+        sync::SyncNodeSession session(worker, session_options);
+        if (!session.active() || session.capture_active() ||
+            session.apply_observer_registered()) {
+            throw std::runtime_error(
+                "SyncNodeSession worker-only mode exposed wrong state");
+        }
+    }
+
+    sync::ThreadLocalChangeAccumulator capture(primary_conn);
+    {
+        sync::SyncWorker worker(replica_engine, primary_peer, worker_options);
+        sync::SyncNodeSessionOptions session_options;
+        session_options.capture_connection = primary_conn;
+        session_options.capture_sink = &capture;
+        sync::SyncNodeSession session(worker, session_options);
+        if (!session.active() || !session.capture_active() ||
+            session.apply_observer_registered()) {
+            throw std::runtime_error(
+                "SyncNodeSession capture-only mode exposed wrong state");
+        }
+    }
+    if (primary_conn->sync_capture() != nullptr) {
+        throw std::runtime_error(
+            "SyncNodeSession capture-only mode did not detach");
+    }
+
+    NodeSessionApplyObserver observer;
+    std::uint64_t observer_token = 0;
+    {
+        sync::SyncWorker worker(replica_engine, primary_peer, worker_options);
+        sync::SyncNodeSessionOptions session_options;
+        session_options.apply_observer_connection = replica_conn;
+        session_options.apply_observer = &observer;
+        sync::SyncNodeSession session(worker, session_options);
+        observer_token = session.apply_observer_token();
+        if (!session.active() || session.capture_active() ||
+            !session.apply_observer_registered() ||
+            observer_token == 0u) {
+            throw std::runtime_error(
+                "SyncNodeSession observer-only mode exposed wrong state");
+        }
+    }
+    if (replica_conn->remove_sync_apply_observer(observer_token)) {
+        throw std::runtime_error(
+            "SyncNodeSession observer-only mode did not unregister");
+    }
+
+    primary_conn->disconnect();
+    replica_conn->disconnect();
+    cleanup(primary_path);
+    cleanup(replica_path);
+}
+
+void test_sync_node_session_rejects_invalid_option_pairs() {
+    using namespace mdbxc;
+    const std::string path = "test_sync_node_session_invalid.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0xC1), make_node(0xDC));
+
+    EmptyPeer peer;
+    sync::SyncWorker worker(engine, peer);
+    NodeSessionCaptureSink capture_sink;
+    NodeSessionApplyObserver observer;
+
+    bool saw_capture_conn_only = false;
+    try {
+        sync::SyncNodeSessionOptions options;
+        options.capture_connection = conn;
+        sync::SyncNodeSession session(worker, options);
+    } catch (const std::invalid_argument&) {
+        saw_capture_conn_only = true;
+    }
+    if (!saw_capture_conn_only) {
+        throw std::runtime_error(
+            "SyncNodeSession accepted capture connection without sink");
+    }
+
+    bool saw_capture_sink_only = false;
+    try {
+        sync::SyncNodeSessionOptions options;
+        options.capture_sink = &capture_sink;
+        sync::SyncNodeSession session(worker, options);
+    } catch (const std::invalid_argument&) {
+        saw_capture_sink_only = true;
+    }
+    if (!saw_capture_sink_only) {
+        throw std::runtime_error(
+            "SyncNodeSession accepted capture sink without connection");
+    }
+
+    bool saw_observer_conn_only = false;
+    try {
+        sync::SyncNodeSessionOptions options;
+        options.apply_observer_connection = conn;
+        sync::SyncNodeSession session(worker, options);
+    } catch (const std::invalid_argument&) {
+        saw_observer_conn_only = true;
+    }
+    if (!saw_observer_conn_only) {
+        throw std::runtime_error(
+            "SyncNodeSession accepted observer connection without observer");
+    }
+
+    bool saw_observer_only = false;
+    try {
+        sync::SyncNodeSessionOptions options;
+        options.apply_observer = &observer;
+        sync::SyncNodeSession session(worker, options);
+    } catch (const std::invalid_argument&) {
+        saw_observer_only = true;
+    }
+    if (!saw_observer_only) {
+        throw std::runtime_error(
+            "SyncNodeSession accepted observer without connection");
+    }
+
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error(
+            "invalid SyncNodeSession options started worker");
+    }
+    if (conn->sync_capture() != nullptr) {
+        throw std::runtime_error(
+            "invalid SyncNodeSession options attached capture");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
+void test_sync_node_session_rolls_back_hooks_when_worker_start_fails() {
+    using namespace mdbxc;
+    const std::string primary_path =
+        "test_sync_node_session_rollback_primary.mdbx";
+    const std::string replica_path =
+        "test_sync_node_session_rollback_replica.mdbx";
+    cleanup(primary_path);
+    cleanup(replica_path);
+
+    std::shared_ptr<Connection> primary_conn = open_env(primary_path);
+    std::shared_ptr<Connection> replica_conn = open_env(replica_path);
+
+    sync::SyncEngine replica_engine(replica_conn);
+    replica_engine.initialize_local_identity(make_node(0xD1), make_node(0xDD));
+
+    EmptyPeer peer;
+    sync::SyncWorkerOptions worker_options;
+    worker_options.idle_interval = std::chrono::milliseconds(50);
+    sync::SyncWorker worker(replica_engine, peer, worker_options);
+
+    NodeSessionCaptureSink previous_sink;
+    sync::ThreadLocalChangeAccumulator capture(primary_conn);
+    NodeSessionApplyObserver observer;
+
+    primary_conn->attach_sync_capture(&previous_sink);
+    worker.start();
+    if (!peer.wait_for_pulls(1, std::chrono::milliseconds(2000))) {
+        worker.request_stop();
+        worker.join();
+        throw std::runtime_error(
+            "SyncNodeSession rollback precondition worker did not run");
+    }
+
+    bool saw_start_failure = false;
+    try {
+        sync::SyncNodeSessionOptions session_options;
+        session_options.capture_connection = primary_conn;
+        session_options.capture_sink = &capture;
+        session_options.apply_observer_connection = replica_conn;
+        session_options.apply_observer = &observer;
+        sync::SyncNodeSession session(worker, session_options);
+    } catch (const std::logic_error&) {
+        saw_start_failure = true;
+    }
+
+    worker.stop();
+    worker.join();
+
+    if (!saw_start_failure) {
+        throw std::runtime_error(
+            "SyncNodeSession did not propagate worker start failure");
+    }
+    if (primary_conn->sync_capture() != &previous_sink) {
+        throw std::runtime_error(
+            "SyncNodeSession failed-start path did not restore capture");
+    }
+
+    sync::PushRequest push;
+    push.sender = make_node(0xE1);
+    push.db_id = make_node(0xDD);
+    push.batches.push_back(
+        make_raw_batch(make_node(0xE2), 1, "rollback_observer_probe", 0x45));
+    const sync::PushResponse pushed = replica_engine.handle_push(push);
+    if (!pushed.ok) {
+        throw std::runtime_error(
+            "SyncNodeSession rollback observer probe failed: " +
+            pushed.error);
+    }
+    if (observer.events() != 0u) {
+        throw std::runtime_error(
+            "SyncNodeSession failed-start path leaked observer");
+    }
+
+    primary_conn->detach_sync_capture();
+    primary_conn->disconnect();
+    replica_conn->disconnect();
+    cleanup(primary_path);
+    cleanup(replica_path);
+}
+
 } // namespace
 
 int main() {
@@ -2275,6 +2645,14 @@ int main() {
           &test_worker_guard_starts_and_stops_background_session },
         { "test_sync_node_session_wires_capture_worker_observer",
           &test_sync_node_session_wires_capture_worker_and_observer },
+        { "test_sync_node_session_destructor_releases_hooks",
+          &test_sync_node_session_destructor_releases_hooks },
+        { "test_sync_node_session_supports_optional_hook_subsets",
+          &test_sync_node_session_supports_optional_hook_subsets },
+        { "test_sync_node_session_rejects_invalid_option_pairs",
+          &test_sync_node_session_rejects_invalid_option_pairs },
+        { "test_sync_node_session_rolls_back_hooks_when_worker_start_fails",
+          &test_sync_node_session_rolls_back_hooks_when_worker_start_fails },
     };
 
     int rc = 0;
