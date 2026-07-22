@@ -735,8 +735,11 @@ server/middleware, but they are not serialized inside sync DTOs.
 `FixedBudgetSyncTransportPolicy` is a deterministic fixed-budget limiter useful
 for tests, examples, and simple adapters; production adapters can replace it
 with a time-window or token-bucket policy while keeping the same middleware
-shape. `SyncTransportMetricsObserver` records basic call, rejection, failure,
-cancel, and batch counters without changing transport behavior.
+shape. `FixedWindowHttpRateLimitPolicy` accepts an optional non-zero bucket cap;
+expired identity buckets are evicted before a new identity is rejected with
+`429` and `Retry-After`. `SyncTransportMetricsObserver` records basic call,
+rejection, failure, cancel, and batch counters without changing transport
+behavior.
 `TransportMessageSizePolicy` is a pre-decode guard for HTTP bodies and
 WebSocket binary messages. It complements `CodecBounds`: adapters can reject
 oversized transport frames before decoding, while the codec still validates the

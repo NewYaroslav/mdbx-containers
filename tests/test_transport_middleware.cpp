@@ -7,6 +7,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -845,6 +846,38 @@ void test_transport_zero_limit_policies() {
                  "zero HTTP post budget must reject");
 }
 
+void test_http_rate_limit_bucket_cap_and_eviction() {
+    mdbxc::sync::FixedWindowHttpRateLimitPolicy rate(
+        1u, std::chrono::seconds(1), 1u);
+
+    mdbxc::sync::HttpSyncRequest first;
+    first.remote_address = "192.0.2.1";
+    mdbxc::sync::SyncTransportDecision decision =
+        rate.check_http_request(first);
+    require_true(decision.allowed, "first capped rate-limit bucket rejected");
+    require_true(rate.bucket_count() == 1u,
+                 "rate-limit bucket cap did not track first identity");
+
+    mdbxc::sync::HttpSyncRequest second;
+    second.remote_address = "192.0.2.2";
+    decision = rate.check_http_request(second);
+    require_true(!decision.allowed && decision.status_code == 429,
+                 "rate-limit bucket cap did not reject new identity");
+    require_true(mdbxc::sync::http_header_value(
+                     decision.response_headers, "Retry-After") !=
+                     std::string(),
+                 "rate-limit bucket cap rejection omitted Retry-After");
+    require_true(rate.bucket_count() == 1u,
+                 "rate-limit bucket cap allowed bucket growth");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+    decision = rate.check_http_request(second);
+    require_true(decision.allowed,
+                 "expired rate-limit bucket was not evicted for new identity");
+    require_true(rate.bucket_count() == 1u,
+                 "rate-limit bucket eviction left stale buckets");
+}
+
 void test_http_client_middleware_copies_rejection_headers() {
     mdbxc::sync::FixedWindowHttpRateLimitPolicy rate(
         0, std::chrono::seconds(7));
@@ -931,6 +964,7 @@ int main() {
     test_websocket_retry_hint();
     test_transport_message_size_policy();
     test_transport_zero_limit_policies();
+    test_http_rate_limit_bucket_cap_and_eviction();
     test_http_client_middleware_copies_rejection_headers();
     test_http_server_middleware_copies_rejection_headers();
     return 0;

@@ -150,6 +150,12 @@ retryable flag plus an optional relative `Retry-After` delay. The helper parses
 only `Retry-After: <delta-seconds>`; concrete HTTP bindings should handle
 absolute HTTP-date values if they need clock-aware behavior.
 
+`FixedWindowHttpRateLimitPolicy` can cap the number of tracked client identity
+buckets with its optional third constructor argument. A zero cap keeps the
+previous unbounded behavior. When the cap is non-zero, expired windows are
+evicted before admitting a new identity; if no bucket can be freed, the request
+is rejected with `429` and `Retry-After`.
+
 For WebSocket, close codes `1001`, `1005`, `1006`, `1011`, `1012`, `1013`, and
 `1014` are retryable by default. Close codes produced by policy, malformed
 payload, and size limits, such as `1007`, `1008`, and `1009`, are permanent
