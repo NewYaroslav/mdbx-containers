@@ -63,8 +63,11 @@ successful while source and destination table semantics diverge.
 `KeyMultiValueTable<K, V>` needs an unordered multiset model before v0.1 can
 claim support for duplicate values. Repeated identical `(key, value)` pairs
 must preserve multiplicity under single-writer or causally serialized updates.
-Order-sensitive distributed histories are a separate design and should use a
-future ordered table type, such as `KeyOrderedMultiValueTable<K, V>`.
+The detailed deferred contract lives in
+`include/mdbx_containers/sync/DESIGN.md`: it requires explicit multivalue wire
+sub-operations and receiver-side logical apply helpers before capture can be
+enabled. Order-sensitive distributed histories are a separate design and should
+use a future ordered table type, such as `KeyOrderedMultiValueTable<K, V>`.
 
 `AnyValueTable<K>` needs value type-tag propagation or another explicit
 compatibility policy. The current sync wire operation only carries raw value
