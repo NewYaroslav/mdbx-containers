@@ -88,6 +88,18 @@ jobs:
           set(MDBX_FOUND TRUE)
           EOF
 
+      - name: Create lowercase fake mdbx package
+        run: |
+          set -euo pipefail
+          fake_dir="$PWD/build-fake-lowercase-mdbx/lib/cmake/mdbx"
+          mkdir -p "$fake_dir"
+          cat >"$fake_dir/mdbxConfig.cmake" <<EOF
+          add_library(libmdbx::mdbx INTERFACE IMPORTED)
+          set_target_properties(libmdbx::mdbx PROPERTIES
+              INTERFACE_INCLUDE_DIRECTORIES "$PWD/external/libmdbx")
+          set(mdbx_FOUND TRUE)
+          EOF
+
       - name: Install mdbx-containers package
         run: |
           set -euo pipefail
@@ -116,6 +128,21 @@ jobs:
         run: |
           set -euo pipefail
           cmake --build build-installed-transport-backend --parallel
+
+      - name: Configure installed consumer with lowercase mdbxConfig
+        run: |
+          set -euo pipefail
+          cmake -S tests/cmake/installed_lowercase_mdbx \
+            -B build-installed-lowercase-mdbx -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=11 \
+            -DCMAKE_PREFIX_PATH="$PWD/build-install-prefix;$PWD/build-fake-lowercase-mdbx" \
+            -Wno-dev
+
+      - name: Build installed consumer with lowercase mdbxConfig
+        run: |
+          set -euo pipefail
+          cmake --build build-installed-lowercase-mdbx --parallel
 
       - name: Check provider argument validation
         run: |

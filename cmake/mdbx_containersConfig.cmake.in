@@ -5,9 +5,40 @@
 set(mdbx_containers_INCLUDE_DIRS "@PACKAGE_INCLUDE_INSTALL_DIR@")
 
 include(CMakeFindDependencyMacro)
-find_dependency(MDBX CONFIG)
+find_package(MDBX CONFIG QUIET)
 if(NOT MDBX_FOUND)
     find_dependency(mdbx CONFIG)
+endif()
+
+function(_mdbxc_alias_mdbx_target maybe_target alias_target)
+    if(TARGET ${maybe_target} AND NOT TARGET ${alias_target})
+        get_target_property(_mdbxc_aliased_target ${maybe_target}
+            ALIASED_TARGET)
+        if(_mdbxc_aliased_target)
+            add_library(${alias_target} ALIAS ${_mdbxc_aliased_target})
+        else()
+            add_library(${alias_target} ALIAS ${maybe_target})
+        endif()
+    endif()
+endfunction()
+
+_mdbxc_alias_mdbx_target(mdbx mdbx::mdbx)
+_mdbxc_alias_mdbx_target(libmdbx libmdbx::mdbx)
+_mdbxc_alias_mdbx_target(mdbx-static mdbx::mdbx-static)
+_mdbxc_alias_mdbx_target(mdbx_static mdbx::mdbx-static)
+_mdbxc_alias_mdbx_target(libmdbx-static libmdbx::mdbx-static)
+_mdbxc_alias_mdbx_target(libmdbx_static libmdbx::mdbx-static)
+_mdbxc_alias_mdbx_target(libmdbx::mdbx mdbx::mdbx)
+_mdbxc_alias_mdbx_target(libmdbx::mdbx-static mdbx::mdbx-static)
+if(NOT TARGET mdbx::mdbx AND TARGET mdbx::mdbx-static)
+    _mdbxc_alias_mdbx_target(mdbx::mdbx-static mdbx::mdbx)
+endif()
+if(NOT TARGET mdbx::mdbx)
+    message(FATAL_ERROR
+        "mdbx_containers requires a package-provided MDBX target. "
+        "Expected mdbx::mdbx, mdbx, libmdbx::mdbx, libmdbx, or a static "
+        "variant from find_dependency(MDBX CONFIG) or "
+        "find_dependency(mdbx CONFIG).")
 endif()
 
 # Pull in the exported targets (namespace mdbx_containers::)

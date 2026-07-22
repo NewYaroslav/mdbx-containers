@@ -54,6 +54,11 @@ The returned targets are `mdbx_containers::simple_web_http_transport`,
 link `mdbx_containers::mdbx_containers`, fetch or find the optional backend
 dependencies, and propagate the matching `MDBXC_HAS_*_TRANSPORT` macro.
 
+Installed `mdbx-containers` packages first look for `MDBXConfig.cmake` and then
+fall back to lowercase `mdbxConfig.cmake`. The installed config normalizes
+common target names such as `mdbx`, `libmdbx::mdbx`, and static variants to the
+canonical `mdbx::mdbx` target used by the exported library target.
+
 When `mdbx-containers` is added as a subproject, existing parent-provided
 `mdbx::mdbx`, `mdbx::mdbx-static`, `libmdbx::mdbx`, and
 `libmdbx::mdbx-static` targets are reused before package, submodule, or
