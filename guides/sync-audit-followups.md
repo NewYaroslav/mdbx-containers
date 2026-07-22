@@ -54,18 +54,11 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
   session.
 - PR #182 added an application-facing example that combines
   `SyncCaptureScope`, `SyncWorkerGuard`, and `ISyncApplyObserver`.
+- PR #184 added `SyncNodeSession` for one common application wiring shape:
+  capture attachment, worker session lifetime, and optional apply observer
+  registration.
 
 ## Current PR Sequence
-
-### PR #183: Ledger and readiness refresh
-
-- Remove the now-merged #180-#182 work queue from this note and keep the
-  remaining follow-ups focused on unsolved tasks.
-
-### PR #184: Sync node ergonomics helper
-
-- Add a small public helper around the common application setup for sync
-  capture, worker lifecycle, and optional remote-apply observer registration.
 
 ### PR #185: Per-DBI remote apply invalidation
 

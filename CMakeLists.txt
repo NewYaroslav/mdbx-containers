@@ -440,6 +440,7 @@ if(MDBXC_BUILD_TESTS)
         mdbx_containers/sync/ChangeBatch.hpp
         mdbx_containers/sync/ChangeBatchCodec.hpp
         mdbx_containers/sync/SyncApplyObserver.hpp
+        mdbx_containers/sync/SyncNodeSession.hpp
         mdbx_containers/sync/SyncWorkerGuard.hpp
         mdbx_containers/sync/TransportMessageCodec.hpp
     )

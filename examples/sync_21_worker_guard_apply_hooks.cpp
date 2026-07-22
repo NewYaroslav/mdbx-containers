@@ -1,11 +1,11 @@
 /**
  * \ingroup mdbxc_examples
- * \brief SyncWorkerGuard and remote apply observer hooks.
+ * \brief SyncNodeSession, capture, and remote apply observer hooks.
  *
  * This example keeps DirectSyncPeer so the application-facing lifecycle is
  * visible without socket setup:
- *   - primary writes are captured through SyncCaptureScope;
- *   - replica SyncWorker runs in the background through SyncWorkerGuard;
+ *   - primary writes are captured for the session lifetime;
+ *   - replica SyncWorker runs in the background through SyncNodeSession;
  *   - the replica connection reports committed remote apply through
  *     ISyncApplyObserver.
  *
@@ -137,24 +137,23 @@ int main() {
         mdbxc::KeyValueTable<int, std::string> replica_items(
             replica_conn, "items");
 
-        ConsoleApplyObserver apply_observer(replica_conn, &replica_items);
-        const std::uint64_t observer_token =
-            replica_conn->add_sync_apply_observer(&apply_observer);
-
         mdbxc::sync::SyncWorkerOptions options;
         options.idle_interval = std::chrono::milliseconds(20);
         options.max_batches = 4;
         mdbxc::sync::SyncWorker worker(replica_engine, primary_peer, options);
 
-        {
-            mdbxc::sync::SyncWorkerGuard worker_session(worker);
+        ConsoleApplyObserver apply_observer(replica_conn, &replica_items);
+        mdbxc::sync::SyncNodeSessionOptions session_options;
+        session_options.capture_connection = primary_conn;
+        session_options.capture_sink = &capture;
+        session_options.apply_observer_connection = replica_conn;
+        session_options.apply_observer = &apply_observer;
 
-            {
-                mdbxc::sync::SyncCaptureScope capture_scope(
-                    primary_conn, capture);
-                primary_items.insert_or_assign(1, "alpha");
-                primary_items.insert_or_assign(2, "beta");
-            }
+        {
+            mdbxc::sync::SyncNodeSession session(worker, session_options);
+
+            primary_items.insert_or_assign(1, "alpha");
+            primary_items.insert_or_assign(2, "beta");
 
             sync_example::require(
                 apply_observer.wait_for_events(
@@ -178,8 +177,6 @@ int main() {
             std::printf("[replica] item 1=%s item 2=%s\n",
                         one.c_str(), two.c_str());
         }
-
-        replica_conn->remove_sync_apply_observer(observer_token);
 
         sync_example::disconnect_and_cleanup(primary_conn, primary_path);
         sync_example::disconnect_and_cleanup(replica_conn, replica_path);

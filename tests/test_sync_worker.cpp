@@ -98,6 +98,45 @@ private:
     int m_cancel_count;
 };
 
+class NodeSessionApplyObserver : public mdbxc::sync::ISyncApplyObserver {
+public:
+    NodeSessionApplyObserver() : m_events(0), m_generation(0) {}
+
+    void on_sync_apply_committed(
+            const mdbxc::sync::SyncApplyEvent& event) override {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            ++m_events;
+            m_generation = event.generation;
+        }
+        m_changed.notify_all();
+    }
+
+    bool wait_for_events(std::size_t count,
+                         std::chrono::milliseconds timeout) const {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_changed.wait_for(
+            lock, timeout,
+            [this, count] { return m_events >= count; });
+    }
+
+    std::size_t events() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_events;
+    }
+
+    std::uint64_t generation() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_generation;
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_changed;
+    std::size_t m_events;
+    std::uint64_t m_generation;
+};
+
 class FixedPeer : public mdbxc::sync::ISyncPeer {
 public:
     explicit FixedPeer(const mdbxc::sync::PullResponse& response)
@@ -2096,6 +2135,94 @@ void test_worker_guard_starts_and_stops_background_session() {
     cleanup(path);
 }
 
+void test_sync_node_session_wires_capture_worker_and_observer() {
+    using namespace mdbxc;
+    const std::string primary_path = "test_sync_node_session_primary.mdbx";
+    const std::string replica_path = "test_sync_node_session_replica.mdbx";
+    cleanup(primary_path);
+    cleanup(replica_path);
+
+    std::shared_ptr<Connection> primary_conn = open_env(primary_path);
+    std::shared_ptr<Connection> replica_conn = open_env(replica_path);
+
+    const sync::NodeId primary_node = make_node(0x91);
+    const sync::NodeId replica_node = make_node(0x92);
+    const sync::NodeId db_id = make_node(0xD9);
+
+    sync::SyncEngine primary_engine(primary_conn);
+    sync::SyncEngine replica_engine(replica_conn);
+    primary_engine.initialize_local_identity(primary_node, db_id);
+    replica_engine.initialize_local_identity(replica_node, db_id);
+
+    sync::ThreadLocalChangeAccumulator capture(primary_conn);
+    sync::DirectSyncPeer primary_peer(&primary_engine);
+    NodeSessionApplyObserver observer;
+
+    sync::SyncWorkerOptions worker_options;
+    worker_options.idle_interval = std::chrono::milliseconds(20);
+    worker_options.max_batches = 4;
+    sync::SyncWorker worker(replica_engine, primary_peer, worker_options);
+
+    KeyValueTable<int, std::string> primary_items(primary_conn, "items");
+    KeyValueTable<int, std::string> replica_items(replica_conn, "items");
+
+    std::uint64_t observer_token = 0;
+    {
+        sync::SyncNodeSessionOptions session_options;
+        session_options.capture_connection = primary_conn;
+        session_options.capture_sink = &capture;
+        session_options.apply_observer_connection = replica_conn;
+        session_options.apply_observer = &observer;
+
+        sync::SyncNodeSession session(worker, session_options);
+        observer_token = session.apply_observer_token();
+        if (!session.active() || !session.capture_active() ||
+            !session.apply_observer_registered() ||
+            observer_token == 0u) {
+            throw std::runtime_error("SyncNodeSession did not activate");
+        }
+        if (primary_conn->sync_capture() != &capture) {
+            throw std::runtime_error("SyncNodeSession did not attach capture");
+        }
+
+        primary_items.insert_or_assign(11, "eleven");
+
+        if (!observer.wait_for_events(1u, std::chrono::milliseconds(3000))) {
+            throw std::runtime_error("SyncNodeSession observer did not fire");
+        }
+        const std::string value = kv_or_throw(
+            replica_conn, replica_items, 11, "replica item 11");
+        if (value != "eleven") {
+            throw std::runtime_error("replica item mismatch");
+        }
+        if (observer.generation() != replica_conn->sync_apply_generation()) {
+            throw std::runtime_error("observer generation mismatch");
+        }
+
+        session.stop();
+        if (session.active() || session.capture_active() ||
+            session.apply_observer_registered()) {
+            throw std::runtime_error("SyncNodeSession stop did not release hooks");
+        }
+    }
+
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("SyncNodeSession did not stop worker");
+    }
+    if (primary_conn->sync_capture() != nullptr) {
+        throw std::runtime_error("SyncNodeSession did not detach capture");
+    }
+    if (replica_conn->remove_sync_apply_observer(observer_token)) {
+        throw std::runtime_error(
+            "SyncNodeSession did not remove observer registration");
+    }
+
+    primary_conn->disconnect();
+    replica_conn->disconnect();
+    cleanup(primary_path);
+    cleanup(replica_path);
+}
+
 } // namespace
 
 int main() {
@@ -2146,6 +2273,8 @@ int main() {
         { "test_worker_rejects_self_join", &test_worker_rejects_self_join },
         { "test_worker_guard_starts_and_stops_background_session",
           &test_worker_guard_starts_and_stops_background_session },
+        { "test_sync_node_session_wires_capture_worker_observer",
+          &test_sync_node_session_wires_capture_worker_and_observer },
     };
 
     int rc = 0;

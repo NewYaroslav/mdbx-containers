@@ -33,6 +33,7 @@
 #include "sync/SyncEngine.hpp"
 #include "sync/SyncWorker.hpp"
 #include "sync/SyncWorkerGuard.hpp"
+#include "sync/SyncNodeSession.hpp"
 #include "sync/DirectSyncPeer.hpp"
 #include "sync/HttpTransport.hpp"
 #include "sync/WebSocketTransport.hpp"
