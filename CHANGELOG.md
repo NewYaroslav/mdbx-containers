@@ -19,6 +19,8 @@ All notable changes to this project will be documented in this file.
   `VectorStore` operations do not run concurrently with remote
   `SyncEngine::handle_push()` apply commits; one `VectorStore` instance still
   serializes its own public methods.
+- Added optional bucket caps and expired-bucket eviction to
+  `FixedWindowHttpRateLimitPolicy`.
 - Added `CodecBounds` knobs to ready-made Simple-Web HTTP, Simple-WebSocket,
   and Kurlyk HTTP transport configs so oversized concrete transport bodies are
   rejected before sync codec decode.

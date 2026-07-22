@@ -680,12 +680,17 @@ namespace sync {
     /// \brief Fixed-window HTTP request limiter keyed by token or remote address.
     /// \details Uses the bearer token when present, otherwise \c remote_address,
     /// otherwise the literal "anonymous". Rejections include a \c Retry-After
-    /// header with the remaining window time in seconds.
+    /// header with the remaining window time in seconds. \p max_buckets caps
+    /// tracked client identities when non-zero; expired buckets are evicted
+    /// before a new identity is rejected.
     class FixedWindowHttpRateLimitPolicy : public ISyncTransportPolicy {
     public:
         FixedWindowHttpRateLimitPolicy(std::uint64_t max_requests,
-                                       std::chrono::seconds window)
-            : m_max_requests(max_requests), m_window(window) {
+                                       std::chrono::seconds window,
+                                       std::size_t max_buckets = 0)
+            : m_max_requests(max_requests),
+              m_window(window),
+              m_max_buckets(max_buckets) {
             if (window.count() <= 0) {
                 throw std::invalid_argument(
                     "HTTP rate-limit window must be positive");
@@ -697,6 +702,11 @@ namespace sync {
             m_buckets.clear();
         }
 
+        std::size_t bucket_count() const {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return m_buckets.size();
+        }
+
         SyncTransportDecision check_http_request(
                 const HttpSyncRequest& request) override {
             const std::chrono::steady_clock::time_point now =
@@ -704,7 +714,25 @@ namespace sync {
             const std::string identity = client_identity(request);
 
             std::lock_guard<std::mutex> lock(m_mutex);
-            Bucket& bucket = m_buckets[identity];
+            std::map<std::string, Bucket>::iterator it =
+                m_buckets.find(identity);
+            if (it == m_buckets.end()) {
+                evict_expired_buckets(now);
+                if (m_max_buckets != 0 &&
+                    m_buckets.size() >= m_max_buckets) {
+                    SyncTransportDecision decision =
+                        SyncTransportDecision::reject(
+                            "sync HTTP rate-limit bucket cap exceeded", 429);
+                    decision.add_response_header(
+                        "Retry-After",
+                        retry_after_seconds(now, earliest_reset_at()));
+                    return decision;
+                }
+                it = m_buckets.insert(
+                    std::make_pair(identity, Bucket())).first;
+            }
+
+            Bucket& bucket = it->second;
             if (bucket.reset_at == std::chrono::steady_clock::time_point() ||
                 now >= bucket.reset_at) {
                 bucket.remaining = m_max_requests;
@@ -759,9 +787,38 @@ namespace sync {
             return std::to_string(count);
         }
 
+        void evict_expired_buckets(
+                std::chrono::steady_clock::time_point now) {
+            for (std::map<std::string, Bucket>::iterator it =
+                     m_buckets.begin();
+                 it != m_buckets.end();) {
+                if (it->second.reset_at !=
+                        std::chrono::steady_clock::time_point() &&
+                    now >= it->second.reset_at) {
+                    m_buckets.erase(it++);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+        std::chrono::steady_clock::time_point earliest_reset_at() const {
+            std::chrono::steady_clock::time_point earliest;
+            for (std::map<std::string, Bucket>::const_iterator it =
+                     m_buckets.begin();
+                 it != m_buckets.end(); ++it) {
+                if (earliest == std::chrono::steady_clock::time_point() ||
+                    it->second.reset_at < earliest) {
+                    earliest = it->second.reset_at;
+                }
+            }
+            return earliest;
+        }
+
         mutable std::mutex m_mutex;
         std::uint64_t m_max_requests;
         std::chrono::seconds m_window;
+        std::size_t m_max_buckets;
         std::map<std::string, Bucket> m_buckets;
     };
 
