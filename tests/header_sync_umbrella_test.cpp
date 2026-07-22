@@ -50,6 +50,20 @@ public:
     }
 };
 
+class HeaderSyncApplyObserver : public mdbxc::sync::ISyncApplyObserver {
+public:
+    HeaderSyncApplyObserver() : calls(0) {}
+
+    void on_sync_apply_committed(
+        const mdbxc::sync::SyncApplyEvent& event) override {
+        ++calls;
+        last_event = event;
+    }
+
+    unsigned calls;
+    mdbxc::sync::SyncApplyEvent last_event;
+};
+
 int main() {
     mdbxc::sync::NodeId node = mdbxc::sync::make_zero_node();
     MDBXC_TEST_ASSERT(node.size() == 16u);
@@ -123,6 +137,14 @@ int main() {
         "batch_too_large");
     mdbxc::sync::SyncCaptureScope* capture_scope = nullptr;
     HeaderSyncSink header_sink;
+    HeaderSyncApplyObserver apply_observer;
+    mdbxc::sync::SyncApplyEvent apply_event;
+    apply_event.generation = 1u;
+    apply_event.applied_batches = 1u;
+    apply_event.applied_ops = 1u;
+    apply_observer.on_sync_apply_committed(apply_event);
+    MDBXC_TEST_ASSERT(apply_observer.calls == 1u);
+    MDBXC_TEST_ASSERT(apply_observer.last_event.applied_ops == 1u);
     (void)capture_scope;
     (void)header_sink;
     mdbxc::sync::TransportMessageSizePolicy size_policy(1024u);

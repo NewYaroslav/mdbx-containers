@@ -111,13 +111,22 @@ different logical collections from collapsing to the same physical DBI names.
 remote sync apply. `SyncEngine::handle_push()` increments it after a successful
 commit that applied at least one incoming operation. `VectorStore` stores the
 last seen generation and rebuilds its in-memory index before index-dependent
-operations when the value changes. A connection-level apply/read barrier
-serializes remote apply commits with cache-backed `VectorStore` operations.
-C++17 builds use `std::shared_mutex` so different cache-backed readers can
-share the connection read side. Each `VectorStore` instance still serializes
-its own public operations with an instance mutex to preserve the existing table
-wrapper thread-safety contract. C++11 builds fall back to an exclusive
-connection mutex model.
+operations when the value changes. Applications and future cached wrappers may
+also register `ISyncApplyObserver` instances on the connection. Observers are
+called after the remote apply transaction commits and after the generation
+increments. The connection apply/write barrier is released before callbacks run,
+so observers may use table and cache-backed APIs on the same connection for
+invalidation. Observer exceptions are swallowed because the database state has
+already changed. Registrations are non-owning lifecycle hooks. A successful
+`remove_sync_apply_observer()` call is a callback drain barrier for that token,
+so the observer can be destroyed after removal returns.
+
+A connection-level apply/read barrier serializes remote apply commits with
+cache-backed `VectorStore` operations. C++17 builds use `std::shared_mutex` so
+different cache-backed readers can share the connection read side. Each
+`VectorStore` instance still serializes its own public operations with an
+instance mutex to preserve the existing table wrapper thread-safety contract.
+C++11 builds fall back to an exclusive connection mutex model.
 
 ## Deferred `KeyMultiValueTable` sync design
 

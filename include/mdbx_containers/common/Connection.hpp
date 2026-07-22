@@ -6,12 +6,15 @@
 /// \brief Manages an MDBX database connection using a provided configuration.
 
 #include <chrono>
+#include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 #if __cplusplus >= 201703L
 #   include <optional>
@@ -29,6 +32,7 @@ namespace mdbxc {
 
     namespace sync {
         class ISyncCaptureSink;
+        class ISyncApplyObserver;
         class SyncCaptureScope;
         class SyncEngine;
     }
@@ -202,6 +206,26 @@ namespace mdbxc {
         /// incoming batch. Table/view wrappers with RAM caches may compare a
         /// stored generation with this value and rebuild when it changes.
         std::uint64_t sync_apply_generation() const;
+
+        /// \brief Registers a non-owning remote apply observer.
+        /// \details The observer is called after successful remote sync apply
+        /// commits that changed user data. The pointer is non-owning; the
+        /// observer must outlive the registration. Observer callbacks run
+        /// after the connection apply/write barrier is released, and observer
+        /// exceptions are swallowed.
+        /// \return Token that can be passed to
+        /// \c remove_sync_apply_observer().
+        /// \throws std::invalid_argument if \p observer is null.
+        std::uint64_t add_sync_apply_observer(
+            sync::ISyncApplyObserver* observer);
+
+        /// \brief Removes a previously registered remote apply observer.
+        /// \details When this returns \c true, no callback for \p token is
+        /// still running or will start later. If this is called from that
+        /// observer's own callback, it waits for other in-flight callbacks for
+        /// the same token but not for the current callback.
+        /// \return true when a matching registration was removed.
+        bool remove_sync_apply_observer(std::uint64_t token);
 #       endif
 
         /// \brief Copies the whole MDBX environment to a file or directory path.
@@ -268,7 +292,29 @@ namespace mdbxc {
                                              std::uint64_t expected_token,
                                              sync::ISyncCaptureSink* restore_sink,
                                              std::uint64_t restore_token);
-        void mark_sync_apply_committed();
+        struct SyncApplyObserverState;
+
+        struct SyncApplyObserverCallback {
+            std::shared_ptr<SyncApplyObserverState> state;
+            sync::ISyncApplyObserver* observer;
+        };
+
+        struct SyncApplyNotification {
+            std::uint64_t generation = 0;
+            std::size_t applied_batches = 0;
+            std::size_t applied_ops = 0;
+            std::vector<SyncApplyObserverCallback> callbacks;
+        };
+
+        SyncApplyNotification mark_sync_apply_committed(
+            std::size_t applied_batches,
+            std::size_t applied_ops);
+        void notify_sync_apply_observers(
+            const SyncApplyNotification& notification);
+        void begin_sync_apply_observer_callback(
+            const std::shared_ptr<SyncApplyObserverState>& state);
+        void finish_sync_apply_observer_callback(
+            const std::shared_ptr<SyncApplyObserverState>& state);
 
         friend class sync::SyncEngine;
         friend class VectorStore;
@@ -284,10 +330,21 @@ namespace mdbxc {
         SyncApplyReadGuard sync_apply_read_guard() const;
         SyncApplyWriteGuard sync_apply_write_guard() const;
 
+        struct SyncApplyObserverState {
+            std::uint64_t token;
+            sync::ISyncApplyObserver* observer;
+            std::size_t in_flight;
+            bool removed;
+            std::vector<std::thread::id> active_callback_threads;
+        };
+
         sync::ISyncCaptureSink* m_sync_capture = nullptr;
         std::uint64_t m_sync_capture_token = 0;
         std::uint64_t m_next_sync_capture_token = 0;
+        std::uint64_t m_next_sync_apply_observer_token = 0;
         std::uint64_t m_sync_apply_generation = 0;
+        std::vector<std::shared_ptr<SyncApplyObserverState>> m_sync_apply_observers;
+        std::condition_variable m_sync_apply_observer_cv;
         mutable SyncApplyMutex m_sync_apply_mutex;
 #       endif
 
