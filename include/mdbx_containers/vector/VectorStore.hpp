@@ -7,6 +7,7 @@
 #include "SearchResult.hpp"
 #include <string>
 #include <memory>
+#include <mutex>
 
 namespace mdbxc {
 
@@ -17,11 +18,11 @@ namespace mdbxc {
     ///
     /// \warning Search is exact \c O(N*dim), all embeddings are loaded into RAM,
     /// and mutable index synchronization is caller-managed.
-    /// \warning Lazy sync-apply refresh is guaranteed between completed
-    /// operations. Concurrent calls to this store and remote
-    /// \c SyncEngine::handle_push() on the same connection still require
-    /// caller-side serialization until a connection-level apply/read barrier
-    /// is available.
+    /// \warning Lazy sync-apply refresh is protected by the connection
+    /// apply/read barrier. One \c VectorStore instance serializes its public
+    /// operations with an instance mutex. In C++17 builds, different
+    /// cache-backed readers can still share the connection read side; C++11
+    /// builds conservatively serialize the connection barrier.
     ///
     /// \note Non-empty collections have a single active dimension established by
     /// the first successfully added embedding.
@@ -48,6 +49,11 @@ namespace mdbxc {
         VectorStore(std::shared_ptr<Connection> connection,
                     std::string collection = "default",
                     VectorMetric metric = VectorMetric::COSINE);
+
+        VectorStore(const VectorStore&) = delete;
+        VectorStore& operator=(const VectorStore&) = delete;
+        VectorStore(VectorStore&&) = delete;
+        VectorStore& operator=(VectorStore&&) = delete;
 
         /// \brief Adds a record and updates the RAM index after commit.
         /// \param embedding Dense embedding.
@@ -96,12 +102,17 @@ namespace mdbxc {
         KeyValueTable<uint64_t, std::string> m_metadata;
         mutable FlatVectorIndex m_index;
         mutable std::uint64_t m_sync_apply_generation_seen = 0;
+        mutable std::mutex m_store_mutex;
 
         static std::shared_ptr<Connection> require_connection(std::shared_ptr<Connection> connection);
         static std::string validate_collection_name(const std::string& name);
         static std::string make_table_name(const std::string& collection, const std::string& suffix);
         void ensure_index_fresh() const;
-        void rebuild_index_impl() const;
+        void ensure_index_fresh_locked() const;
+        bool is_index_fresh() const;
+        std::vector<SearchResult> search_locked(const Embedding& query,
+                                                std::size_t top_k) const;
+        void rebuild_index_impl_locked() const;
         std::uint64_t current_sync_apply_generation() const;
     };
 

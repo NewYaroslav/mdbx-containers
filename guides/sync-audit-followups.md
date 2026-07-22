@@ -75,6 +75,15 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - Make already-open `VectorStore` instances lazily rebuild their RAM index
   after the generation changes.
 
+### PR #171: Connection apply/read barrier
+
+- Serialize remote sync apply commits with cache-backed `VectorStore`
+  operations.
+- Use C++17 `std::shared_mutex` for shared connection read-side concurrency
+  across different cache-backed readers and a C++11 exclusive mutex fallback.
+- Keep one `VectorStore` instance serialized with its own mutex so internal
+  table wrappers still follow the existing per-instance thread-safety contract.
+
 ### PR #170: Concrete transport body limits
 
 - Add ready-made binding `CodecBounds` knobs for Simple-Web HTTP,
@@ -88,10 +97,6 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
   with their own caches after sync changes their backing DBIs. `VectorStore`
   currently uses the connection-level generation marker; richer per-DBI or
   callback-based invalidation can be added if more cached wrappers appear.
-- Connection-level sync apply/read barrier: serialize remote `handle_push()`
-  apply+generation publication against cache-backed readers such as
-  `VectorStore::search()`. Use `std::shared_mutex`/`shared_lock` for C++17 and
-  fall back to an exclusive `std::mutex` model for C++11.
 - Transport-level pre-buffer limits: configure framework/library request,
   response, and WebSocket frame caps, or abort through streaming callbacks
   before the complete payload is retained in memory.

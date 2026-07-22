@@ -372,6 +372,8 @@ namespace sync {
                 out.receiver_have = applied_cursor();
                 return out;
             }
+            const Connection::SyncApplyWriteGuard sync_apply_guard =
+                m_conn->sync_apply_write_guard();
             auto txn = m_conn->transaction(TransactionMode::WRITABLE);
             bool applied_any = false;
             for (const ChangeBatch& batch : request.batches) {

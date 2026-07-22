@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
 - Added `Connection::sync_apply_generation()` and made already-open
   `VectorStore` instances lazily refresh their RAM index between completed
   operations after successful remote sync apply commits.
+- Added a connection-level sync apply/read barrier so cache-backed
+  `VectorStore` operations do not run concurrently with remote
+  `SyncEngine::handle_push()` apply commits; one `VectorStore` instance still
+  serializes its own public methods.
 - Added `CodecBounds` knobs to ready-made Simple-Web HTTP, Simple-WebSocket,
   and Kurlyk HTTP transport configs so oversized concrete transport bodies are
   rejected before sync codec decode.

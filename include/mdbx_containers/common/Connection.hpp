@@ -15,6 +15,7 @@
 
 #if __cplusplus >= 201703L
 #   include <optional>
+#   include <shared_mutex>
 #endif
 
 #include <mdbx.h>
@@ -24,6 +25,8 @@
 #include "Transaction.hpp"
 
 namespace mdbxc {
+    class VectorStore;
+
     namespace sync {
         class ISyncCaptureSink;
         class SyncCaptureScope;
@@ -268,10 +271,24 @@ namespace mdbxc {
         void mark_sync_apply_committed();
 
         friend class sync::SyncEngine;
+        friend class VectorStore;
+#           if __cplusplus >= 201703L
+        using SyncApplyMutex = std::shared_mutex;
+        using SyncApplyReadGuard = std::shared_lock<SyncApplyMutex>;
+#           else
+        using SyncApplyMutex = std::mutex;
+        using SyncApplyReadGuard = std::unique_lock<SyncApplyMutex>;
+#           endif
+        using SyncApplyWriteGuard = std::unique_lock<SyncApplyMutex>;
+
+        SyncApplyReadGuard sync_apply_read_guard() const;
+        SyncApplyWriteGuard sync_apply_write_guard() const;
+
         sync::ISyncCaptureSink* m_sync_capture = nullptr;
         std::uint64_t m_sync_capture_token = 0;
         std::uint64_t m_next_sync_capture_token = 0;
         std::uint64_t m_sync_apply_generation = 0;
+        mutable SyncApplyMutex m_sync_apply_mutex;
 #       endif
 
     }; // Connection

@@ -1,9 +1,11 @@
 #include "test_assert.hpp"
+#include <exception>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <mdbx_containers/vector.hpp>
@@ -280,6 +282,60 @@ int main() {
             threw = true;
         }
         MDBXC_TEST_ASSERT(threw);
+    }
+
+    // --- 11. One VectorStore instance serializes concurrent searches ---
+    {
+        mdbxc::Config cfg;
+        cfg.pathname = "data/vector_store_test_11.mdbx";
+        cfg.max_dbs = 10;
+        cfg.no_subdir = true;
+        cfg.relative_to_exe = true;
+
+        mdbxc::VectorStore store(cfg, "concurrent_search");
+        store.clear();
+        store.add(make_embedding({1.0f, 0.0f}), "left");
+        store.add(make_embedding({0.0f, 1.0f}), "right");
+
+        const mdbxc::Embedding query = make_embedding({1.0f, 0.0f});
+        std::exception_ptr error1;
+        std::exception_ptr error2;
+        std::thread first([&store, &query, &error1]() {
+            try {
+                for (int i = 0; i < 200; ++i) {
+                    const std::vector<mdbxc::SearchResult> results =
+                        store.search(query, 2);
+                    if (results.size() != 2u) {
+                        throw std::runtime_error(
+                            "concurrent VectorStore search returned wrong size");
+                    }
+                }
+            } catch (...) {
+                error1 = std::current_exception();
+            }
+        });
+        std::thread second([&store, &query, &error2]() {
+            try {
+                for (int i = 0; i < 200; ++i) {
+                    const std::vector<mdbxc::SearchResult> results =
+                        store.search(query, 2);
+                    if (results.size() != 2u) {
+                        throw std::runtime_error(
+                            "concurrent VectorStore search returned wrong size");
+                    }
+                }
+            } catch (...) {
+                error2 = std::current_exception();
+            }
+        });
+        first.join();
+        second.join();
+        if (error1) {
+            std::rethrow_exception(error1);
+        }
+        if (error2) {
+            std::rethrow_exception(error2);
+        }
     }
 
     std::cout << "VectorStore test passed.\n";
