@@ -14,6 +14,7 @@
 #ifndef MDBX_CONTAINERS_HEADER_ONLY
 #if MDBXC_SYNC_ENABLED
 #include <mdbx_containers/sync/ISyncCaptureSink.hpp>
+#include <mdbx_containers/sync/SyncApplyObserver.hpp>
 #endif
 #endif
 
@@ -191,6 +192,61 @@ namespace mdbxc {
         return m_sync_apply_generation;
     }
 
+    inline std::uint64_t Connection::add_sync_apply_observer(
+        sync::ISyncApplyObserver* observer) {
+        if (observer == nullptr) {
+            throw std::invalid_argument(
+                "Connection::add_sync_apply_observer observer cannot be null");
+        }
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        std::shared_ptr<SyncApplyObserverState> entry(
+            new SyncApplyObserverState);
+        entry->token = ++m_next_sync_apply_observer_token;
+        entry->observer = observer;
+        entry->in_flight = 0;
+        entry->removed = false;
+        m_sync_apply_observers.push_back(entry);
+        return entry->token;
+    }
+
+    inline bool Connection::remove_sync_apply_observer(std::uint64_t token) {
+        std::unique_lock<std::mutex> locker(m_mdbx_mutex);
+        std::shared_ptr<SyncApplyObserverState> removed;
+        for (std::vector<std::shared_ptr<SyncApplyObserverState>>::iterator it =
+                 m_sync_apply_observers.begin();
+             it != m_sync_apply_observers.end(); ++it) {
+            if ((*it)->token == token) {
+                removed = *it;
+                removed->removed = true;
+                m_sync_apply_observers.erase(it);
+                break;
+            }
+        }
+        if (!removed) {
+            return false;
+        }
+        std::size_t own_in_flight = 0;
+        for (std::size_t i = 0; i < removed->active_callback_threads.size();
+             ++i) {
+            if (removed->active_callback_threads[i] ==
+                std::this_thread::get_id()) {
+                ++own_in_flight;
+            }
+        }
+        while (removed->in_flight > own_in_flight) {
+            m_sync_apply_observer_cv.wait(locker);
+            own_in_flight = 0;
+            for (std::size_t i = 0;
+                 i < removed->active_callback_threads.size(); ++i) {
+                if (removed->active_callback_threads[i] ==
+                    std::this_thread::get_id()) {
+                    ++own_in_flight;
+                }
+            }
+        }
+        return true;
+    }
+
     inline std::uint64_t Connection::sync_capture_token() const {
         return m_sync_capture_token;
     }
@@ -218,9 +274,78 @@ namespace mdbxc {
         return true;
     }
 
-    inline void Connection::mark_sync_apply_committed() {
+    inline Connection::SyncApplyNotification Connection::mark_sync_apply_committed(
+        std::size_t applied_batches,
+        std::size_t applied_ops) {
+        SyncApplyNotification notification;
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         ++m_sync_apply_generation;
+        notification.generation = m_sync_apply_generation;
+        notification.applied_batches = applied_batches;
+        notification.applied_ops = applied_ops;
+        notification.callbacks.reserve(m_sync_apply_observers.size());
+        for (std::size_t i = 0; i < m_sync_apply_observers.size(); ++i) {
+            const std::shared_ptr<SyncApplyObserverState>& state =
+                m_sync_apply_observers[i];
+            if (!state->removed && state->observer != nullptr) {
+                ++state->in_flight;
+                SyncApplyObserverCallback callback;
+                callback.state = state;
+                callback.observer = state->observer;
+                notification.callbacks.push_back(callback);
+            }
+        }
+        return notification;
+    }
+
+    inline void Connection::notify_sync_apply_observers(
+        const SyncApplyNotification& notification) {
+        if (notification.callbacks.empty()) {
+            return;
+        }
+        sync::SyncApplyEvent event;
+        event.generation = notification.generation;
+        event.applied_batches = notification.applied_batches;
+        event.applied_ops = notification.applied_ops;
+        for (std::size_t i = 0; i < notification.callbacks.size(); ++i) {
+            try {
+                begin_sync_apply_observer_callback(
+                    notification.callbacks[i].state);
+                if (notification.callbacks[i].observer != nullptr) {
+                    notification.callbacks[i].observer
+                        ->on_sync_apply_committed(event);
+                }
+            } catch (...) {
+                // Remote apply has already committed; observers are best-effort.
+            }
+            finish_sync_apply_observer_callback(
+                notification.callbacks[i].state);
+        }
+    }
+
+    inline void Connection::begin_sync_apply_observer_callback(
+        const std::shared_ptr<SyncApplyObserverState>& state) {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        state->active_callback_threads.push_back(std::this_thread::get_id());
+    }
+
+    inline void Connection::finish_sync_apply_observer_callback(
+        const std::shared_ptr<SyncApplyObserverState>& state) {
+        std::lock_guard<std::mutex> locker(m_mdbx_mutex);
+        for (std::vector<std::thread::id>::iterator it =
+                 state->active_callback_threads.begin();
+             it != state->active_callback_threads.end(); ++it) {
+            if (*it == std::this_thread::get_id()) {
+                state->active_callback_threads.erase(it);
+                break;
+            }
+        }
+        if (state->in_flight != 0u) {
+            --state->in_flight;
+        }
+        if (state->in_flight == 0u) {
+            m_sync_apply_observer_cv.notify_all();
+        }
     }
 
     inline void Connection::on_pre_commit(MDBX_txn* txn) {

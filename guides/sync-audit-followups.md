@@ -48,6 +48,8 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - PR #173 added whole-exchange deadlines for the Simple-WebSocket sync client.
 - PR #174 supports installed packages that provide lowercase `mdbxConfig`.
 - PR #175 split pull page byte budgets from per-batch byte budgets.
+- PR #180 added connection-level remote apply observer hooks for cache
+  invalidation, metrics, and logging after successful remote apply commits.
 
 ## Current PR Sequence
 
@@ -79,10 +81,9 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 
 ## Later Medium-Risk Follow-ups
 
-- General remote apply invalidation hooks: notify future table/view objects
-  with their own caches after sync changes their backing DBIs. `VectorStore`
-  currently uses the connection-level generation marker; richer per-DBI or
-  callback-based invalidation can be added if more cached wrappers appear.
+- Per-DBI remote apply invalidation: `ISyncApplyObserver` currently reports a
+  coarse committed apply event. If more cached wrappers appear, extend the hook
+  with affected DBI names or table identity filters.
 - Framework-level pre-buffer limits: where the concrete HTTP/WebSocket library
   supports it, configure request, response, and frame caps before the complete
   payload is retained in memory. PR #170 added binding-side limits after the

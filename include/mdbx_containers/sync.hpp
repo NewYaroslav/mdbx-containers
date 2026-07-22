@@ -24,6 +24,7 @@
 #include "sync/cancellation.hpp"
 #include "sync/ConflictPolicy.hpp"
 #include "sync/ISyncCaptureSink.hpp"
+#include "sync/SyncApplyObserver.hpp"
 #include "sync/IdentityProvider.hpp"
 #include "sync/ISyncPeer.hpp"
 #include "sync/SyncCursor.hpp"

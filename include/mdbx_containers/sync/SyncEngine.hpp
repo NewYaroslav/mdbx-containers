@@ -382,32 +382,41 @@ namespace sync {
                 out.receiver_have = applied_cursor();
                 return out;
             }
-            const Connection::SyncApplyWriteGuard sync_apply_guard =
-                m_conn->sync_apply_write_guard();
-            auto txn = m_conn->transaction(TransactionMode::WRITABLE);
-            bool applied_any = false;
-            for (const ChangeBatch& batch : request.batches) {
-                const ApplyOutcome outcome = apply_batch_ex(txn.handle(), batch);
-                if (outcome.result == ApplyResult::Conflict) {
-                    txn.rollback();
-                    out.ok = false;
-                    out.error = apply_conflict_message(outcome);
-                    out.error_code = SyncResponseErrorCode::ApplyConflict;
-                    out.error_retryable =
-                        outcome.conflict_reason ==
-                            ApplyConflictReason::SequenceGap;
-                    out.receiver_have = applied_cursor();
-                    return out;
+            Connection::SyncApplyNotification notification;
+            std::size_t applied_batches = 0;
+            std::size_t applied_ops = 0;
+            {
+                const Connection::SyncApplyWriteGuard sync_apply_guard =
+                    m_conn->sync_apply_write_guard();
+                auto txn = m_conn->transaction(TransactionMode::WRITABLE);
+                for (const ChangeBatch& batch : request.batches) {
+                    const ApplyOutcome outcome =
+                        apply_batch_ex(txn.handle(), batch);
+                    if (outcome.result == ApplyResult::Conflict) {
+                        txn.rollback();
+                        out.ok = false;
+                        out.error = apply_conflict_message(outcome);
+                        out.error_code = SyncResponseErrorCode::ApplyConflict;
+                        out.error_retryable =
+                            outcome.conflict_reason ==
+                                ApplyConflictReason::SequenceGap;
+                        out.receiver_have = applied_cursor();
+                        return out;
+                    }
+                    if (outcome.result == ApplyResult::Applied &&
+                        !batch.ops.empty()) {
+                        ++applied_batches;
+                        applied_ops += batch.ops.size();
+                    }
                 }
-                if (outcome.result == ApplyResult::Applied &&
-                    !batch.ops.empty()) {
-                    applied_any = true;
+                txn.commit();
+                if (applied_batches != 0u) {
+                    notification =
+                        m_conn->mark_sync_apply_committed(applied_batches,
+                                                          applied_ops);
                 }
             }
-            txn.commit();
-            if (applied_any) {
-                m_conn->mark_sync_apply_committed();
-            }
+            m_conn->notify_sync_apply_observers(notification);
             out.ok = true;
             out.receiver_have = applied_cursor();
             return out;

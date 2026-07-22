@@ -1,6 +1,8 @@
 #include <mdbx_containers.hpp>
 #include <mdbx_containers/sync.hpp>
 
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -8,6 +10,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -51,6 +54,89 @@ std::shared_ptr<mdbxc::Connection> open_env(const std::string& path) {
     cfg.no_subdir = true;
     return Connection::create(cfg);
 }
+
+class CountingApplyObserver : public mdbxc::sync::ISyncApplyObserver {
+public:
+    CountingApplyObserver()
+        : calls(0), generation(0), applied_batches(0), applied_ops(0) {}
+
+    void on_sync_apply_committed(
+        const mdbxc::sync::SyncApplyEvent& event) override {
+        ++calls;
+        generation = event.generation;
+        applied_batches = event.applied_batches;
+        applied_ops = event.applied_ops;
+    }
+
+    std::size_t calls;
+    std::uint64_t generation;
+    std::size_t applied_batches;
+    std::size_t applied_ops;
+};
+
+class ThrowingApplyObserver : public mdbxc::sync::ISyncApplyObserver {
+public:
+    void on_sync_apply_committed(
+        const mdbxc::sync::SyncApplyEvent&) override {
+        throw std::runtime_error("observer failure");
+    }
+};
+
+class ReentrantVectorApplyObserver : public mdbxc::sync::ISyncApplyObserver {
+public:
+    explicit ReentrantVectorApplyObserver(mdbxc::VectorStore* store)
+        : m_store(store), calls(0), last_count(0) {}
+
+    void on_sync_apply_committed(
+        const mdbxc::sync::SyncApplyEvent&) override {
+        ++calls;
+        last_count = m_store->count();
+    }
+
+    mdbxc::VectorStore* m_store;
+    std::size_t calls;
+    std::size_t last_count;
+};
+
+class BlockingApplyObserver : public mdbxc::sync::ISyncApplyObserver {
+public:
+    BlockingApplyObserver() : m_entered(false), m_release(false), calls(0) {}
+
+    void on_sync_apply_committed(
+        const mdbxc::sync::SyncApplyEvent&) override {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        ++calls;
+        m_entered = true;
+        m_cv.notify_all();
+        while (!m_release) {
+            m_cv.wait(lock);
+        }
+    }
+
+    bool wait_until_entered(std::chrono::milliseconds timeout) {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_cv.wait_for(lock, timeout,
+            [this]() { return m_entered; });
+    }
+
+    void release_callback() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_release = true;
+        m_cv.notify_all();
+    }
+
+    std::size_t call_count() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return calls;
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    std::condition_variable m_cv;
+    bool m_entered;
+    bool m_release;
+    std::size_t calls;
+};
 
 template<class Fn>
 void expect_invalid_argument(const char* name, Fn fn) {
@@ -935,6 +1021,16 @@ void test_engine_handle_push_to_remote() {
     sync::PushRequest req;
     req.sender = make_node(0xA0);
     req.db_id  = make_node(0xD0);
+    CountingApplyObserver observer;
+    ThrowingApplyObserver throwing_observer;
+    VectorStore remote_vectors(remote_conn, "observer_reentrant");
+    ReentrantVectorApplyObserver reentrant_observer(&remote_vectors);
+    const std::uint64_t observer_token =
+        remote_conn->add_sync_apply_observer(&observer);
+    const std::uint64_t throwing_token =
+        remote_conn->add_sync_apply_observer(&throwing_observer);
+    const std::uint64_t reentrant_token =
+        remote_conn->add_sync_apply_observer(&reentrant_observer);
     if (remote_conn->sync_apply_generation() != 0u) {
         throw std::runtime_error("fresh replica should have sync apply generation 0");
     }
@@ -965,6 +1061,15 @@ void test_engine_handle_push_to_remote() {
     if (remote_conn->sync_apply_generation() != 1u) {
         throw std::runtime_error("remote apply should increment generation");
     }
+    if (observer.calls != 1u || observer.generation != 1u ||
+        observer.applied_batches != 1u || observer.applied_ops != 1u) {
+        throw std::runtime_error("remote apply observer did not receive event");
+    }
+    if (reentrant_observer.calls != 1u ||
+        reentrant_observer.last_count != 0u) {
+        throw std::runtime_error(
+            "remote apply observer could not use cache-backed table API");
+    }
 
     KeyValueTable<int, int> remote_kv(remote_conn, "kv");
     if (kv_or_throw(remote_conn, remote_kv, 7, "remote kv[7]") != 0x77) {
@@ -979,6 +1084,17 @@ void test_engine_handle_push_to_remote() {
     if (remote_conn->sync_apply_generation() != 1u) {
         throw std::runtime_error(
             "skipped idempotent replay should not increment generation");
+    }
+    if (observer.calls != 1u) {
+        throw std::runtime_error("idempotent replay should not notify observer");
+    }
+    if (!remote_conn->remove_sync_apply_observer(observer_token) ||
+        !remote_conn->remove_sync_apply_observer(throwing_token) ||
+        !remote_conn->remove_sync_apply_observer(reentrant_token)) {
+        throw std::runtime_error("failed to remove sync apply observer");
+    }
+    if (remote_conn->remove_sync_apply_observer(observer_token)) {
+        throw std::runtime_error("observer token was removed twice");
     }
 
     origin_conn->disconnect();
@@ -995,6 +1111,8 @@ void test_engine_push_gap_rolls_back() {
     auto conn = open_env(p);
     sync::SyncEngine engine(conn);
     engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+    CountingApplyObserver observer;
+    conn->add_sync_apply_observer(&observer);
 
     auto make_batch = [](std::uint64_t seq) {
         sync::ChangeBatch b;
@@ -1038,6 +1156,9 @@ void test_engine_push_gap_rolls_back() {
             resp.receiver_have.last_seq_for(make_node(0x20)) != 1u) {
             throw std::runtime_error("push with gap error code incorrect");
         }
+        if (observer.calls != 0u) {
+            throw std::runtime_error("failed push should not notify apply observer");
+        }
     }
 
     // After rejected push, table 't' should still be empty (rollback worked)
@@ -1054,6 +1175,100 @@ void test_engine_push_gap_rolls_back() {
         if (cur.last_seq_for(make_node(0x20)) != 1u) {
             throw std::runtime_error("cursor should still be at seq=1 after rejected push");
         }
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_sync_apply_observer_remove_waits_for_in_flight_callback() {
+    using namespace mdbxc;
+    const std::string p = "test_sync_apply_observer_remove_waits.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+
+    BlockingApplyObserver observer;
+    const std::uint64_t token = conn->add_sync_apply_observer(&observer);
+
+    sync::PushRequest req;
+    req.sender = make_node(0x20);
+    req.db_id = make_node(0xD0);
+    req.batches.push_back(make_raw_batch(make_node(0x20), 1, "t", 0x31));
+
+    sync::PushResponse response;
+    std::string push_error;
+    std::thread push_thread(
+        [&engine, &req, &response, &push_error]() {
+            try {
+                response = engine.handle_push(req);
+            } catch (const std::exception& e) {
+                push_error = e.what();
+            } catch (...) {
+                push_error = "unknown push error";
+            }
+        });
+
+    if (!observer.wait_until_entered(std::chrono::milliseconds(1000))) {
+        observer.release_callback();
+        push_thread.join();
+        throw std::runtime_error(
+            "sync apply observer callback did not start");
+    }
+
+    bool removed = false;
+    bool remove_returned = false;
+    std::mutex remove_mutex;
+    std::thread remove_thread(
+        [conn, token, &removed, &remove_returned, &remove_mutex]() {
+            const bool ok = conn->remove_sync_apply_observer(token);
+            std::lock_guard<std::mutex> lock(remove_mutex);
+            removed = ok;
+            remove_returned = true;
+        });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    bool returned_while_callback_was_blocked = false;
+    {
+        std::lock_guard<std::mutex> lock(remove_mutex);
+        returned_while_callback_was_blocked = remove_returned;
+    }
+
+    observer.release_callback();
+    push_thread.join();
+    remove_thread.join();
+
+    if (returned_while_callback_was_blocked) {
+        throw std::runtime_error(
+            "remove_sync_apply_observer returned with callback in flight");
+    }
+    if (!removed) {
+        throw std::runtime_error("remove_sync_apply_observer returned false");
+    }
+    if (!push_error.empty()) {
+        throw std::runtime_error(push_error);
+    }
+    if (!response.ok) {
+        throw std::runtime_error("push should succeed: " + response.error);
+    }
+    if (observer.call_count() != 1u) {
+        throw std::runtime_error("observer should be called once");
+    }
+
+    sync::PushRequest second_req;
+    second_req.sender = make_node(0x20);
+    second_req.db_id = make_node(0xD0);
+    second_req.batches.push_back(make_raw_batch(make_node(0x20), 2, "t", 0x32));
+    const sync::PushResponse second_response = engine.handle_push(second_req);
+    if (!second_response.ok) {
+        throw std::runtime_error("second push should succeed: " +
+                                 second_response.error);
+    }
+    if (observer.call_count() != 1u) {
+        throw std::runtime_error(
+            "removed observer should not receive later callbacks");
     }
 
     conn->disconnect();
@@ -1771,6 +1986,8 @@ int main() {
         { "test_engine_applied_cursor",         &test_engine_applied_cursor },
         { "test_engine_handle_push_to_remote",  &test_engine_handle_push_to_remote },
         { "test_engine_push_gap_rolls_back",    &test_engine_push_gap_rolls_back },
+        { "test_sync_apply_observer_remove_waits",
+          &test_sync_apply_observer_remove_waits_for_in_flight_callback },
         { "test_engine_push_multi_batch_gap_cursor",&test_engine_push_multi_batch_gap_reports_persistent_cursor },
         { "test_engine_handle_pull_wrong_db_id",&test_engine_handle_pull_wrong_db_id },
         { "test_engine_rejects_full_snapshot_request",

@@ -1,0 +1,44 @@
+#pragma once
+#ifndef MDBX_CONTAINERS_HEADER_SYNC_SYNC_APPLY_OBSERVER_HPP_INCLUDED
+#define MDBX_CONTAINERS_HEADER_SYNC_SYNC_APPLY_OBSERVER_HPP_INCLUDED
+
+/// \file SyncApplyObserver.hpp
+/// \brief Observer hook for successful remote sync apply commits.
+
+#include <cstddef>
+#include <cstdint>
+
+namespace mdbxc {
+namespace sync {
+
+    /// \brief Summary of one committed remote sync apply.
+    /// \details Emitted after \c SyncEngine::handle_push() commits at least
+    /// one non-empty incoming batch, after the connection apply generation
+    /// has been incremented, and after the connection apply/write barrier has
+    /// been released.
+    struct SyncApplyEvent {
+        std::uint64_t generation = 0;       ///< New connection apply generation.
+        std::size_t applied_batches = 0;    ///< Number of applied non-empty batches.
+        std::size_t applied_ops = 0;        ///< Number of applied operations.
+    };
+
+    /// \brief Non-owning observer for successful remote sync apply commits.
+    /// \details Register through \c Connection::add_sync_apply_observer().
+    /// Implementations are intended for cache invalidation, metrics, and
+    /// structured logging. Callbacks run after the remote apply write barrier
+    /// is released, so an observer may use table and cache-backed APIs on the
+    /// same connection. Exceptions thrown by observers are swallowed by the
+    /// connection so they cannot roll back an already committed sync apply.
+    class ISyncApplyObserver {
+    public:
+        virtual ~ISyncApplyObserver() = default;
+
+        /// \brief Called after a remote sync apply commit changes user data.
+        virtual void on_sync_apply_committed(
+            const SyncApplyEvent& event) = 0;
+    };
+
+} // namespace sync
+} // namespace mdbxc
+
+#endif // MDBX_CONTAINERS_HEADER_SYNC_SYNC_APPLY_OBSERVER_HPP_INCLUDED
