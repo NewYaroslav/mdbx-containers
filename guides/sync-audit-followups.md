@@ -100,5 +100,3 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - Transport-level pre-buffer limits: configure framework/library request,
   response, and WebSocket frame caps, or abort through streaming callbacks
   before the complete payload is retained in memory.
-- Clarify `PullRequest::max_bytes` as a soft page budget and add a separate
-  max single-batch limit.

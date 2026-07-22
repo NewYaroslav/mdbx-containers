@@ -72,6 +72,8 @@ public:
             std::lock_guard<std::mutex> lock(m_mutex);
             ++m_pull_count;
             m_last_token_can_be_cancelled = request.cancel_token.can_be_cancelled();
+            m_last_max_single_batch_bytes =
+                request.max_single_batch_bytes;
         }
         m_changed.notify_all();
         return mdbxc::sync::PullResponse();
@@ -120,6 +122,11 @@ public:
         return m_last_token_can_be_cancelled;
     }
 
+    std::uint64_t last_max_single_batch_bytes() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_last_max_single_batch_bytes;
+    }
+
     bool last_push_token_can_be_cancelled() const {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_last_push_token_can_be_cancelled;
@@ -132,6 +139,7 @@ private:
     std::size_t m_push_count = 0;
     bool m_last_token_can_be_cancelled = false;
     bool m_last_push_token_can_be_cancelled = false;
+    std::uint64_t m_last_max_single_batch_bytes = 0;
 };
 
 /// Minimal \c ISyncPeer that uses the default \c request_cancel() no-op.
@@ -164,6 +172,7 @@ void test_contract_sync_worker_delivers_cancellable_pull_token() {
     RecordingPeer peer;
     sync::SyncWorkerOptions options;
     options.idle_interval = std::chrono::milliseconds(10000);
+    options.max_single_batch_bytes = 123456u;
     sync::SyncWorker worker(engine, peer, options);
 
     worker.start();
@@ -177,6 +186,12 @@ void test_contract_sync_worker_delivers_cancellable_pull_token() {
         throw std::runtime_error(
             "transport contract violated: SyncWorker did not deliver a "
             "cancellable CancellationToken to ISyncPeer::pull()");
+    }
+    if (peer.last_max_single_batch_bytes() !=
+        options.max_single_batch_bytes) {
+        throw std::runtime_error(
+            "transport contract violated: SyncWorker did not propagate "
+            "max_single_batch_bytes to ISyncPeer::pull()");
     }
 
     conn->disconnect();
@@ -239,6 +254,7 @@ void test_contract_dto_values_round_trip_through_peer() {
     pull_request.have.last_seq_by_origin[make_node(0x99)] = 5u;
     pull_request.max_batches = 7u;
     pull_request.max_bytes = 1024u;
+    pull_request.max_single_batch_bytes = 2048u;
     pull_request.request_full_snapshot = true;
 
     sync::PullResponse pull_response{};
@@ -287,6 +303,8 @@ void test_contract_dto_values_round_trip_through_peer() {
         carrier.seen_pull_request.db_id != pull_request.db_id ||
         carrier.seen_pull_request.max_batches != pull_request.max_batches ||
         carrier.seen_pull_request.max_bytes != pull_request.max_bytes ||
+        carrier.seen_pull_request.max_single_batch_bytes !=
+            pull_request.max_single_batch_bytes ||
         carrier.seen_pull_request.request_full_snapshot !=
             pull_request.request_full_snapshot ||
         carrier.seen_pull_request.have.last_seq_by_origin.size() != 1u) {

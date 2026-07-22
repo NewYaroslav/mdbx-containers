@@ -413,7 +413,7 @@ payload itself.
 Locked contract:
 
 - Magic: 8 bytes `MDBXCPRT`.
-- Version: u16 little-endian, currently `3`.
+- Version: u16 little-endian, currently `4`.
 - Message type: u8 (`1=PullRequest`, `2=PullResponse`, `3=PushRequest`,
   `4=PushResponse`).
 - Message flags: u32 little-endian, currently zero. Unknown non-zero flags are
@@ -426,6 +426,10 @@ Locked contract:
 - `PullResponse` carries both `remote_have` (responder applied cursor) and
   optional `remote_tail` (responder changelog tail) so receivers can report
   catch-up progress without changing pagination semantics.
+- `PullRequest::max_bytes` is a soft page budget. A responder may return one
+  retained changelog batch whose encoded size exceeds `max_bytes` when that
+  batch is the next required batch. `PullRequest::max_single_batch_bytes` is
+  the hard per-batch budget; exceeding it returns `BatchTooLarge`.
 - `PullResponse` and `PushResponse` carry a structured
   `SyncResponseErrorCode` plus an `error_retryable` boolean after their
   human-readable error string. `None` means no structured sync-level
@@ -435,8 +439,11 @@ Locked contract:
   fresher cursor, while DBI flag conflicts and unsupported full snapshots are
   permanent until the caller changes behavior. `SnapshotRequired` means the
   requested changelog range was pruned and cannot be recovered through
-  incremental pull. Transport-local errors remain represented by adapter
-  status, close codes, response headers, and `SyncTransportRetryHint`.
+  incremental pull. `BatchTooLarge` means a retained changelog entry exceeds
+  the requester's hard per-batch limit and is permanent until the requester
+  raises that limit or obtains the data through another path. Transport-local
+  errors remain represented by adapter status, close codes, response headers,
+  and `SyncTransportRetryHint`.
 - `CancellationToken` fields in request DTOs are local call-control state and
   are never serialized. Decoded request DTOs contain default non-cancellable
   tokens.

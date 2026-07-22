@@ -64,6 +64,12 @@ namespace sync {
         /// \brief Max encoded batch bytes requested from the peer per pull page.
         std::uint64_t max_bytes = 4ULL * 1024ULL * 1024ULL;
 
+        /// \brief Hard limit for one encoded retained changelog batch.
+        /// \details \c max_bytes is a soft page budget; a peer may still
+        /// return one batch larger than \c max_bytes when that batch fits
+        /// this per-batch limit.
+        std::uint64_t max_single_batch_bytes = 4ULL * 1024ULL * 1024ULL;
+
         /// \brief Delay between successful background sync rounds.
         std::chrono::milliseconds idle_interval =
             std::chrono::milliseconds(1000);
@@ -481,6 +487,10 @@ namespace sync {
                 throw std::invalid_argument(
                     "SyncWorkerOptions::max_bytes must be greater than zero");
             }
+            if (options.max_single_batch_bytes == 0) {
+                throw std::invalid_argument(
+                    "SyncWorkerOptions::max_single_batch_bytes must be greater than zero");
+            }
             if (options.idle_interval < std::chrono::milliseconds::zero()) {
                 throw std::invalid_argument(
                     "SyncWorkerOptions::idle_interval must not be negative");
@@ -512,6 +522,8 @@ namespace sync {
                 request.have = m_engine.applied_cursor();
                 request.max_batches = m_options.max_batches;
                 request.max_bytes = m_options.max_bytes;
+                request.max_single_batch_bytes =
+                    m_options.max_single_batch_bytes;
 
                 bool has_more = false;
                 do {

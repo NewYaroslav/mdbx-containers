@@ -3,9 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
-- Breaking transport-wire change: `TransportMessageCodec` is now version 3 and
-  response DTOs include `SyncResponseErrorCode` plus `error_retryable` after
-  the human-readable error string.
+- Breaking transport-wire change: `TransportMessageCodec` is now version 4.
+  Response DTOs include `SyncResponseErrorCode` plus `error_retryable` after
+  the human-readable error string, and pull request DTOs include
+  `max_single_batch_bytes` after the full-snapshot flag.
+- Clarified `PullRequest::max_bytes` as a soft page budget and added
+  `PullRequest::max_single_batch_bytes` plus `BatchTooLarge` rejection for
+  retained changelog batches that exceed the hard per-batch limit.
 - Added `SyncResponseErrorCode::SnapshotRequired` so pull requests behind
   retained changelog history fail explicitly instead of streaming
   non-contiguous batches.

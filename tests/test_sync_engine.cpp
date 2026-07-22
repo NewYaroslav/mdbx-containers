@@ -102,6 +102,18 @@ mdbxc::sync::ChangeBatch make_raw_batch(const mdbxc::sync::NodeId& origin,
     return batch;
 }
 
+mdbxc::sync::ChangeBatch make_raw_batch_with_value_size(
+        const mdbxc::sync::NodeId& origin,
+        std::uint64_t seq,
+        const std::string& dbi_name,
+        std::uint8_t key_seed,
+        std::size_t value_size) {
+    mdbxc::sync::ChangeBatch batch =
+        make_raw_batch(origin, seq, dbi_name, key_seed);
+    batch.ops[0].value.assign(value_size, key_seed);
+    return batch;
+}
+
 std::vector<std::uint8_t> make_changelog_key(const mdbxc::sync::NodeId& origin,
                                              std::uint64_t seq) {
     std::vector<std::uint8_t> out(24);
@@ -135,6 +147,14 @@ void append_raw_batch(mdbxc::sync::ChangeLogStore& log,
     const mdbxc::sync::ChangeBatch batch = make_raw_batch(origin, seq, dbi_name, key_seed);
     const std::vector<std::uint8_t> bytes = mdbxc::sync::ChangeBatchCodec::encode(batch);
     log.append(txn, origin, seq, bytes);
+}
+
+void append_raw_batch(mdbxc::sync::ChangeLogStore& log,
+                      MDBX_txn* txn,
+                      const mdbxc::sync::ChangeBatch& batch) {
+    const std::vector<std::uint8_t> bytes =
+        mdbxc::sync::ChangeBatchCodec::encode(batch);
+    log.append(txn, batch.origin_node_id, batch.seq, bytes);
 }
 
 void append_raw_bytes(mdbxc::sync::ChangeLogStore& log,
@@ -1250,6 +1270,112 @@ void test_engine_pull_reports_snapshot_required_after_prune() {
     cleanup(p);
 }
 
+void test_engine_pull_max_bytes_is_soft_page_budget() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_pull_soft_max_bytes.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    const sync::NodeId local = make_node(0xA3);
+    const sync::NodeId origin = make_node(0xB3);
+    const sync::DbId db_id = make_node(0xD3);
+    engine.initialize_local_identity(local, db_id);
+
+    const sync::ChangeBatch large =
+        make_raw_batch_with_value_size(origin, 1, "kv", 0xA1, 2048u);
+    const sync::ChangeBatch small =
+        make_raw_batch_with_value_size(origin, 2, "kv", 0xA2, 8u);
+    const std::size_t large_bytes =
+        sync::ChangeBatchCodec::encode(large).size();
+
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        sync::ChangeLogStore log(conn->env_handle());
+        log.open(txn.handle());
+        append_raw_batch(log, txn.handle(), large);
+        append_raw_batch(log, txn.handle(), small);
+        txn.commit();
+    }
+
+    sync::PullRequest req;
+    req.requester = make_node(0xC3);
+    req.db_id = db_id;
+    req.max_bytes = 1;
+    req.max_single_batch_bytes =
+        static_cast<std::uint64_t>(large_bytes + 1024u);
+
+    const sync::PullResponse resp = engine.handle_pull(req);
+    if (!resp.ok) {
+        throw std::runtime_error("soft max_bytes pull failed: " + resp.error);
+    }
+    if (resp.batches.size() != 1u || resp.batches[0].seq != 1u) {
+        throw std::runtime_error(
+            "soft max_bytes did not return the first oversized page batch");
+    }
+    if (!resp.has_more) {
+        throw std::runtime_error(
+            "soft max_bytes should report more retained batches");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_engine_pull_rejects_oversized_single_batch() {
+    using namespace mdbxc;
+    const std::string p = "test_engine_pull_single_batch_limit.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    const sync::NodeId local = make_node(0xA4);
+    const sync::NodeId origin = make_node(0xB4);
+    const sync::DbId db_id = make_node(0xD4);
+    engine.initialize_local_identity(local, db_id);
+
+    const sync::ChangeBatch large =
+        make_raw_batch_with_value_size(origin, 1, "kv", 0xA4, 2048u);
+    const std::size_t large_bytes =
+        sync::ChangeBatchCodec::encode(large).size();
+
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        sync::ChangeLogStore log(conn->env_handle());
+        log.open(txn.handle());
+        append_raw_batch(log, txn.handle(), large);
+        txn.commit();
+    }
+
+    sync::PullRequest req;
+    req.requester = make_node(0xC4);
+    req.db_id = db_id;
+    req.max_single_batch_bytes =
+        static_cast<std::uint64_t>(large_bytes - 1u);
+
+    const sync::PullResponse resp = engine.handle_pull(req);
+    if (resp.ok) {
+        throw std::runtime_error(
+            "oversized single batch pull should have failed");
+    }
+    if (!resp.batches.empty() || resp.has_more) {
+        throw std::runtime_error(
+            "oversized single batch rejection returned page data");
+    }
+    if (resp.error_code != sync::SyncResponseErrorCode::BatchTooLarge ||
+        resp.error_retryable) {
+        throw std::runtime_error(
+            "oversized single batch rejection code incorrect");
+    }
+    if (resp.error.find("max_single_batch_bytes") == std::string::npos) {
+        throw std::runtime_error(
+            "oversized single batch rejection error lacks limit name");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_engine_handle_push_wrong_db_id() {
     using namespace mdbxc;
     const std::string p = "test_engine_push_wrong_db.mdbx";
@@ -1653,6 +1779,10 @@ int main() {
           &test_engine_changelog_page_rejects_full_snapshot_request },
         { "test_engine_pull_reports_snapshot_required_after_prune",
           &test_engine_pull_reports_snapshot_required_after_prune },
+        { "test_engine_pull_max_bytes_is_soft_page_budget",
+          &test_engine_pull_max_bytes_is_soft_page_budget },
+        { "test_engine_pull_rejects_oversized_single_batch",
+          &test_engine_pull_rejects_oversized_single_batch },
         { "test_engine_handle_push_wrong_db_id",&test_engine_handle_push_wrong_db_id },
         { "test_engine_rejects_last_writer_wins_policy",
           &test_engine_rejects_last_writer_wins_policy },
