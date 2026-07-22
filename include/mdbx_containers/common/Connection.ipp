@@ -195,6 +195,14 @@ namespace mdbxc {
         return m_sync_capture_token;
     }
 
+    inline Connection::SyncApplyReadGuard Connection::sync_apply_read_guard() const {
+        return SyncApplyReadGuard(m_sync_apply_mutex);
+    }
+
+    inline Connection::SyncApplyWriteGuard Connection::sync_apply_write_guard() const {
+        return SyncApplyWriteGuard(m_sync_apply_mutex);
+    }
+
     inline bool Connection::restore_sync_capture_if_current(
         sync::ISyncCaptureSink* expected_sink,
         std::uint64_t expected_token,

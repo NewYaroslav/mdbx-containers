@@ -4,13 +4,16 @@
 #include <mdbx_containers.hpp>
 #include <mdbx_containers/sync.hpp>
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -1201,6 +1204,111 @@ void test_replication_idempotent_apply() {
     cleanup(r);
 }
 
+void test_vector_store_search_during_remote_apply() {
+    using namespace mdbxc;
+    const std::string p = "test_rep_vector_barrier_primary.mdbx";
+    const std::string r = "test_rep_vector_barrier_replica.mdbx";
+    cleanup(p); cleanup(r);
+
+    auto primary = open(p);
+    auto replica = open(r);
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+    sync::SyncEngine pe(primary), re(replica);
+    pe.initialize_local_identity(primary_node, db_id);
+    re.initialize_local_identity(replica_node, db_id);
+
+    sync::ThreadLocalChangeAccumulator sink(primary);
+    primary->attach_sync_capture(&sink);
+    const std::size_t record_count = 128;
+    const std::string metadata(2048, 'm');
+    {
+        VectorStore vectors(primary, "barrier_vectors");
+        vectors.clear();
+        for (std::size_t i = 0; i < record_count; ++i) {
+            const float x = static_cast<float>(i + 1u);
+            vectors.add(make_embedding(x, 1.0f), "row-" + std::to_string(i),
+                        metadata);
+        }
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id, 1000) == 0u) {
+        throw std::runtime_error("initial vector barrier sync pulled no batches");
+    }
+
+    {
+        VectorStore vectors(primary, "barrier_vectors");
+        vectors.clear();
+    }
+    sync::DirectSyncPeer peer(&pe);
+    sync::PullRequest request;
+    request.requester = replica_node;
+    request.db_id = db_id;
+    request.have = re.applied_cursor();
+    request.max_batches = 1000;
+    const sync::PullResponse response = peer.pull(request);
+    if (!response.ok || response.batches.empty()) {
+        throw std::runtime_error("vector barrier clear pull failed");
+    }
+    sync::PushRequest push;
+    push.sender = primary_node;
+    push.db_id = db_id;
+    push.batches = response.batches;
+
+    VectorStore live_vectors(replica, "barrier_vectors");
+    const Embedding query = make_embedding(1.0f, 1.0f);
+    std::atomic<bool> search_started(false);
+    std::atomic<bool> stop_search(false);
+    std::exception_ptr search_error;
+    std::thread search_thread(
+        [&live_vectors, &query, &search_started, &stop_search,
+         &search_error, record_count]() {
+            search_started.store(true);
+            try {
+                while (!stop_search.load()) {
+                    const std::vector<SearchResult> results =
+                        live_vectors.search(query, record_count);
+                    if (!results.empty() && results.size() != record_count) {
+                        throw std::runtime_error(
+                            "VectorStore concurrent search saw partial result");
+                    }
+                    std::this_thread::yield();
+                }
+            } catch (...) {
+                search_error = std::current_exception();
+                stop_search.store(true);
+            }
+        });
+
+    while (!search_started.load()) {
+        std::this_thread::yield();
+    }
+
+    sync::PushResponse pushed;
+    try {
+        pushed = re.handle_push(push);
+    } catch (...) {
+        stop_search.store(true);
+        search_thread.join();
+        throw;
+    }
+    stop_search.store(true);
+    search_thread.join();
+    if (search_error) {
+        std::rethrow_exception(search_error);
+    }
+    if (!pushed.ok) {
+        throw std::runtime_error("vector barrier push failed: " + pushed.error);
+    }
+    if (!live_vectors.search(query, record_count).empty()) {
+        throw std::runtime_error("VectorStore barrier search did not refresh after apply");
+    }
+
+    primary->detach_sync_capture();
+    primary->disconnect(); replica->disconnect();
+    cleanup(p); cleanup(r);
+}
+
 } // namespace
 
 int main() {
@@ -1222,6 +1330,8 @@ int main() {
         { "test_replication_incremental_pull",   &test_replication_incremental_pull },
         { "test_replication_idempotent_apply",   &test_replication_idempotent_apply },
         { "test_replication_make_push_request", &test_replication_make_push_request_helper },
+        { "test_vector_store_search_during_remote_apply",
+          &test_vector_store_search_during_remote_apply },
     };
     int rc = 0;
     for (std::size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
