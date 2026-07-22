@@ -673,6 +673,9 @@ Worker invariants:
 - `SyncWorkerGuard` may own a single background run session for an existing
   worker; it starts the worker on construction and stops it on destruction,
   while the `SyncWorker` object itself must still outlive the guard;
+- `SyncNodeSession` may own one application-level sync session around an
+  existing worker: it can attach capture, start the worker, register a remote
+  apply observer, then stop and release those hooks in reverse order;
 - lifecycle mutations (`start`, `stop`, `join`, `run_once`) are caller-serialized,
   while `request_stop`, `state`, `last_error`, `last_observer_error`, and
   `wait_until_state` are thread-safe;

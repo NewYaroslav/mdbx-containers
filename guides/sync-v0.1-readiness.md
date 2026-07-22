@@ -23,6 +23,9 @@ rules, see [Sync table coverage matrix](sync-table-coverage.md).
   observer callbacks, retry backoff, and optional `Retry-After` backoff hints.
 - `SyncWorkerGuard` is available when an application wants one RAII-owned
   background worker session instead of a manual `start()` / `stop()` pair.
+- `SyncNodeSession` is available for one common application wiring shape:
+  attach capture, start one existing worker, and register an optional remote
+  apply observer for the session lifetime.
 - `SyncWorker::status()` exposes a thread-safe snapshot for polling UIs,
   health endpoints, and structured logging code that do not subscribe to
   observer callbacks.
@@ -81,8 +84,6 @@ it can make replication appear successful while logical state diverges.
 
 ## Suggested Next PRs
 
-- Add a small sync node ergonomics helper around common capture, worker
-  lifecycle, and observer setup.
 - Extend `ISyncApplyObserver` events with affected DBI names or table identity
   filters so cache invalidation can be more precise than the current coarse
   generation marker.
