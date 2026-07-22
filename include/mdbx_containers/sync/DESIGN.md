@@ -635,6 +635,10 @@ adapter owns its timeout configuration and is responsible for
 honoring it. An adapter that cannot bound a blocking call without
 the core's help must say so explicitly in its documentation; do not
 silently block forever on the worker thread.
+The ready-made Simple-WebSocket client binding exposes
+`WebSocketSyncChannelConfig::exchange_timeout` as a whole-exchange deadline
+covering connect, request send, and response wait. Zero disables the deadline;
+negative values are rejected.
 
 The timeout policy that does belong to the core is the worker
 backoff loop: repeated pull failures increase the wait between
