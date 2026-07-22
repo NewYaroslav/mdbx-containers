@@ -99,7 +99,7 @@ void test_pull_response_roundtrip() {
     response.has_more = true;
     response.ok = false;
     response.error = "temporary upstream timeout";
-    response.error_code = SyncResponseErrorCode::UnsupportedFullSnapshot;
+    response.error_code = SyncResponseErrorCode::SnapshotRequired;
     response.error_retryable = false;
 
     const std::vector<std::uint8_t> bytes =
@@ -126,7 +126,7 @@ void test_pull_response_roundtrip() {
     require_true(decoded.has_more, "PullResponse has_more mismatch");
     require_true(!decoded.ok, "PullResponse ok mismatch");
     require_true(decoded.error == response.error, "PullResponse error mismatch");
-    require_true(decoded.error_code == response.error_code,
+    require_true(decoded.error_code == SyncResponseErrorCode::SnapshotRequired,
                  "PullResponse error_code mismatch");
     require_true(decoded.error_retryable == response.error_retryable,
                  "PullResponse error_retryable mismatch");

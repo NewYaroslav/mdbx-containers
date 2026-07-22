@@ -309,6 +309,12 @@ is rejected.
 `prune_up_to` opens a cursor, walks from `(origin, 0)` until `mdbx_cmp > (origin, up_to)`,
 deletes each hit, then closes. The boundary comparison is on the bytewise
 key, which is why `seq` is big-endian in the key.
+Pull detects when `request.have + 1` is older than the earliest retained
+changelog record for a known origin and returns
+`PullResponse{ok=false, error_code=SnapshotRequired}` instead of streaming a
+later non-contiguous batch. Until the reserved full snapshot protocol exists,
+callers must provision a fresh replica or use an application-defined snapshot
+outside sync v0.1.
 
 ### `_mdbxc_origins` (OriginIndexStore)
 
@@ -410,9 +416,10 @@ Locked contract:
   recovery, not blind replay of the identical request: for example a
   `SequenceGap` apply conflict is retryable after the caller catches up from a
   fresher cursor, while DBI flag conflicts and unsupported full snapshots are
-  permanent until the caller changes behavior. Transport-local errors remain
-  represented by adapter status, close codes, response headers, and
-  `SyncTransportRetryHint`.
+  permanent until the caller changes behavior. `SnapshotRequired` means the
+  requested changelog range was pruned and cannot be recovered through
+  incremental pull. Transport-local errors remain represented by adapter
+  status, close codes, response headers, and `SyncTransportRetryHint`.
 - `CancellationToken` fields in request DTOs are local call-control state and
   are never serialized. Decoded request DTOs contain default non-cancellable
   tokens.
@@ -494,6 +501,9 @@ format is implemented. In v0.1 this is a sync-level protocol rejection carried
 as `PullResponse{ok=false, error=..., error_code=UnsupportedFullSnapshot}`; it
 does not produce a transport retry hint because the server returned a valid
 sync response rather than a transport failure.
+If changelog pruning removed entries needed by the requester's cursor,
+`handle_pull()` returns `SnapshotRequired` with no batches. This is also a
+valid sync response, not a transport failure.
 `SyncWorkerPermanentFailurePolicy` is transport-only; workers still expose
 sync-level response errors through round results, stage events, and status
 snapshots without treating them as permanent transport failures.

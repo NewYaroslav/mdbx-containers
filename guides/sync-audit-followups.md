@@ -57,10 +57,14 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - Keep transport retry hints transport-owned; sync-level protocol errors should
   be visible without parsing free-form strings.
 
+### PR #167: Pruning recovery
+
+- Detect pull requests whose cursor is behind retained changelog history.
+- Return an explicit snapshot-required sync response instead of streaming
+  non-contiguous retained batches.
+
 ## Later Medium-Risk Follow-ups
 
-- Pruning recovery: track earliest retained sequence and report
-  snapshot-required when a replica is behind retained history.
 - `VectorStore` collection naming: reject invalid names or use a reversible
   collision-free encoding.
 - Remote apply invalidation hooks: notify already-open table/view objects after

@@ -322,6 +322,7 @@ namespace sync {
                 case SyncResponseErrorCode::DbIdMismatch:
                 case SyncResponseErrorCode::UnsupportedFullSnapshot:
                 case SyncResponseErrorCode::ApplyConflict:
+                case SyncResponseErrorCode::SnapshotRequired:
                     detail::append_u16_le(out,
                         static_cast<std::uint16_t>(code));
                     return;
@@ -460,6 +461,9 @@ namespace sync {
                 case static_cast<std::uint16_t>(
                         SyncResponseErrorCode::ApplyConflict):
                     return SyncResponseErrorCode::ApplyConflict;
+                case static_cast<std::uint16_t>(
+                        SyncResponseErrorCode::SnapshotRequired):
+                    return SyncResponseErrorCode::SnapshotRequired;
             }
             throw std::runtime_error("Invalid SyncResponseErrorCode");
         }

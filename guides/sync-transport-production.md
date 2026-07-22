@@ -131,7 +131,8 @@ For HTTP, transport status and sync DTO status are separate:
   success or conflict;
 - decoded responses may also carry `SyncResponseErrorCode` and
   `error_retryable` for sync-level failures such as DB id mismatch, unsupported
-  full-snapshot requests, or apply conflicts;
+  full-snapshot requests, changelog pruning that requires a snapshot, or apply
+  conflicts;
 - sync-level retryability means protocol recovery, for example re-pulling from
   the persistent cursor after a sequence gap, not blindly resending the same
   request;
