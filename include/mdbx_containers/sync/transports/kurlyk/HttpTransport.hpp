@@ -83,6 +83,8 @@ namespace kurlyk {
         std::string bearer_token;
         /// \brief Extra headers sent with every sync POST request.
         std::vector<HttpSyncHeader> headers;
+        /// \brief Maximum accepted response body size before decode.
+        CodecBounds bounds;
     };
 
     /// \brief Kurlyk/libcurl HTTP client binding for \c HttpSyncPeer.
@@ -147,7 +149,7 @@ namespace kurlyk {
                     return make_transport_error_response(
                         "Kurlyk HTTP client returned empty response");
                 }
-                return convert_response(*response);
+                return convert_response(*response, m_config.bounds);
             } catch (const std::exception& e) {
                 if (cancel_token.is_cancellation_requested()) {
                     return make_cancelled_response(e.what());
@@ -186,8 +188,19 @@ namespace kurlyk {
             return out;
         }
 
+        static HttpSyncResponse make_payload_too_large_response(
+                const std::string& diagnostic) {
+            HttpSyncResponse out;
+            out.status_code = 413;
+            out.content_type = "text/plain; charset=utf-8";
+            out.error = diagnostic;
+            out.body = detail::string_to_bytes(out.error);
+            return out;
+        }
+
         static HttpSyncResponse convert_response(
-                const ::kurlyk::HttpResponse& response) {
+                const ::kurlyk::HttpResponse& response,
+                const CodecBounds& bounds) {
             HttpSyncResponse out;
             out.status_code = response.status_code < 0
                 ? 0u
@@ -200,6 +213,11 @@ namespace kurlyk {
             }
             out.content_type =
                 http_header_value(out.headers, "Content-Type");
+            if (response.content.size() >
+                bounds.max_transport_message_bytes) {
+                return make_payload_too_large_response(
+                    "Kurlyk HTTP sync response exceeds max_transport_message_bytes");
+            }
             out.body = detail::string_to_bytes(response.content);
             if (!response.error_message.empty()) {
                 out.error = response.error_message;

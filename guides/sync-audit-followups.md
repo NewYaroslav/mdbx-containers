@@ -75,6 +75,13 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - Make already-open `VectorStore` instances lazily rebuild their RAM index
   after the generation changes.
 
+### PR #170: Concrete transport body limits
+
+- Add ready-made binding `CodecBounds` knobs for Simple-Web HTTP,
+  Simple-WebSocket, and Kurlyk HTTP.
+- Reject oversized concrete transport bodies before sync codec decode; reject
+  Simple-Web HTTP oversized `Content-Length` before adapter body copy.
+
 ## Later Medium-Risk Follow-ups
 
 - General remote apply invalidation hooks: notify future table/view objects
@@ -85,8 +92,9 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
   apply+generation publication against cache-backed readers such as
   `VectorStore::search()`. Use `std::shared_mutex`/`shared_lock` for C++17 and
   fall back to an exclusive `std::mutex` model for C++11.
-- Transport body limits before full buffering in concrete HTTP/WebSocket
-  backends.
+- Transport-level pre-buffer limits: configure framework/library request,
+  response, and WebSocket frame caps, or abort through streaming callbacks
+  before the complete payload is retained in memory.
 - Rate-limit bucket eviction / hard caps.
 - WebSocket connect/response/request deadlines.
 - Installed package fallback for lowercase-only `mdbxConfig.cmake`.

@@ -104,6 +104,8 @@ namespace simple_web {
         std::string bearer_token;
         /// \brief Simple-WebSocket-Server opcode for binary frames.
         unsigned char binary_frame_opcode = 130;
+        /// \brief Maximum accepted binary request/response size.
+        CodecBounds bounds;
     };
 
     class WebSocketExchangeState {
@@ -164,6 +166,11 @@ namespace simple_web {
         std::vector<std::uint8_t> exchange_binary(
                 const std::vector<std::uint8_t>& binary_message,
                 const CancellationToken& cancel_token) override {
+            if (binary_message.size() >
+                m_config.bounds.max_transport_message_bytes) {
+                throw std::length_error(
+                    "WebSocket sync request exceeds max_transport_message_bytes");
+            }
             if (cancel_token.is_cancellation_requested()) {
                 throw std::runtime_error(
                     "cancelled before WebSocket exchange");
@@ -187,6 +194,7 @@ namespace simple_web {
             const std::string outbound =
                 detail::ws_bytes_to_string(binary_message);
             const unsigned char opcode = m_config.binary_frame_opcode;
+            const CodecBounds bounds = m_config.bounds;
 
             client.on_open =
                 [state, outbound, opcode](
@@ -200,11 +208,18 @@ namespace simple_web {
                 };
 
             client.on_message =
-                [state](
+                [state, bounds](
                     std::shared_ptr<Client::Connection> connection,
                     std::shared_ptr<Client::InMessage> in_message) {
-                    state->set_value(
-                        detail::ws_string_to_bytes(in_message->string()));
+                    const std::string inbound = in_message->string();
+                    if (inbound.size() >
+                        bounds.max_transport_message_bytes) {
+                        state->set_exception(
+                            "WebSocket sync response exceeds max_transport_message_bytes");
+                        connection->send_close(1009);
+                        return;
+                    }
+                    state->set_value(detail::ws_string_to_bytes(inbound));
                     connection->send_close(1000);
                 };
 
@@ -330,6 +345,8 @@ namespace simple_web {
         /// Use this when the same MDBX-backed \c SyncEngine is also touched
         /// by application code while the WebSocket listener is running.
         std::mutex* handler_mutex = nullptr;
+        /// \brief Maximum accepted binary message size before dispatch/decode.
+        CodecBounds bounds;
     };
 
     /// \brief Simple-WebSocket-Server listener binding for
@@ -381,9 +398,16 @@ namespace simple_web {
                         context.authenticated_node =
                             m_config.authenticated_node;
                         context.db_access = m_config.db_access;
+                        const std::string message = in_message->string();
+                        if (message.size() >
+                            m_config.bounds.max_transport_message_bytes) {
+                            connection->send_close(
+                                1009,
+                                "WebSocket sync request exceeds max_transport_message_bytes");
+                            return;
+                        }
                         context.binary_message =
-                            detail::ws_string_to_bytes(
-                                in_message->string());
+                            detail::ws_string_to_bytes(message);
                         std::vector<std::uint8_t> response;
                         if (m_config.handler_mutex != nullptr) {
                             std::lock_guard<std::mutex> lock(
