@@ -82,6 +82,8 @@ it can make replication appear successful while logical state diverges.
 - Prototype `KeyMultiValueTable` capture/apply using the deferred
   single-writer/serialized unordered multiset design, with repeated-pair
   round-trip tests before enabling it.
+- Implement the deferred full snapshot protocol before treating
+  `SnapshotRequired` as automatically recoverable by sync itself.
 - Define explicit conflict/CRDT semantics before claiming general concurrent
   multi-writer convergence for `KeyMultiValueTable`.
 - Design `KeyOrderedMultiValueTable<K, V>` separately if distributed histories
