@@ -28,68 +28,54 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - PR #160 canonicalized floating-point zero keys and rejected NaN keys.
 - PR #161 added fast-math floating-key regression coverage.
 - PR #162 added the sync table coverage matrix.
+- PR #163 refreshed this follow-up ledger after the first audit sequence.
+- PR #164 added wrapper-specific `clear()` capture and replication coverage.
+- PR #165 removed the misleading public `pull_full_snapshot()` API name and
+  documented retained changelog replay semantics.
+- PR #166 added machine-readable sync response error metadata for permanent
+  protocol rejections.
+- PR #167 detects cursors older than retained changelog history and reports
+  `SnapshotRequired`.
+- PR #168 rejects invalid `VectorStore` collection names before building
+  internal DBI names.
+- PR #169 exposed `Connection::sync_apply_generation()` and made already-open
+  `VectorStore` instances lazily rebuild after remote apply.
+- PR #170 added concrete binding body-limit knobs for Simple-Web HTTP,
+  Simple-WebSocket, and Kurlyk HTTP.
+- PR #171 serialized remote apply commits with cache-backed `VectorStore`
+  operations through a connection apply/read barrier.
+- PR #172 capped and evicted HTTP fixed-window rate-limit buckets.
+- PR #173 added whole-exchange deadlines for the Simple-WebSocket sync client.
+- PR #174 supports installed packages that provide lowercase `mdbxConfig`.
+- PR #175 split pull page byte budgets from per-batch byte budgets.
 
 ## Current PR Sequence
 
-### PR #163: Audit follow-up ledger refresh
+### PR #176: Transport include graph cleanup
+
+- Keep concrete backend headers from depending on the aggregate
+  `sync/transport.hpp` header that names the framework-neutral transport
+  surface.
+- Preserve the public aggregate header for user convenience.
+
+### PR #177: Audit follow-up ledger refresh
 
 - Keep this file aligned with the PRs that have already landed.
 - Preserve the unresolved audit items as small, reviewable future PRs.
 
-### PR #164: ClearTable focused coverage
+### PR #178: Full snapshot protocol design
 
-- Add wrapper-specific `clear()` capture and replication tests for supported
-  sync wrappers.
-- Keep implementation status and focused test coverage aligned with
-  `guides/sync-table-coverage.md`.
+- Specify the future `PullRequest::request_full_snapshot=true` protocol before
+  implementing it.
+- Keep the current v0.1 behavior explicit: unsupported full snapshots and
+  pruned cursors return machine-readable sync errors.
 
-### PR #165: Changelog replay API naming cleanup
+### PR #179: `KeyMultiValueTable` sync design
 
-- Finish removing the misleading public `pull_full_snapshot()` name from the
-  sync engine API.
-- Keep empty-cursor semantics documented as retained changelog replay, not a
-  full database snapshot.
-
-### PR #166: Structured sync-level errors
-
-- Add machine-readable sync response error metadata for permanent protocol
-  rejections such as unsupported `request_full_snapshot`.
-- Keep transport retry hints transport-owned; sync-level protocol errors should
-  be visible without parsing free-form strings.
-
-### PR #167: Pruning recovery
-
-- Detect pull requests whose cursor is behind retained changelog history.
-- Return an explicit snapshot-required sync response instead of streaming
-  non-contiguous retained batches.
-
-### PR #168: `VectorStore` collection naming
-
-- Reject invalid collection names before building internal DBI names.
-- Avoid silent collection-name collisions from lossy sanitization.
-
-### PR #169: Remote apply invalidation generation
-
-- Expose `Connection::sync_apply_generation()` as a lightweight invalidation
-  marker for successful remote sync apply commits.
-- Make already-open `VectorStore` instances lazily rebuild their RAM index
-  after the generation changes.
-
-### PR #171: Connection apply/read barrier
-
-- Serialize remote sync apply commits with cache-backed `VectorStore`
-  operations.
-- Use C++17 `std::shared_mutex` for shared connection read-side concurrency
-  across different cache-backed readers and a C++11 exclusive mutex fallback.
-- Keep one `VectorStore` instance serialized with its own mutex so internal
-  table wrappers still follow the existing per-instance thread-safety contract.
-
-### PR #170: Concrete transport body limits
-
-- Add ready-made binding `CodecBounds` knobs for Simple-Web HTTP,
-  Simple-WebSocket, and Kurlyk HTTP.
-- Reject oversized concrete transport bodies before sync codec decode; reject
-  Simple-Web HTTP oversized `Content-Length` before adapter body copy.
+- Define the unordered multiset framing and apply semantics for duplicate
+  values before adding capture support.
+- Keep order-sensitive histories deferred to a separate
+  `KeyOrderedMultiValueTable<K, V>` design.
 
 ## Later Medium-Risk Follow-ups
 
@@ -97,6 +83,10 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
   with their own caches after sync changes their backing DBIs. `VectorStore`
   currently uses the connection-level generation marker; richer per-DBI or
   callback-based invalidation can be added if more cached wrappers appear.
-- Transport-level pre-buffer limits: configure framework/library request,
-  response, and WebSocket frame caps, or abort through streaming callbacks
-  before the complete payload is retained in memory.
+- Framework-level pre-buffer limits: where the concrete HTTP/WebSocket library
+  supports it, configure request, response, and frame caps before the complete
+  payload is retained in memory. PR #170 added binding-side limits after the
+  framework has surfaced the payload.
+- Worker/node ergonomics helpers: reduce repeated setup code around
+  `SyncCaptureScope`, transport peer construction, worker lifecycle, and common
+  production policies.
