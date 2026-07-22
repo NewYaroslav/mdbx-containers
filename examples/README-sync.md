@@ -205,6 +205,7 @@ cmake -S . -B tmp/build-ws-example `
 | `sync_18_http_node_fleet.cpp` | Multi-process node fleet using the ready-made Simple-Web HTTP binding. | Advanced |
 | `sync_19_kurlyk_http_client.cpp` | Ready-made Kurlyk/libcurl HTTP client binding against the Simple-Web sync listener. | Advanced |
 | `sync_20_observability.cpp` | Worker and transport observer logs with trace IDs, progress, and retry hints. | Advanced |
+| `sync_21_worker_guard_apply_hooks.cpp` | `SyncWorkerGuard` lifecycle plus remote apply observer hooks. | Intermediate |
 
 ## Common Rules
 
