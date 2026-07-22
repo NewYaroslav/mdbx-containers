@@ -209,6 +209,8 @@ Ordered key-based tables also provide `for_each_range()` for streaming scans,
 an exact RAM index on open. It is intended as a local RAG MVP: search is exact
 `O(N * dim)`, all embeddings are loaded into RAM, and ANN/HNSW, metadata
 filtering, and generated embeddings are out of scope.
+Collection names are validated, not rewritten: use non-empty names containing
+only ASCII letters, digits, `_`, and `-`.
 
 ```cpp
 #include <mdbx_containers/vector.hpp>

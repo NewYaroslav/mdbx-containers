@@ -168,7 +168,7 @@ int main() {
         auto conn = mdbxc::Connection::create(cfg);
 
         mdbxc::VectorStore storeA(conn, "docs");
-        mdbxc::VectorStore storeB(conn, "code/raw");
+        mdbxc::VectorStore storeB(conn, "code_raw");
         storeA.clear();
         storeB.clear();
         MDBXC_TEST_ASSERT(storeB.collection() == "code_raw");
@@ -179,6 +179,24 @@ int main() {
         mdbxc::Embedding query = make_embedding({1.0f, 0.0f});
         std::vector<mdbxc::SearchResult> resultsB = storeB.search(query, 1);
         MDBXC_TEST_ASSERT(resultsB.empty());
+
+        bool rejected_slash = false;
+        try {
+            mdbxc::VectorStore invalid(conn, "code/raw");
+            (void)invalid;
+        } catch (const std::invalid_argument&) {
+            rejected_slash = true;
+        }
+        MDBXC_TEST_ASSERT(rejected_slash);
+
+        bool rejected_space = false;
+        try {
+            mdbxc::VectorStore invalid(conn, "code raw");
+            (void)invalid;
+        } catch (const std::invalid_argument&) {
+            rejected_space = true;
+        }
+        MDBXC_TEST_ASSERT(rejected_space);
     }
 
     // --- 8. FlatVectorIndex metrics and top_k=0 ---
