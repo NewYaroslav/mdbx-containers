@@ -136,6 +136,7 @@ int main() {
             mdbxc::sync::SyncResponseErrorCode::BatchTooLarge)) ==
         "batch_too_large");
     mdbxc::sync::SyncCaptureScope* capture_scope = nullptr;
+    mdbxc::sync::SyncWorkerGuard* worker_guard = nullptr;
     HeaderSyncSink header_sink;
     HeaderSyncApplyObserver apply_observer;
     mdbxc::sync::SyncApplyEvent apply_event;
@@ -146,6 +147,7 @@ int main() {
     MDBXC_TEST_ASSERT(apply_observer.calls == 1u);
     MDBXC_TEST_ASSERT(apply_observer.last_event.applied_ops == 1u);
     (void)capture_scope;
+    (void)worker_guard;
     (void)header_sink;
     mdbxc::sync::TransportMessageSizePolicy size_policy(1024u);
     (void)size_policy;

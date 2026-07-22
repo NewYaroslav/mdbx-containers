@@ -2064,6 +2064,38 @@ void test_worker_rejects_self_join() {
     cleanup(path);
 }
 
+void test_worker_guard_starts_and_stops_background_session() {
+    using namespace mdbxc;
+    const std::string path = "test_worker_guard_session.mdbx";
+    cleanup(path);
+
+    std::shared_ptr<Connection> conn = open_env(path);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x71), make_node(0xD1));
+
+    EmptyPeer peer;
+    sync::SyncWorkerOptions options;
+    options.idle_interval = std::chrono::milliseconds(50);
+    sync::SyncWorker worker(engine, peer, options);
+
+    {
+        sync::SyncWorkerGuard guard(worker);
+        if (!guard.active() || &guard.worker() != &worker) {
+            throw std::runtime_error("SyncWorkerGuard did not become active");
+        }
+        if (!peer.wait_for_pulls(1, std::chrono::milliseconds(2000))) {
+            throw std::runtime_error("guarded worker did not run");
+        }
+    }
+
+    if (worker.state() != sync::SyncWorkerState::Stopped) {
+        throw std::runtime_error("SyncWorkerGuard did not stop worker");
+    }
+
+    conn->disconnect();
+    cleanup(path);
+}
+
 } // namespace
 
 int main() {
@@ -2112,6 +2144,8 @@ int main() {
         { "test_worker_stop_cancels_request_token",
           &test_worker_stop_cancels_request_token },
         { "test_worker_rejects_self_join", &test_worker_rejects_self_join },
+        { "test_worker_guard_starts_and_stops_background_session",
+          &test_worker_guard_starts_and_stops_background_session },
     };
 
     int rc = 0;
