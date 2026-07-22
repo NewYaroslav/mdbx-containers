@@ -8,7 +8,7 @@
 /// Envelope layout for all messages:
 /// \code
 ///   magic             "MDBXCPRT"   8 bytes
-///   codec_version     u16 le       = 3
+///   codec_version     u16 le       = 4
 ///   message_type      u8           1=pull request, 2=pull response,
 ///                                  3=push request, 4=push response
 ///   message_flags     u32 le       = 0 in v0.1
@@ -61,7 +61,7 @@ namespace sync {
         static std::size_t magic_size() { return 8; }
 
         /// \brief Supported transport codec version.
-        static std::uint16_t codec_version() { return 3; }
+        static std::uint16_t codec_version() { return 4; }
 
         /// \brief Reads the message type from a transport envelope.
         /// \details Validates magic, codec version, and mandatory flags but
@@ -87,6 +87,7 @@ namespace sync {
             detail::append_u64_le(out, request.max_batches);
             detail::append_u64_le(out, request.max_bytes);
             append_bool(out, request.request_full_snapshot);
+            detail::append_u64_le(out, request.max_single_batch_bytes);
             validate_message_size(out, bounds);
             return out;
         }
@@ -155,6 +156,7 @@ namespace sync {
             request.max_batches = read_u64_le(cur);
             request.max_bytes = read_u64_le(cur);
             request.request_full_snapshot = read_bool(cur);
+            request.max_single_batch_bytes = read_u64_le(cur);
             check_consumed(cur);
             return request;
         }
@@ -323,6 +325,7 @@ namespace sync {
                 case SyncResponseErrorCode::UnsupportedFullSnapshot:
                 case SyncResponseErrorCode::ApplyConflict:
                 case SyncResponseErrorCode::SnapshotRequired:
+                case SyncResponseErrorCode::BatchTooLarge:
                     detail::append_u16_le(out,
                         static_cast<std::uint16_t>(code));
                     return;
@@ -464,6 +467,9 @@ namespace sync {
                 case static_cast<std::uint16_t>(
                         SyncResponseErrorCode::SnapshotRequired):
                     return SyncResponseErrorCode::SnapshotRequired;
+                case static_cast<std::uint16_t>(
+                        SyncResponseErrorCode::BatchTooLarge):
+                    return SyncResponseErrorCode::BatchTooLarge;
             }
             throw std::runtime_error("Invalid SyncResponseErrorCode");
         }

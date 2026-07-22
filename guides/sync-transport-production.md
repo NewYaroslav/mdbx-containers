@@ -173,6 +173,14 @@ the buffered body. Simple-WebSocket and Kurlyk/libcurl also guard before sync
 decode, but their underlying libraries may already have buffered the frame or
 response content.
 
+Pull pagination has two separate byte budgets. `PullRequest::max_bytes` is a
+soft page target: if the next retained changelog batch is larger than the page
+target, the responder may still return that one batch so progress remains
+possible. `PullRequest::max_single_batch_bytes` is the hard limit for one
+encoded retained batch. A batch above that value returns
+`SyncResponseErrorCode::BatchTooLarge` and no page data; the caller must raise
+the limit, reduce writer-side batch size, or use an out-of-band snapshot path.
+
 Concrete `ISyncPeer` implementations that can classify transport failures
 should publish the most recent hint through `ISyncPeer::last_retry_hint()`.
 The default hint is unavailable, which means the peer did not provide advice

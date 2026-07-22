@@ -268,8 +268,10 @@ namespace sync {
         /// \c request.db_id against the local \c db_uuid; mismatched peers
         /// receive an empty response with \c ok=false.
         /// \c has_more is set to \c true when the loop stopped because of
-        /// \c request.max_batches or \c request.max_bytes rather than
-        /// running out of changelog entries.
+        /// \c request.max_batches or the soft page budget
+        /// \c request.max_bytes rather than running out of changelog entries.
+        /// A single retained batch may exceed \c max_bytes but is rejected
+        /// when it exceeds \c request.max_single_batch_bytes.
         PullResponse handle_pull(const PullRequest& request) {
             PullResponse out;
             if (!db_id_matches(request.db_id)) {
@@ -320,7 +322,10 @@ namespace sync {
         /// still used for exact \c have_seq+1 seeks so old values are not
         /// decoded.
         /// Sets \c has_more=true when the walk stopped because of
-        /// \c request.max_batches or \c request.max_bytes.
+        /// \c request.max_batches or the soft page budget
+        /// \c request.max_bytes. A single retained batch may exceed
+        /// \c max_bytes but is rejected when it exceeds
+        /// \c request.max_single_batch_bytes.
         PullResponse pull_changelog_page(MDBX_txn* txn, MDBX_dbi dbi,
                                         const PullRequest& request) {
             PullResponse out;
@@ -349,6 +354,9 @@ namespace sync {
                 }
                 if (pull_origin_batches(txn, dbi, origins[i].origin,
                                         request, out, total_bytes)) {
+                    if (!out.ok) {
+                        return out;
+                    }
                     truncated = true;
                     break;
                 }
@@ -758,6 +766,24 @@ namespace sync {
             out.error += ")";
         }
 
+        static void set_batch_too_large(PullResponse& out,
+                                        const NodeId& origin,
+                                        std::uint64_t seq,
+                                        std::uint64_t batch_bytes,
+                                        std::uint64_t limit) {
+            (void)origin;
+            out.ok = false;
+            out.batches.clear();
+            out.has_more = false;
+            out.error_code = SyncResponseErrorCode::BatchTooLarge;
+            out.error_retryable = false;
+            out.error = "retained changelog batch exceeds max_single_batch_bytes";
+            out.error += " (seq=" + std::to_string(seq);
+            out.error += ", batch_bytes=" + std::to_string(batch_bytes);
+            out.error += ", max_single_batch_bytes=" + std::to_string(limit);
+            out.error += ")";
+        }
+
         static bool request_has_retained_start(MDBX_txn* txn,
                                                MDBX_dbi dbi,
                                                const PullOrigin& origin,
@@ -894,6 +920,13 @@ namespace sync {
                 }
 
                 const std::uint64_t key_seq = changelog_key_seq(k);
+                if (v.iov_len > request.max_single_batch_bytes) {
+                    set_batch_too_large(
+                        out, origin, key_seq,
+                        static_cast<std::uint64_t>(v.iov_len),
+                        request.max_single_batch_bytes);
+                    return true;
+                }
                 std::vector<std::uint8_t> buf(v.iov_len);
                 if (v.iov_len > 0) {
                     std::memcpy(buf.data(), v.iov_base, v.iov_len);

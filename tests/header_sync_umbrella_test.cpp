@@ -117,6 +117,10 @@ int main() {
         std::string(mdbxc::sync::sync_response_error_code_name(
             mdbxc::sync::SyncResponseErrorCode::SnapshotRequired)) ==
         "snapshot_required");
+    MDBXC_TEST_ASSERT(
+        std::string(mdbxc::sync::sync_response_error_code_name(
+            mdbxc::sync::SyncResponseErrorCode::BatchTooLarge)) ==
+        "batch_too_large");
     mdbxc::sync::SyncCaptureScope* capture_scope = nullptr;
     HeaderSyncSink header_sink;
     (void)capture_scope;

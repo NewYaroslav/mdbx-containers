@@ -28,6 +28,7 @@ namespace sync {
         UnsupportedFullSnapshot = 2, ///< Full snapshot protocol is not implemented.
         ApplyConflict           = 3, ///< Push apply failed on a sync conflict.
         SnapshotRequired        = 4, ///< Requested changelog history was pruned.
+        BatchTooLarge           = 5, ///< A single retained batch exceeds the requested limit.
     };
 
     /// \brief Returns a stable diagnostic name for a sync response error code.
@@ -44,6 +45,8 @@ namespace sync {
                 return "apply_conflict";
             case SyncResponseErrorCode::SnapshotRequired:
                 return "snapshot_required";
+            case SyncResponseErrorCode::BatchTooLarge:
+                return "batch_too_large";
         }
         return "unknown";
     }
@@ -54,6 +57,9 @@ namespace sync {
         DbId         db_id{};
         SyncCursor   have;
         std::uint64_t max_batches = 1000;
+        /// \brief Soft target for the total encoded batch bytes in one page.
+        /// \details A single retained batch may exceed this value and still be
+        /// returned alone when it does not exceed \c max_single_batch_bytes.
         std::uint64_t max_bytes   = 4ULL * 1024ULL * 1024ULL;
         /// \brief Requests a full snapshot instead of an incremental delta.
         /// \details Reserved for a future snapshot protocol. v0.1
@@ -63,6 +69,11 @@ namespace sync {
         /// \details Optional; default-constructed tokens never cancel.
         /// Transports may poll it while waiting on interruptible operations.
         CancellationToken cancel_token;
+        /// \brief Hard limit for one encoded retained changelog batch.
+        /// \details Responders reject a pull with \c BatchTooLarge when the
+        /// next required retained batch exceeds this value. This differs from
+        /// \c max_bytes, which is a soft page budget.
+        std::uint64_t max_single_batch_bytes = 4ULL * 1024ULL * 1024ULL;
     };
 
     /// \brief Response to a \c PullRequest.

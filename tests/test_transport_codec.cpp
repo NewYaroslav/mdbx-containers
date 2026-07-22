@@ -60,6 +60,7 @@ void test_pull_request_roundtrip() {
     request.max_batches = 17;
     request.max_bytes = 4096;
     request.request_full_snapshot = true;
+    request.max_single_batch_bytes = 8192;
     CancellationSource source;
     request.cancel_token = source.token();
 
@@ -82,6 +83,8 @@ void test_pull_request_roundtrip() {
                  "PullRequest max_bytes mismatch");
     require_true(decoded.request_full_snapshot,
                  "PullRequest full snapshot mismatch");
+    require_true(decoded.max_single_batch_bytes == 8192,
+                 "PullRequest max_single_batch_bytes mismatch");
     require_true(!decoded.cancel_token.can_be_cancelled(),
                  "PullRequest cancel token must not be serialized");
 }
@@ -99,7 +102,7 @@ void test_pull_response_roundtrip() {
     response.has_more = true;
     response.ok = false;
     response.error = "temporary upstream timeout";
-    response.error_code = SyncResponseErrorCode::SnapshotRequired;
+    response.error_code = SyncResponseErrorCode::BatchTooLarge;
     response.error_retryable = false;
 
     const std::vector<std::uint8_t> bytes =
@@ -126,7 +129,7 @@ void test_pull_response_roundtrip() {
     require_true(decoded.has_more, "PullResponse has_more mismatch");
     require_true(!decoded.ok, "PullResponse ok mismatch");
     require_true(decoded.error == response.error, "PullResponse error mismatch");
-    require_true(decoded.error_code == SyncResponseErrorCode::SnapshotRequired,
+    require_true(decoded.error_code == SyncResponseErrorCode::BatchTooLarge,
                  "PullResponse error_code mismatch");
     require_true(decoded.error_retryable == response.error_retryable,
                  "PullResponse error_retryable mismatch");
@@ -253,7 +256,7 @@ void test_message_header_rejections() {
 
     expect_throw("invalid bool", [bytes] {
         std::vector<std::uint8_t> bad = bytes;
-        bad[bad.size() - 1u] = 2u;
+        bad[bad.size() - 9u] = 2u;
         (void)TransportMessageCodec::decode_pull_request(bad);
     });
 
@@ -349,7 +352,7 @@ void test_golden_header_shape() {
         require_true(bytes[i] == expected_magic[i],
                      "TransportMessageCodec magic mismatch");
     }
-    require_true(bytes[8] == 3u && bytes[9] == 0u,
+    require_true(bytes[8] == 4u && bytes[9] == 0u,
                  "TransportMessageCodec version mismatch");
     require_true(bytes[10] == 1u,
                  "TransportMessageCodec pull request type mismatch");

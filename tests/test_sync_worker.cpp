@@ -1594,6 +1594,10 @@ void test_worker_rejects_invalid_options() {
     expect_invalid_options(engine, peer, invalid, "max_bytes");
 
     invalid = options;
+    invalid.max_single_batch_bytes = 0;
+    expect_invalid_options(engine, peer, invalid, "max_single_batch_bytes");
+
+    invalid = options;
     invalid.idle_interval = std::chrono::milliseconds(-1);
     expect_invalid_options(engine, peer, invalid, "idle_interval");
 
