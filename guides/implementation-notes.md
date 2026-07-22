@@ -223,6 +223,13 @@ Operational rules:
   batches because applying a later retained batch would produce a sequence gap
   on the receiver. Until a snapshot protocol is implemented, the caller must
   provision a fresh replica or use an out-of-band snapshot.
+- The deferred full snapshot protocol is specified in
+  `include/mdbx_containers/sync/DESIGN.md`. It must stay separate from
+  changelog replay: snapshot chunks need explicit framing, user-DBI-only apply
+  rules, a stable `snapshot_id`, an immutable manifest/tail from one source read
+  view, continuation-token validation, cursor bootstrap semantics, and
+  interruption behavior before `PullRequest::request_full_snapshot=true` can be
+  accepted.
 - `PushResponse::error_retryable` describes sync-level recovery. Sequence gaps
   are retryable after the receiver catches up from its persistent applied
   cursor; DBI name/flag conflicts, reserved DBI writes, and unsupported

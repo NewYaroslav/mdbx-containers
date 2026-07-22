@@ -532,6 +532,73 @@ valid sync response, not a transport failure.
 sync-level response errors through round results, stage events, and status
 snapshots without treating them as permanent transport failures.
 
+### Deferred full snapshot protocol
+
+The future full snapshot protocol must be explicit rather than another spelling
+of retained changelog replay. The reserved request shape is
+`PullRequest::request_full_snapshot=true`; responders that implement it should
+return snapshot chunks only when the caller requested that mode, never as an
+implicit fallback from a normal incremental pull.
+
+Required protocol properties before enabling the flag:
+
+- A full snapshot export is a named snapshot session. The first response must
+  return an opaque `snapshot_id` and all later pages must present the same id;
+  pages with an unknown, expired, or mismatched id are rejected instead of being
+  merged into the receiver state.
+- The session is tied to one stable source view. All snapshot data, the exported
+  DBI manifest, the source `NodeId`, the `db_id`, and the advertised changelog
+  tail must come from one MDBX read transaction or from a materialized snapshot
+  created from that read transaction. The advertised tail is immutable for the
+  whole session.
+- The first page carries a manifest before any data is considered complete. The
+  manifest lists the selected user DBIs, DBI flags, empty source DBIs, the fixed
+  source identity, the immutable changelog tail, the replacement scope, and a
+  manifest version/hash that later pages repeat. A receiver must reject chunks
+  whose manifest identity differs from the first page.
+- Receiver-only DBIs are an explicit policy decision, not an accidental side
+  effect. The manifest must say whether the snapshot replaces the complete
+  database scope or only the listed DBIs; complete replacement may clear/drop
+  receiver-only user DBIs only when the caller opted into that scope. Otherwise
+  receiver-only DBIs are preserved or the import fails closed before data apply.
+- Snapshot chunks must be distinguishable from ordinary changelog batches.
+  The reserved shape is `ChangeBatch{seq=0, batch_flags=BATCH_HAS_MORE...}`
+  with a snapshot-specific flag or versioned envelope added before release.
+  Ordinary local changelog batches keep `seq > 0`.
+- A chunk carries physical `ClearTable` / `Put` operations for user DBIs only.
+  It must not export or overwrite reserved `_mdbxc_` sync metadata DBIs through
+  the normal user-operation path.
+- Snapshot apply is a replacement operation for the selected database content:
+  the receiver must clear each exported user DBI before applying that DBI's
+  first snapshot entries, then apply later chunks idempotently or reject
+  ambiguous resume attempts.
+- Metadata bootstrap is separate from user data import. After the snapshot data
+  is committed, the receiver records applied cursors consistent with the
+  responder's advertised changelog tail so the next round can continue through
+  ordinary incremental pull.
+- Chunk pagination must use the existing pull limits: `max_bytes` as a soft page
+  budget and `max_single_batch_bytes` as a hard limit for a single encoded
+  snapshot chunk. If one logical DBI chunk cannot fit under the hard limit, the
+  snapshot encoder must split it further or return a structured permanent sync
+  error.
+- Multi-page sessions must carry an explicit continuation token. The token is
+  opaque to callers, but it must identify the next physical position precisely
+  enough to resume within duplicate-value tables, for example by encoding the
+  DBI name, storage key, duplicate position, and manifest identity. Tokens may
+  expire; expired or foreign tokens are permanent sync-level rejections and do
+  not advance receiver state.
+- A failed snapshot apply must not leave the receiver advertising a partially
+  advanced applied cursor. Either each chunk is independently resumable with
+  explicit snapshot state, or the initial implementation must require a fresh
+  replica directory and fail closed on interruption.
+- `SnapshotRequired` remains the incremental-pull recovery signal. It tells the
+  caller that retained changelog replay cannot satisfy the request; the caller
+  may then make a separate `request_full_snapshot=true` request once this
+  protocol exists.
+
+Until these details are implemented and covered by round-trip tests,
+`request_full_snapshot=true` remains a permanent sync-level rejection.
+
 ## Background worker lifecycle
 
 `SyncWorker` is the minimal background driver for `SyncEngine + ISyncPeer`.
