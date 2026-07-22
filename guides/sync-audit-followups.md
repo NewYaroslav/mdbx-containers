@@ -50,34 +50,24 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - PR #175 split pull page byte budgets from per-batch byte budgets.
 - PR #180 added connection-level remote apply observer hooks for cache
   invalidation, metrics, and logging after successful remote apply commits.
+- PR #181 added `SyncWorkerGuard` as an RAII helper for one background worker
+  session.
 
 ## Current PR Sequence
 
-### PR #176: Transport include graph cleanup
+### PR #180: Remote apply observer hooks
 
-- Keep concrete backend headers from depending on the aggregate
-  `sync/transport.hpp` header that names the framework-neutral transport
-  surface.
-- Preserve the public aggregate header for user convenience.
+- Notify cache invalidation, metrics, and logging code after successful remote
+  apply commits.
 
-### PR #177: Audit follow-up ledger refresh
+### PR #181: Worker lifecycle guard
 
-- Keep this file aligned with the PRs that have already landed.
-- Preserve the unresolved audit items as small, reviewable future PRs.
+- Reduce repeated `start()` / `stop()` boilerplate for background
+  `SyncWorker` sessions.
 
-### PR #178: Full snapshot protocol design
+### PR #182: Worker/node ergonomics example
 
-- Specify the future `PullRequest::request_full_snapshot=true` protocol before
-  implementing it.
-- Keep the current v0.1 behavior explicit: unsupported full snapshots and
-  pruned cursors return machine-readable sync errors.
-
-### PR #179: `KeyMultiValueTable` sync design
-
-- Define the unordered multiset framing and apply semantics for duplicate
-  values before adding capture support.
-- Keep order-sensitive histories deferred to a separate
-  `KeyOrderedMultiValueTable<K, V>` design.
+- Show the new hooks and worker guard in a small application-facing sync setup.
 
 ## Later Medium-Risk Follow-ups
 
@@ -88,6 +78,6 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
   supports it, configure request, response, and frame caps before the complete
   payload is retained in memory. PR #170 added binding-side limits after the
   framework has surfaced the payload.
-- Worker/node ergonomics helpers: reduce repeated setup code around
-  `SyncCaptureScope`, transport peer construction, worker lifecycle, and common
-  production policies.
+- Higher-level node/transport helpers: reduce repeated setup code around
+  transport peer construction, identity policy, retry/backoff settings, and
+  common production policies.

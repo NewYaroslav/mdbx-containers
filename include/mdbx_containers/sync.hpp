@@ -32,6 +32,7 @@
 #include "sync/TransportMessageCodec.hpp"
 #include "sync/SyncEngine.hpp"
 #include "sync/SyncWorker.hpp"
+#include "sync/SyncWorkerGuard.hpp"
 #include "sync/DirectSyncPeer.hpp"
 #include "sync/HttpTransport.hpp"
 #include "sync/WebSocketTransport.hpp"
