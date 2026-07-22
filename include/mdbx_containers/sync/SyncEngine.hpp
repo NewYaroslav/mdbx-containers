@@ -35,6 +35,7 @@
 
 #include <mdbx.h>
 
+#include "../common.hpp"
 #include "common.hpp"
 #include "ConflictPolicy.hpp"
 #include "ChangeBatch.hpp"
@@ -43,6 +44,7 @@
 #include "protocol.hpp"
 #include "SyncCursor.hpp"
 #include "stores/AppliedStore.hpp"
+#include "stores/ChangeLogStore.hpp"
 #include "stores/MetaStore.hpp"
 #include "stores/OriginIndexStore.hpp"
 

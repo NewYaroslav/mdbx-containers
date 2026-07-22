@@ -6,6 +6,16 @@
 /// \brief Persistent metadata for the sync subsystem: db identity, local node
 /// identity, schema version, monotonic local seq, creation timestamp.
 
+#include <cstdint>
+#include <cstring>
+#include <stdexcept>
+#include <string>
+
+#include <mdbx.h>
+
+#include "../../detail/utils.hpp"
+#include "../common.hpp"
+
 namespace mdbxc {
 namespace sync {
 

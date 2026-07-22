@@ -6,9 +6,9 @@
 /// \brief Aggregate header for framework-neutral sync transport adapters.
 /// \details
 /// This header pulls in the sync core plus the HTTP/WebSocket transport seams
-/// and adapter-local middleware. It can be included directly by concrete
-/// transport backends. It does not include concrete socket backend
-/// integrations such as Simple-Web-Server.
+/// and adapter-local middleware. It does not include concrete socket backend
+/// integrations such as Simple-Web-Server. Concrete backend headers include
+/// the specific framework-neutral headers they need instead of this aggregate.
 
 #include <mdbx_containers/sync.hpp>
 

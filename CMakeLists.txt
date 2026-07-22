@@ -434,6 +434,13 @@ if(MDBXC_BUILD_TESTS)
         mdbx_containers/SequenceTable.hpp
         mdbx_containers/ValueTable.hpp
     )
+    set(MDBXC_SYNC_STANDALONE_HEADERS
+        mdbx_containers/sync/codec_flags.hpp
+        mdbx_containers/sync/ChangeOp.hpp
+        mdbx_containers/sync/ChangeBatch.hpp
+        mdbx_containers/sync/ChangeBatchCodec.hpp
+        mdbx_containers/sync/TransportMessageCodec.hpp
+    )
 
     function(mdbxc_add_test_target test_name test_file)
         add_executable(${test_name} ${test_file})
@@ -496,6 +503,13 @@ if(MDBXC_BUILD_TESTS)
     set(_mdbxc_generated_test_dir "${CMAKE_CURRENT_BINARY_DIR}/generated_tests")
     file(MAKE_DIRECTORY "${_mdbxc_generated_test_dir}")
     foreach(header IN LISTS MDBXC_STANDALONE_PUBLIC_HEADERS)
+        string(MAKE_C_IDENTIFIER "${header}" header_target_suffix)
+        set(test_name "header_standalone_${header_target_suffix}")
+        set(test_file "${_mdbxc_generated_test_dir}/${test_name}.cpp")
+        file(WRITE "${test_file}" "#include <${header}>\n\nint main() {\n    return 0;\n}\n")
+        mdbxc_add_test_target(${test_name} ${test_file})
+    endforeach()
+    foreach(header IN LISTS MDBXC_SYNC_STANDALONE_HEADERS)
         string(MAKE_C_IDENTIFIER "${header}" header_target_suffix)
         set(test_name "header_standalone_${header_target_suffix}")
         set(test_file "${_mdbxc_generated_test_dir}/${test_name}.cpp")
