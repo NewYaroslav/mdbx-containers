@@ -10,7 +10,7 @@
  *     ISyncApplyObserver.
  *
  * Expected output:
- *   [apply observer] generation=1 batches=2 ops=2 item2_visible=yes
+ *   [apply observer] generation=1 batches=2 ops=2 dbis=1 item2_visible=yes
  *   [replica] item 1=alpha item 2=beta
  *   OK: sync_21_worker_guard_apply_hooks
  */
@@ -35,7 +35,7 @@ public:
             std::shared_ptr<mdbxc::Connection> replica_conn,
             mdbxc::KeyValueTable<int, std::string>* replica_items)
         : m_events(0), m_last_generation(0), m_last_batches(0),
-          m_last_ops(0), m_replica_conn(replica_conn),
+          m_last_ops(0), m_last_dbi_count(0), m_replica_conn(replica_conn),
           m_replica_items(replica_items), m_item_two_visible(false) {}
 
     void on_sync_apply_committed(
@@ -56,13 +56,15 @@ public:
             m_last_generation = event.generation;
             m_last_batches = event.applied_batches;
             m_last_ops = event.applied_ops;
+            m_last_dbi_count = event.affected_dbi_names.size();
             m_item_two_visible = item_two_visible;
             std::printf(
                 "[apply observer] generation=%llu batches=%zu ops=%zu "
-                "item2_visible=%s\n",
+                "dbis=%zu item2_visible=%s\n",
                 static_cast<unsigned long long>(event.generation),
                 event.applied_batches,
                 event.applied_ops,
+                event.affected_dbi_names.size(),
                 item_two_visible ? "yes" : "no");
         }
         m_changed.notify_all();
@@ -97,6 +99,7 @@ private:
     std::uint64_t m_last_generation;
     std::size_t m_last_batches;
     std::size_t m_last_ops;
+    std::size_t m_last_dbi_count;
     std::shared_ptr<mdbxc::Connection> m_replica_conn;
     mdbxc::KeyValueTable<int, std::string>* m_replica_items;
     bool m_item_two_visible;

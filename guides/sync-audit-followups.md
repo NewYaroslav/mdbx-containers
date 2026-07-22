@@ -57,14 +57,12 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 - PR #184 added `SyncNodeSession` for one common application wiring shape:
   capture attachment, worker session lifetime, and optional apply observer
   registration.
+- PR #185 extended `ISyncApplyObserver` events with affected DBI names for
+  more precise cache invalidation.
 
 ## Current PR Sequence
 
-### PR #185: Per-DBI remote apply invalidation
-
-- Extend the remote apply observer event with affected DBI names so cached
-  wrappers and application observers can invalidate more precisely than the
-  current coarse generation-only hook.
+No active audit PR sequence is queued in this ledger.
 
 ## Later Medium-Risk Follow-ups
 
@@ -72,6 +70,10 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
   supports it, configure request, response, and frame caps before the complete
   payload is retained in memory. PR #170 added binding-side limits after the
   framework has surfaced the payload.
+- Table-filtered apply observer subscriptions: `ISyncApplyObserver` now reports
+  affected DBI names, but every observer still receives every committed remote
+  apply event. Add registration-side filters only if more cached wrappers need
+  narrower callback delivery.
 - Higher-level transport helpers: after the node ergonomics helper, reduce
   repeated setup code around concrete transport peer construction, identity
   policy, retry/backoff settings, and common production policies.

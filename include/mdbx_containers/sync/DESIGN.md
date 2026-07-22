@@ -119,7 +119,10 @@ so observers may use table and cache-backed APIs on the same connection for
 invalidation. Observer exceptions are swallowed because the database state has
 already changed. Registrations are non-owning lifecycle hooks. A successful
 `remove_sync_apply_observer()` call is a callback drain barrier for that token,
-so the observer can be destroyed after removal returns.
+so the observer can be destroyed after removal returns. Apply events also carry
+the unique DBI names touched by applied operations in first-seen order. The
+names are local physical DBI names for invalidation; they are not transport
+identity, auth metadata, or a substitute for table-specific sync semantics.
 
 A connection-level apply/read barrier serializes remote apply commits with
 cache-backed `VectorStore` operations. C++17 builds use `std::shared_mutex` so

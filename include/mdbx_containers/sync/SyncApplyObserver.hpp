@@ -7,6 +7,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace mdbxc {
 namespace sync {
@@ -20,6 +22,10 @@ namespace sync {
         std::uint64_t generation = 0;       ///< New connection apply generation.
         std::size_t applied_batches = 0;    ///< Number of applied non-empty batches.
         std::size_t applied_ops = 0;        ///< Number of applied operations.
+        /// \brief Unique DBI names touched by applied operations.
+        /// \details Names are reported in first-seen order across applied
+        /// batches. Idempotent replays and skipped batches do not emit events.
+        std::vector<std::string> affected_dbi_names;
     };
 
     /// \brief Non-owning observer for successful remote sync apply commits.

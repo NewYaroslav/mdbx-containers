@@ -276,13 +276,15 @@ namespace mdbxc {
 
     inline Connection::SyncApplyNotification Connection::mark_sync_apply_committed(
         std::size_t applied_batches,
-        std::size_t applied_ops) {
+        std::size_t applied_ops,
+        const std::vector<std::string>& affected_dbi_names) {
         SyncApplyNotification notification;
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         ++m_sync_apply_generation;
         notification.generation = m_sync_apply_generation;
         notification.applied_batches = applied_batches;
         notification.applied_ops = applied_ops;
+        notification.affected_dbi_names = affected_dbi_names;
         notification.callbacks.reserve(m_sync_apply_observers.size());
         for (std::size_t i = 0; i < m_sync_apply_observers.size(); ++i) {
             const std::shared_ptr<SyncApplyObserverState>& state =
@@ -307,6 +309,7 @@ namespace mdbxc {
         event.generation = notification.generation;
         event.applied_batches = notification.applied_batches;
         event.applied_ops = notification.applied_ops;
+        event.affected_dbi_names = notification.affected_dbi_names;
         for (std::size_t i = 0; i < notification.callbacks.size(); ++i) {
             try {
                 begin_sync_apply_observer_callback(
