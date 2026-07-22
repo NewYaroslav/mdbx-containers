@@ -57,29 +57,28 @@ into small PRs so behavior, storage format, and build hygiene remain reviewable.
 
 ## Current PR Sequence
 
-### PR #180: Remote apply observer hooks
+### PR #183: Ledger and readiness refresh
 
-- Notify cache invalidation, metrics, and logging code after successful remote
-  apply commits.
+- Remove the now-merged #180-#182 work queue from this note and keep the
+  remaining follow-ups focused on unsolved tasks.
 
-### PR #181: Worker lifecycle guard
+### PR #184: Sync node ergonomics helper
 
-- Reduce repeated `start()` / `stop()` boilerplate for background
-  `SyncWorker` sessions.
+- Add a small public helper around the common application setup for sync
+  capture, worker lifecycle, and optional remote-apply observer registration.
 
-### PR #182: Worker/node ergonomics example
+### PR #185: Per-DBI remote apply invalidation
 
-- Show the new hooks and worker guard in a small application-facing sync setup.
+- Extend the remote apply observer event with affected DBI names so cached
+  wrappers and application observers can invalidate more precisely than the
+  current coarse generation-only hook.
 
 ## Later Medium-Risk Follow-ups
 
-- Per-DBI remote apply invalidation: `ISyncApplyObserver` currently reports a
-  coarse committed apply event. If more cached wrappers appear, extend the hook
-  with affected DBI names or table identity filters.
 - Framework-level pre-buffer limits: where the concrete HTTP/WebSocket library
   supports it, configure request, response, and frame caps before the complete
   payload is retained in memory. PR #170 added binding-side limits after the
   framework has surfaced the payload.
-- Higher-level node/transport helpers: reduce repeated setup code around
-  transport peer construction, identity policy, retry/backoff settings, and
-  common production policies.
+- Higher-level transport helpers: after the node ergonomics helper, reduce
+  repeated setup code around concrete transport peer construction, identity
+  policy, retry/backoff settings, and common production policies.

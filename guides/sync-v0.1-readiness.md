@@ -21,9 +21,13 @@ rules, see [Sync table coverage matrix](sync-table-coverage.md).
   local transaction.
 - `SyncWorker` owns the background pull loop, pagination, cancellation tokens,
   observer callbacks, retry backoff, and optional `Retry-After` backoff hints.
+- `SyncWorkerGuard` is available when an application wants one RAII-owned
+  background worker session instead of a manual `start()` / `stop()` pair.
 - `SyncWorker::status()` exposes a thread-safe snapshot for polling UIs,
   health endpoints, and structured logging code that do not subscribe to
   observer callbacks.
+- `Connection::add_sync_apply_observer()` provides a post-commit remote apply
+  hook for coarse cache invalidation, metrics, and structured logging.
 - HTTP and WebSocket framework-neutral seams use `TransportMessageCodec`; DTOs
   do not carry bearer tokens, cookies, remote addresses, request ids, or trace
   ids.
@@ -77,8 +81,11 @@ it can make replication appear successful while logical state diverges.
 
 ## Suggested Next PRs
 
-- Add small ergonomics helpers around common worker setup if examples continue
-  to repeat the same lifecycle boilerplate.
+- Add a small sync node ergonomics helper around common capture, worker
+  lifecycle, and observer setup.
+- Extend `ISyncApplyObserver` events with affected DBI names or table identity
+  filters so cache invalidation can be more precise than the current coarse
+  generation marker.
 - Prototype `KeyMultiValueTable` capture/apply using the deferred
   single-writer/serialized unordered multiset design. Add explicit wire
   sub-operation framing and repeated-pair round-trip tests before enabling
