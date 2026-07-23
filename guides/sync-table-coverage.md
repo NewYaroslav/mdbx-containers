@@ -40,8 +40,8 @@ remain sufficient to open or validate the destination DBI and replay the
 operation without table-specific decoding.
 
 Focused capture and round-trip tests currently cover representative write,
-delete, bulk, range-erase, `ClearTable`, indirect `VectorStore`, and
-deferred-table negative paths.
+delete, bulk, range-erase, wrapper-specific `ClearTable`, indirect
+`VectorStore`, and deferred-table negative paths.
 
 ## Deferred Table Rules
 

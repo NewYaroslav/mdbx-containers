@@ -991,6 +991,115 @@ void test_replication_clear_table_roundtrip() {
     cleanup(p); cleanup(r);
 }
 
+void test_replication_wrapper_clear_roundtrips_independently() {
+    using namespace mdbxc;
+    const std::string p = "test_rep_wrapper_clear_roundtrip.mdbx";
+    const std::string r = "test_rep_wrapper_clear_roundtrip_replica.mdbx";
+    cleanup(p); cleanup(r);
+
+    const sync::NodeId primary_node = make_node(0xA0);
+    const sync::NodeId replica_node = make_node(0xB0);
+    const sync::NodeId db_id = make_node(0xD0);
+
+    std::shared_ptr<Connection> primary = open(p);
+    std::shared_ptr<Connection> replica = open(r);
+
+    sync::SyncEngine pe(primary), re(replica);
+    pe.initialize_local_identity(primary_node, db_id);
+    re.initialize_local_identity(replica_node, db_id);
+
+    sync::ThreadLocalChangeAccumulator sink(primary);
+    primary->attach_sync_capture(&sink);
+
+    {
+        KeyValueTable<int, std::string> kv(primary, "clear_each_kv");
+        kv.insert_or_assign(1, "one");
+
+        KeyTable<int> keys(primary, "clear_each_keys");
+        keys.insert(2);
+
+        ValueTable<int> value(primary, "clear_each_value");
+        value.set(3);
+
+        SequenceTable<std::string> seq(primary, "clear_each_seq");
+        seq.append("four");
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id) == 0u) {
+        throw std::runtime_error("initial wrapper clear sync pulled no batches");
+    }
+
+    {
+        KeyValueTable<int, std::string> kv(primary, "clear_each_kv");
+        kv.clear();
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id) != 1u) {
+        throw std::runtime_error("KeyValueTable clear did not replicate one batch");
+    }
+    {
+        KeyValueTable<int, std::string> kv(replica, "clear_each_kv");
+        KeyTable<int> keys(replica, "clear_each_keys");
+        ValueTable<int> value(replica, "clear_each_value");
+        SequenceTable<std::string> seq(replica, "clear_each_seq");
+        if (kv.count() != 0u || !key_has(replica, keys, 2) ||
+            !value.has_value() || seq.count() != 1u) {
+            throw std::runtime_error(
+                "KeyValueTable clear affected wrong replica state");
+        }
+    }
+
+    {
+        KeyTable<int> keys(primary, "clear_each_keys");
+        keys.clear();
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id) != 1u) {
+        throw std::runtime_error("KeyTable clear did not replicate one batch");
+    }
+    {
+        KeyTable<int> keys(replica, "clear_each_keys");
+        ValueTable<int> value(replica, "clear_each_value");
+        SequenceTable<std::string> seq(replica, "clear_each_seq");
+        if (keys.count() != 0u || !value.has_value() || seq.count() != 1u) {
+            throw std::runtime_error(
+                "KeyTable clear affected wrong replica state");
+        }
+    }
+
+    {
+        ValueTable<int> value(primary, "clear_each_value");
+        value.clear();
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id) != 1u) {
+        throw std::runtime_error("ValueTable clear did not replicate one batch");
+    }
+    {
+        ValueTable<int> value(replica, "clear_each_value");
+        SequenceTable<std::string> seq(replica, "clear_each_seq");
+        if (value.has_value() || seq.count() != 1u) {
+            throw std::runtime_error(
+                "ValueTable clear affected wrong replica state");
+        }
+    }
+
+    {
+        SequenceTable<std::string> seq(primary, "clear_each_seq");
+        seq.clear();
+    }
+    if (pull_all_to_replica(pe, re, primary_node, replica_node, db_id) != 1u) {
+        throw std::runtime_error("SequenceTable clear did not replicate one batch");
+    }
+    {
+        SequenceTable<std::string> seq(replica, "clear_each_seq");
+        if (seq.count() != 0u) {
+            throw std::runtime_error("SequenceTable clear did not replicate");
+        }
+    }
+
+    primary->detach_sync_capture();
+    primary->disconnect();
+    replica->disconnect();
+    cleanup(p); cleanup(r);
+}
+
 void test_replication_incremental_pull() {
     using namespace mdbxc;
     const std::string p = "test_rep_incr.mdbx";
@@ -1327,6 +1436,8 @@ int main() {
           &test_replication_vector_store_roundtrip },
         { "test_replication_clear_table_roundtrip",
           &test_replication_clear_table_roundtrip },
+        { "test_replication_wrapper_clear_roundtrips_independently",
+          &test_replication_wrapper_clear_roundtrips_independently },
         { "test_replication_incremental_pull",   &test_replication_incremental_pull },
         { "test_replication_idempotent_apply",   &test_replication_idempotent_apply },
         { "test_replication_make_push_request", &test_replication_make_push_request_helper },
