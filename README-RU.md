@@ -34,6 +34,9 @@
 - `KeyMultiValueTable<K, V>` хранит несколько значений на один ключ со
   `std::multimap`-подобным API, потоковыми и материализованными range-scan методами,
   обратным сканированием, удалением диапазонов и сохранением повторяющихся одинаковых пар `(key, value)`.
+- `KeyOrderedMultiValueTable<K, V>` хранит несколько значений на один ключ,
+  когда текущий порядок append является частью API; повторяющиеся одинаковые значения
+  остаются видимыми, а `find(key)` возвращает значения в порядке append.
 - `SequenceTable<ValueT>` хранит значения по стабильному uint64_t id с
   append-only семантикой и разреженными индексами. Append возвращает
   стабильный id; удаление не переиндексирует следующие записи.
@@ -78,14 +81,13 @@
 - v0.1 захватывает обычные write-path'ы `KeyValueTable`, `KeyTable`,
   `ValueTable` и `SequenceTable`; `VectorStore` реплицируется косвенно через
   внутренние `SequenceTable` и `KeyValueTable`.
-- `AnyValueTable`, `KeyMultiValueTable` и `HashedKeyValueStore` не
-  реплицируются в v0.1. Для `KeyMultiValueTable` в `sync/DESIGN.md` описан
-  отложенный unordered multiset sync design для single-writer или causally
-  serialized updates; общие concurrent multi-writer conflict semantics и
-  сохраняющие порядок распределённые histories отложены в будущую работу,
-  например `KeyOrderedMultiValueTable<K, V>`. Реализация остаётся выключенной,
-  пока не появятся capture и round-trip tests. Для `AnyValueTable` и
-  `HashedKeyValueStore` ещё нужны дизайны type tags и hash-index identity.
+- `AnyValueTable`, `KeyMultiValueTable`, `KeyOrderedMultiValueTable` и
+  `HashedKeyValueStore` не реплицируются в v0.1. Для `KeyMultiValueTable` в
+  `sync/DESIGN.md` описан отложенный unordered multiset sync design.
+  `KeyOrderedMultiValueTable` является order-sensitive table API, но её
+  sync capture/apply контракт остаётся выключенным, пока не появятся capture и
+  round-trip tests. Для `AnyValueTable` и `HashedKeyValueStore` ещё нужны
+  дизайны type tags и hash-index identity.
 - Для поддерживаемых таблиц прикладной CRUD-код не нужно оборачивать
   отдельными sync-вызовами на каждый метод. Прикрепите
   `ThreadLocalChangeAccumulator` к пишущему `Connection`; используйте
@@ -328,6 +330,19 @@ events.insert(7, "created"); // одинаковые повторы сохран
 events.insert(7, "sent");
 
 std::vector<std::string> values = events.find(7);
+```
+
+### Упорядоченная таблица с несколькими значениями на ключ
+
+```cpp
+#include <mdbx_containers/KeyOrderedMultiValueTable.hpp>
+
+mdbxc::KeyOrderedMultiValueTable<int, std::string> timeline(conn, "timeline");
+timeline.append(7, "created");
+timeline.append(7, "created"); // одинаковые повторы сохраняются
+timeline.append(7, "sent");
+
+std::vector<std::string> ordered_values = timeline.find(7);
 ```
 
 ### Ручная транзакция

@@ -21,6 +21,9 @@ int main() {
     mdbxc::KeyValueTable<std::uint64_t, std::string>* key_value_table = nullptr;
     MDBXC_TEST_ASSERT(key_value_table == nullptr);
 
+    mdbxc::KeyOrderedMultiValueTable<std::uint64_t, std::string>* ordered_multi_value_table = nullptr;
+    MDBXC_TEST_ASSERT(ordered_multi_value_table == nullptr);
+
     mdbxc::sync::NodeId node = mdbxc::sync::make_zero_node();
     MDBXC_TEST_ASSERT(node.size() == 16u);
 

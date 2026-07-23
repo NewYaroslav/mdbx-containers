@@ -36,6 +36,7 @@ Primary entry points:
   `include/mdbx_containers/AnyValueTable.hpp`,
   `include/mdbx_containers/KeyTable.hpp`,
   `include/mdbx_containers/KeyMultiValueTable.hpp`,
+  `include/mdbx_containers/KeyOrderedMultiValueTable.hpp`,
   `include/mdbx_containers/SequenceTable.hpp`.
 - Shared public components: `include/mdbx_containers/common.hpp`.
 - Transactions/config: `common/Connection.hpp`, `common/Transaction.hpp`,
@@ -54,7 +55,8 @@ Real subdomains:
 
 - **Persistent tables**: active `KeyValueTable`, active
   `HashedKeyValueStore`, active `ValueTable`, active `AnyValueTable`, active
-  `KeyTable`, active `KeyMultiValueTable`, active `SequenceTable`.
+  `KeyTable`, active `KeyMultiValueTable`, active
+  `KeyOrderedMultiValueTable`, active `SequenceTable`.
 - **MDBX environment and transactions**: `Connection`, `Transaction`,
   `TransactionTracker`, `BaseTable`.
 - **Serialization**: `serialize_key`, `serialize_value`,

@@ -892,6 +892,7 @@ void test_any_value_table_does_not_capture_in_v01() {
 void test_key_multi_value_table_does_not_capture_in_v01() {
     using namespace mdbxc;
     typedef KeyMultiValueTable<int, std::string> MultiTable;
+    typedef KeyOrderedMultiValueTable<int, std::string> OrderedMultiTable;
     const std::string p = "test_capture_key_multi_value_deferred.mdbx";
     cleanup(p);
 
@@ -943,6 +944,18 @@ void test_key_multi_value_table_does_not_capture_in_v01() {
         }
         multi_values.clear();
         require_no_capture(sink, "KeyMultiValueTable", "clear");
+
+        OrderedMultiTable ordered_multi_values(conn, "ordered_multi_values");
+        ordered_multi_values.append(1, "one");
+        require_no_capture(sink, "KeyOrderedMultiValueTable", "append");
+        ordered_multi_values.append(1, "uno");
+        require_no_capture(sink, "KeyOrderedMultiValueTable", "append repeated key");
+        if (!ordered_multi_values.erase_at(1, 0u)) {
+            throw std::runtime_error("KeyOrderedMultiValueTable::erase_at did not remove prepared row");
+        }
+        require_no_capture(sink, "KeyOrderedMultiValueTable", "erase_at");
+        ordered_multi_values.clear();
+        require_no_capture(sink, "KeyOrderedMultiValueTable", "clear");
     }
 
     conn->disconnect();

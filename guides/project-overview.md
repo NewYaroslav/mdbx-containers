@@ -28,6 +28,7 @@ and compiles in the consumer's translation units.
 | `AnyValueTable<K>` | Active | Heterogeneous values by caller-specified type with optional type-tag prefix checks. |
 | `KeyTable<K>` | Active | Key-only table with `std::set`-like membership semantics. |
 | `KeyMultiValueTable<K, V>` | Active | Multimap-like table with multiple values per key, including repeated identical pairs. |
+| `KeyOrderedMultiValueTable<K, V>` | Active | Multi-value table where repeated values and current append order within one key are part of the API. |
 
 For method selection, bulk operation semantics, and table-specific constraints,
 see [Table API guide](table-api-guide.md).

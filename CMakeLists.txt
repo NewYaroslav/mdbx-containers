@@ -429,6 +429,7 @@ if(MDBXC_BUILD_TESTS)
         mdbx_containers/Hash.hpp
         mdbx_containers/HashedKeyValueStore.hpp
         mdbx_containers/KeyMultiValueTable.hpp
+        mdbx_containers/KeyOrderedMultiValueTable.hpp
         mdbx_containers/KeyTable.hpp
         mdbx_containers/KeyValueTable.hpp
         mdbx_containers/SequenceTable.hpp

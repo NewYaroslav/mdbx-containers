@@ -21,6 +21,7 @@ values during transport, and remote apply replays the captured physical
 | `VectorStore` | Indirectly supported | Captured through its internal `SequenceTable` and `KeyValueTable` members. | The internal table operations are replicated; `VectorStore` has no separate wire type. Already-open instances compare `Connection::sync_apply_generation()` and lazily rebuild their RAM index before index-dependent operations after remote apply. A connection apply/read barrier serializes remote `handle_push()` apply commits with cache-backed `VectorStore` operations. Each `VectorStore` instance serializes its own methods; C++17 builds let different readers share the connection read side, while C++11 builds use an exclusive connection mutex fallback. | `test_sync_capture`, `test_sync_replication` |
 | `AnyValueTable<K>` | Deferred | No `ChangeOp` in v0.1. | Not applied by sync as a typed heterogeneous table. | `test_sync_capture` negative coverage |
 | `KeyMultiValueTable<K, V>` | Deferred | No `ChangeOp` in v0.1. | DUPSORT duplicate multiplicity and unordered multiset semantics are deferred. | `test_sync_capture` negative coverage |
+| `KeyOrderedMultiValueTable<K, V>` | Deferred | No `ChangeOp` in v0.1. | Per-key append order is explicit in local storage, but sync capture/apply is deferred until ordered multi-value wire semantics are tested. | `test_sync_capture` negative coverage |
 | `HashedKeyValueStore<K, V, H, Layout>` | Deferred | No `ChangeOp` in v0.1. | Hash-index identity and logical-key mapping are deferred. | `test_sync_capture` negative coverage |
 
 ## Supported Capture Contract
@@ -66,8 +67,9 @@ must preserve multiplicity under single-writer or causally serialized updates.
 The detailed deferred contract lives in
 `include/mdbx_containers/sync/DESIGN.md`: it requires explicit multivalue wire
 sub-operations and receiver-side logical apply helpers before capture can be
-enabled. Order-sensitive distributed histories are a separate design and should
-use a future ordered table type, such as `KeyOrderedMultiValueTable<K, V>`.
+enabled. Order-sensitive histories belong to `KeyOrderedMultiValueTable<K, V>`;
+that table exists for local storage, but its sync capture/apply contract is
+still deferred.
 
 `AnyValueTable<K>` needs value type-tag propagation or another explicit
 compatibility policy. The current sync wire operation only carries raw value
