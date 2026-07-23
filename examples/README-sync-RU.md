@@ -208,6 +208,7 @@ cmake -S . -B tmp/build-ws-example `
 | `sync_19_kurlyk_http_client.cpp` | Готовый Kurlyk/libcurl HTTP client binding против Simple-Web sync listener. | Продвинутый |
 | `sync_20_observability.cpp` | Логи worker/transport observer-ов с trace IDs, progress и retry hints. | Продвинутый |
 | `sync_21_worker_guard_apply_hooks.cpp` | Жизненный цикл через `SyncNodeSession` и remote apply observer hooks. | Средний |
+| `sync_22_node_session_minimal.cpp` | Минимальный application-facing recipe для `SyncNodeSession`. | Начальный |
 
 ## Общие правила
 
@@ -240,6 +241,10 @@ cmake -S . -B tmp/build-ws-example `
 - Чтение, поиск и range scans не запускают sync. Локальный commit также не
   обращается к другой ноде; `SyncWorker` или явный pull/push-код позже
   отправляет уже закоммиченные batches через `ISyncPeer`.
+- Минимальный recipe с `SyncNodeSession` использует `DirectSyncPeer`, чтобы не
+  требовать optional dependencies. Реальная HTTP-нода сохраняет ту же форму
+  session и заменяет только peer на готовый HTTP transport binding, например
+  Simple-Web HTTP или Kurlyk HTTP.
 - `PullRequest`, `PullResponse`, `PushRequest` и `PushResponse` - структуры
   данных протокола. Именно эти значения нужно сериализовать и передавать через
   транспорт приложения.
