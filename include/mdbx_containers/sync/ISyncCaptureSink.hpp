@@ -35,8 +35,36 @@ namespace sync {
     public:
         virtual ~ISyncCaptureSink() = default;
 
-        /// \brief Called by \c BaseTable after a successful \c mdbx_put /
-        /// \c mdbx_del on a user table.
+        /// \brief Returns whether this sink implements a capture dispatch path.
+        /// \details \c Connection::attach_sync_capture() rejects sinks that do
+        /// not opt in here, so a type that only implements \c flush_in_txn()
+        /// fails at attachment time instead of after a user-table write.
+        virtual bool supports_change_capture() const {
+            return false;
+        }
+
+        /// \brief Called by \c BaseTable after a successful user-table write.
+        /// \param txn The active MDBX write transaction that performed the
+        ///        change.
+        /// \param change Full raw-domain change operation.
+        /// \details Default implementation forwards to the legacy raw-field
+        /// overload only when \p change contains no enriched metadata. New
+        /// sinks should override this overload when they need access to the
+        /// complete \c ChangeOp shape.
+        virtual void record_change(MDBX_txn* txn, const ChangeOp& change) {
+            if (change.op_flags != OP_NONE ||
+                !change.identity_key.empty() ||
+                !change.revision_key.empty()) {
+                throw std::logic_error(
+                    "ISyncCaptureSink legacy record_change overload cannot accept enriched ChangeOp");
+            }
+            record_change(txn, change.dbi_name, change.op_type,
+                          change.dbi_flags, change.storage_key, change.value);
+        }
+
+        /// \brief Legacy raw-field capture entry point.
+        /// \details Existing sinks may continue overriding this overload.
+        /// New code should prefer \c record_change(MDBX_txn*, const ChangeOp&).
         /// \param txn The active MDBX write transaction that performed the
         ///        change. Implementations may stage the op in thread-local
         ///        memory and defer the on-disk write to \c flush_in_txn.
@@ -53,7 +81,15 @@ namespace sync {
                                    ChangeOpType op_type,
                                    std::uint32_t dbi_flags,
                                    const std::vector<std::uint8_t>& storage_key,
-                                   const std::vector<std::uint8_t>& value) = 0;
+                                   const std::vector<std::uint8_t>& value) {
+            (void)txn;
+            (void)dbi_name;
+            (void)op_type;
+            (void)dbi_flags;
+            (void)storage_key;
+            (void)value;
+            throw std::logic_error("ISyncCaptureSink::record_change is not implemented");
+        }
 
         /// \brief Called by \c Transaction::commit() before the actual commit.
         /// \param txn The about-to-commit write transaction.

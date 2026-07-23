@@ -31,6 +31,10 @@ public:
 
 class HeaderSyncSink : public mdbxc::sync::ISyncCaptureSink {
 public:
+    bool supports_change_capture() const override {
+        return true;
+    }
+
     void record_change(MDBX_txn* txn,
                        const std::string& dbi_name,
                        mdbxc::sync::ChangeOpType op_type,

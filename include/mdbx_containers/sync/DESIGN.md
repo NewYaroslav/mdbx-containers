@@ -586,6 +586,9 @@ Application integration contract:
   attachments and restores the previous sink when the scope ends; supported
   write operations are recorded by table code and flushed by the transaction
   pre-commit hook;
+- `BaseTable::record_op()` constructs a full `ChangeOp` and forwards it through
+  `ISyncCaptureSink::record_change(txn, change)`. The older raw-field overload
+  is a compatibility adapter for existing custom sinks;
 - choose the scope helper for bounded write phases owned by one stack frame;
   choose explicit attach/detach only for a wider component lifecycle where the
   caller can prove no concurrent table operation or active transaction races
