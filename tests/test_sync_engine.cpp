@@ -1332,6 +1332,168 @@ void test_sync_apply_observer_reports_unique_dbi_names() {
     cleanup(p);
 }
 
+void test_sync_apply_observer_reports_dbi_names_across_batches() {
+    using namespace mdbxc;
+    const std::string p = "test_sync_apply_observer_dbi_multi_batch.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+
+    CountingApplyObserver observer;
+    const std::uint64_t token = conn->add_sync_apply_observer(&observer);
+
+    const sync::NodeId origin = make_node(0x20);
+    sync::PushRequest req;
+    req.sender = origin;
+    req.db_id = make_node(0xD0);
+    req.batches.push_back(make_raw_batch(origin, 1, "first_table", 0x41));
+    req.batches.push_back(make_raw_batch(origin, 2, "second_table", 0x42));
+    req.batches.push_back(make_raw_batch(origin, 3, "first_table", 0x43));
+
+    const sync::PushResponse resp = engine.handle_push(req);
+    if (!resp.ok) {
+        throw std::runtime_error("multi-batch push should succeed: " +
+                                 resp.error);
+    }
+    if (observer.calls != 1u || observer.applied_batches != 3u ||
+        observer.applied_ops != 3u) {
+        throw std::runtime_error(
+            "multi-batch observer apply counts incorrect");
+    }
+    if (observer.affected_dbi_names.size() != 2u ||
+        observer.affected_dbi_names[0] != "first_table" ||
+        observer.affected_dbi_names[1] != "second_table") {
+        throw std::runtime_error(
+            "multi-batch observer DBI names are not first-seen unique");
+    }
+
+    if (!conn->remove_sync_apply_observer(token)) {
+        throw std::runtime_error("failed to remove observer");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_sync_apply_observer_ignores_skipped_batch_dbi_names() {
+    using namespace mdbxc;
+    const std::string p = "test_sync_apply_observer_dbi_skipped.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+
+    const sync::NodeId origin = make_node(0x20);
+    {
+        auto txn = conn->transaction(TransactionMode::WRITABLE);
+        if (engine.apply_batch(txn.handle(),
+                               make_raw_batch(origin, 1, "skipped_table",
+                                              0x51)) !=
+            sync::ApplyResult::Applied) {
+            throw std::runtime_error("pre-applied batch should apply");
+        }
+        txn.commit();
+    }
+
+    CountingApplyObserver observer;
+    const std::uint64_t token = conn->add_sync_apply_observer(&observer);
+
+    sync::PushRequest req;
+    req.sender = origin;
+    req.db_id = make_node(0xD0);
+    req.batches.push_back(make_raw_batch(origin, 1, "skipped_table", 0x51));
+    req.batches.push_back(make_raw_batch(origin, 2, "applied_table", 0x52));
+
+    const sync::PushResponse resp = engine.handle_push(req);
+    if (!resp.ok) {
+        throw std::runtime_error("skip+apply push should succeed: " +
+                                 resp.error);
+    }
+    if (observer.calls != 1u || observer.applied_batches != 1u ||
+        observer.applied_ops != 1u) {
+        throw std::runtime_error("skip+apply observer counts incorrect");
+    }
+    if (observer.affected_dbi_names.size() != 1u ||
+        observer.affected_dbi_names[0] != "applied_table") {
+        throw std::runtime_error(
+            "skipped batch DBI names leaked into observer event");
+    }
+
+    if (!conn->remove_sync_apply_observer(token)) {
+        throw std::runtime_error("failed to remove observer");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
+void test_sync_apply_observer_reports_clear_and_delete_dbi_names() {
+    using namespace mdbxc;
+    const std::string p = "test_sync_apply_observer_dbi_clear_delete.mdbx";
+    cleanup(p);
+
+    auto conn = open_env(p);
+    sync::SyncEngine engine(conn);
+    engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+
+    CountingApplyObserver observer;
+    const std::uint64_t token = conn->add_sync_apply_observer(&observer);
+
+    const sync::NodeId origin = make_node(0x20);
+    sync::ChangeBatch batch;
+    batch.origin_node_id = origin;
+    batch.seq = 1;
+
+    sync::ChangeOp put;
+    put.op_type = sync::ChangeOpType::Put;
+    put.dbi_name = "mixed_table";
+    put.storage_key = { 0x61 };
+    put.value = { 0x71 };
+    batch.ops.push_back(put);
+
+    sync::ChangeOp clear;
+    clear.op_type = sync::ChangeOpType::ClearTable;
+    clear.dbi_name = "cleared_table";
+    batch.ops.push_back(clear);
+
+    sync::ChangeOp del;
+    del.op_type = sync::ChangeOpType::Delete;
+    del.dbi_name = "mixed_table";
+    del.storage_key = { 0x61 };
+    batch.ops.push_back(del);
+
+    sync::PushRequest req;
+    req.sender = origin;
+    req.db_id = make_node(0xD0);
+    req.batches.push_back(batch);
+
+    const sync::PushResponse resp = engine.handle_push(req);
+    if (!resp.ok) {
+        throw std::runtime_error("mixed op push should succeed: " +
+                                 resp.error);
+    }
+    if (observer.calls != 1u || observer.applied_batches != 1u ||
+        observer.applied_ops != 3u) {
+        throw std::runtime_error("mixed op observer counts incorrect");
+    }
+    if (observer.affected_dbi_names.size() != 2u ||
+        observer.affected_dbi_names[0] != "mixed_table" ||
+        observer.affected_dbi_names[1] != "cleared_table") {
+        throw std::runtime_error(
+            "ClearTable/Delete DBI names were not reported correctly");
+    }
+
+    if (!conn->remove_sync_apply_observer(token)) {
+        throw std::runtime_error("failed to remove observer");
+    }
+
+    conn->disconnect();
+    cleanup(p);
+}
+
 void test_engine_push_multi_batch_gap_reports_persistent_cursor() {
     using namespace mdbxc;
     const std::string p = "test_engine_push_multi_batch_gap_cursor.mdbx";
@@ -1340,6 +1502,8 @@ void test_engine_push_multi_batch_gap_reports_persistent_cursor() {
     auto conn = open_env(p);
     sync::SyncEngine engine(conn);
     engine.initialize_local_identity(make_node(0x10), make_node(0xD0));
+    CountingApplyObserver observer;
+    const std::uint64_t token = conn->add_sync_apply_observer(&observer);
 
     auto make_batch = [](std::uint64_t seq) {
         sync::ChangeBatch b;
@@ -1372,12 +1536,21 @@ void test_engine_push_multi_batch_gap_reports_persistent_cursor() {
     if (engine.applied_cursor().last_seq_for(make_node(0x20)) != 0u) {
         throw std::runtime_error("multi-batch gap advanced persistent cursor");
     }
+    if (observer.calls != 0u || observer.applied_batches != 0u ||
+        !observer.affected_dbi_names.empty()) {
+        throw std::runtime_error(
+            "rolled-back multi-batch gap notified apply observer");
+    }
     {
         KeyValueTable<std::uint8_t, std::uint8_t> t(conn, "t");
         if (kv_has(conn, t, static_cast<std::uint8_t>(1)) ||
             kv_has(conn, t, static_cast<std::uint8_t>(3))) {
             throw std::runtime_error("multi-batch gap committed partial data");
         }
+    }
+
+    if (!conn->remove_sync_apply_observer(token)) {
+        throw std::runtime_error("failed to remove observer");
     }
 
     conn->disconnect();
@@ -2047,6 +2220,12 @@ int main() {
           &test_sync_apply_observer_remove_waits_for_in_flight_callback },
         { "test_sync_apply_observer_reports_unique_dbi_names",
           &test_sync_apply_observer_reports_unique_dbi_names },
+        { "test_sync_apply_observer_reports_dbi_names_across_batches",
+          &test_sync_apply_observer_reports_dbi_names_across_batches },
+        { "test_sync_apply_observer_ignores_skipped_batch_dbi_names",
+          &test_sync_apply_observer_ignores_skipped_batch_dbi_names },
+        { "test_sync_apply_observer_reports_clear_delete_dbi_names",
+          &test_sync_apply_observer_reports_clear_and_delete_dbi_names },
         { "test_engine_push_multi_batch_gap_cursor",&test_engine_push_multi_batch_gap_reports_persistent_cursor },
         { "test_engine_handle_pull_wrong_db_id",&test_engine_handle_pull_wrong_db_id },
         { "test_engine_rejects_full_snapshot_request",
