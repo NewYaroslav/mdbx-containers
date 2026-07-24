@@ -172,10 +172,6 @@ namespace mdbxc {
 
 #   if MDBXC_SYNC_ENABLED
     inline void Connection::attach_sync_capture(sync::ISyncCaptureSink* sink) {
-        if (sink != nullptr && !sink->supports_change_capture()) {
-            throw std::invalid_argument(
-                "Connection::attach_sync_capture sink does not implement change capture");
-        }
         std::lock_guard<std::mutex> locker(m_mdbx_mutex);
         m_sync_capture = sink;
         m_sync_capture_token = ++m_next_sync_capture_token;
@@ -318,9 +314,14 @@ namespace mdbxc {
         if (thread_txn() == txn) {
             return;
         }
+        const MDBX_txn_flags_t flags = mdbx_txn_flags(txn);
+        if ((static_cast<int>(flags) &
+             static_cast<int>(MDBX_TXN_RDONLY)) != 0) {
+            return;
+        }
         throw std::logic_error(
             std::string(context) +
-            " cannot use caller-created raw MDBX_txn* while sync capture is attached; "
+            " cannot use caller-created raw writable MDBX_txn* while sync capture is attached; "
             "use mdbx_containers::Transaction or Connection::begin()/commit()");
     }
 

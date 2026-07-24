@@ -8,6 +8,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -24,10 +25,6 @@ public:
     mutable std::mutex m_mutex;
     std::vector<mdbxc::sync::ChangeOp> m_recorded;
     std::vector<mdbxc::sync::ChangeBatch> m_flushed;
-
-    bool supports_change_capture() const override {
-        return true;
-    }
 
     void record_change(MDBX_txn* txn,
                        const std::string& dbi_name,
@@ -59,13 +56,9 @@ public:
     }
 };
 
-class FullChangeSink : public mdbxc::sync::ISyncCaptureSink {
+class FullChangeSink : public mdbxc::sync::FullChangeSyncCaptureSink {
 public:
     std::vector<mdbxc::sync::ChangeOp> m_recorded;
-
-    bool supports_change_capture() const override {
-        return true;
-    }
 
     void record_change(MDBX_txn* txn,
                        const mdbxc::sync::ChangeOp& change) override {
@@ -78,13 +71,9 @@ public:
     }
 };
 
-class ThrowingChangeSink : public mdbxc::sync::ISyncCaptureSink {
+class ThrowingChangeSink : public mdbxc::sync::FullChangeSyncCaptureSink {
 public:
     int flush_calls = 0;
-
-    bool supports_change_capture() const override {
-        return true;
-    }
 
     void record_change(MDBX_txn* txn,
                        const mdbxc::sync::ChangeOp& change) override {
@@ -99,16 +88,12 @@ public:
     }
 };
 
-class ThrowOnceFlushSink : public mdbxc::sync::ISyncCaptureSink {
+class ThrowOnceFlushSink : public mdbxc::sync::FullChangeSyncCaptureSink {
 public:
     int record_calls = 0;
     int flush_calls = 0;
     bool consume_before_throw = false;
     std::vector<mdbxc::sync::ChangeOp> pending;
-
-    bool supports_change_capture() const override {
-        return true;
-    }
 
     void record_change(MDBX_txn* txn,
                        const mdbxc::sync::ChangeOp& change) override {
@@ -1413,9 +1398,9 @@ void test_raw_external_transaction_rejected_while_capture_attached() {
     cleanup(p);
 }
 
-void test_incomplete_capture_sink_rejected_on_attach() {
+void test_raw_read_only_transaction_allowed_while_capture_attached() {
     using namespace mdbxc;
-    const std::string p = "test_capture_incomplete_sink.mdbx";
+    const std::string p = "test_capture_raw_read_only_txn_allowed.mdbx";
     cleanup(p);
 
     Config cfg;
@@ -1424,20 +1409,60 @@ void test_incomplete_capture_sink_rejected_on_attach() {
     cfg.no_subdir = true;
     auto conn = Connection::create(cfg);
 
-    FlushOnlySink sink;
-    bool rejected = false;
-    try {
-        conn->attach_sync_capture(&sink);
-    } catch (const std::invalid_argument&) {
-        rejected = true;
-    }
-    if (!rejected) {
-        throw std::runtime_error(
-            "flush-only capture sink was accepted");
-    }
+    KeyValueTable<int, int> table(conn, "data");
+    table.insert_or_assign(1, 100);
+    table.insert_or_assign(2, 200);
+    table.insert_or_assign(3, 300);
 
+    StubSink sink;
+    conn->attach_sync_capture(&sink);
+
+    MDBX_txn* raw = nullptr;
+    check_mdbx(
+        mdbx_txn_begin(conn->env_handle(),
+                       nullptr,
+                       MDBX_TXN_RDONLY,
+                       &raw),
+        "failed to begin raw read-only transaction");
+
+    try {
+        int value = 0;
+        if (!table.try_get(1, value, raw) || value != 100) {
+            throw std::runtime_error(
+                "raw read-only transaction failed point lookup");
+        }
+        if (!table.contains(2, raw)) {
+            throw std::runtime_error(
+                "raw read-only transaction failed contains");
+        }
+        if (!table.contains_range(1, 3, raw)) {
+            throw std::runtime_error(
+                "raw read-only transaction failed contains_range");
+        }
+        if (table.count(raw) != 3u) {
+            throw std::runtime_error(
+                "raw read-only transaction failed count");
+        }
+        const std::map<int, int> pairs =
+            table.range(1, 3, raw);
+        if (pairs.size() != 3u) {
+            throw std::runtime_error(
+                "raw read-only transaction failed range scan");
+        }
+    } catch (...) {
+        mdbx_txn_abort(raw);
+        throw;
+    }
+    mdbx_txn_abort(raw);
+
+    conn->detach_sync_capture();
     conn->disconnect();
     cleanup(p);
+}
+
+void test_flush_only_capture_sink_is_abstract() {
+    static_assert(std::is_abstract<FlushOnlySink>::value,
+                  "flush-only capture sink must be abstract");
 }
 
 void test_changelog_capture_roundtrip() {
@@ -1840,8 +1865,10 @@ int main(int argc, char** argv) {
           &test_partial_capture_flush_failure_blocks_commit_retry },
         { "test_raw_external_transaction_rejected_while_capture_attached",
           &test_raw_external_transaction_rejected_while_capture_attached },
-        { "test_incomplete_capture_sink_rejected_on_attach",
-          &test_incomplete_capture_sink_rejected_on_attach },
+        { "test_raw_read_only_transaction_allowed_while_capture_attached",
+          &test_raw_read_only_transaction_allowed_while_capture_attached },
+        { "test_flush_only_capture_sink_is_abstract",
+          &test_flush_only_capture_sink_is_abstract },
         { "test_any_value_table_does_not_capture_in_v01",
           &test_any_value_table_does_not_capture_in_v01 },
         { "test_key_multi_value_table_does_not_capture_in_v01",

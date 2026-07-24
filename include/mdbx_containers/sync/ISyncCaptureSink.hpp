@@ -35,14 +35,6 @@ namespace sync {
     public:
         virtual ~ISyncCaptureSink() = default;
 
-        /// \brief Returns whether this sink implements a capture dispatch path.
-        /// \details \c Connection::attach_sync_capture() rejects sinks that do
-        /// not opt in here, so a type that only implements \c flush_in_txn()
-        /// fails at attachment time instead of after a user-table write.
-        virtual bool supports_change_capture() const {
-            return false;
-        }
-
         /// \brief Called by \c BaseTable after a successful user-table write.
         /// \param txn The active MDBX write transaction that performed the
         ///        change.
@@ -81,15 +73,7 @@ namespace sync {
                                    ChangeOpType op_type,
                                    std::uint32_t dbi_flags,
                                    const std::vector<std::uint8_t>& storage_key,
-                                   const std::vector<std::uint8_t>& value) {
-            (void)txn;
-            (void)dbi_name;
-            (void)op_type;
-            (void)dbi_flags;
-            (void)storage_key;
-            (void)value;
-            throw std::logic_error("ISyncCaptureSink::record_change is not implemented");
-        }
+                                   const std::vector<std::uint8_t>& value) = 0;
 
         /// \brief Called by \c Transaction::commit() before the actual commit.
         /// \param txn The about-to-commit write transaction.
@@ -107,6 +91,32 @@ namespace sync {
         virtual void discard_txn(MDBX_txn* txn) noexcept {
             (void)txn;
         }
+    };
+
+    /// \brief Adapter base for sinks that want to implement only the full
+    ///        \c ChangeOp entry point.
+    /// \details The legacy raw-field overload is still the abstract compatibility
+    /// contract of \c ISyncCaptureSink. Derive from this helper when new code
+    /// wants every raw-shaped operation converted into a \c ChangeOp object.
+    class FullChangeSyncCaptureSink : public ISyncCaptureSink {
+    public:
+        void record_change(MDBX_txn* txn,
+                           const std::string& dbi_name,
+                           ChangeOpType op_type,
+                           std::uint32_t dbi_flags,
+                           const std::vector<std::uint8_t>& storage_key,
+                           const std::vector<std::uint8_t>& value) override {
+            ChangeOp op;
+            op.op_type = op_type;
+            op.dbi_flags = dbi_flags;
+            op.dbi_name = dbi_name;
+            op.storage_key = storage_key;
+            op.value = value;
+            record_change(txn, op);
+        }
+
+        void record_change(MDBX_txn* txn,
+                           const ChangeOp& change) override = 0;
     };
 
 } // namespace sync

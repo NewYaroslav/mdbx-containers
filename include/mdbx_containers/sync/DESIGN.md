@@ -588,7 +588,8 @@ Application integration contract:
   pre-commit hook;
 - `BaseTable::record_op()` constructs a full `ChangeOp` and forwards it through
   `ISyncCaptureSink::record_change(txn, change)`. The older raw-field overload
-  is a compatibility adapter for existing custom sinks;
+  remains the source-compatible abstract sink contract for existing custom
+  sinks; new full-`ChangeOp` sinks may derive from `FullChangeSyncCaptureSink`;
 - choose the scope helper for bounded write phases owned by one stack frame;
   choose explicit attach/detach only for a wider component lifecycle where the
   caller can prove no concurrent table operation or active transaction races

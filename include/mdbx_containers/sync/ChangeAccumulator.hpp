@@ -50,10 +50,6 @@ namespace sync {
               m_meta(m_env),
               m_change_log(m_env) {}
 
-        bool supports_change_capture() const override {
-            return true;
-        }
-
         void record_change(MDBX_txn* txn, const ChangeOp& change) override {
             txn = checked_txn_env(txn, m_env, "ThreadLocalChangeAccumulator::record_change");
             std::lock_guard<std::mutex> lk(m_mutex);

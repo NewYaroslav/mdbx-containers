@@ -159,10 +159,6 @@ class NodeSessionCaptureSink : public mdbxc::sync::ISyncCaptureSink {
 public:
     NodeSessionCaptureSink() : m_records(0), m_flushes(0), m_discards(0) {}
 
-    bool supports_change_capture() const override {
-        return true;
-    }
-
     void record_change(MDBX_txn* txn,
                        const std::string& dbi_name,
                        mdbxc::sync::ChangeOpType op_type,
